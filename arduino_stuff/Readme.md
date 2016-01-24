@@ -1,4 +1,5 @@
 # ESP8266 
 
-- [Serial Commands](http://wiki.iteadstudio.com/images/5/5f/ESP8266_AT_Test.png)
+- [Commands](http://wiki.iteadstudio.com/ESP8266_Serial_WIFI_Module)
 - [How To Use the ESP8266 and Arduino as a Webserver](http://allaboutee.com/2014/12/30/esp8266-and-arduino-webserver/)
+- [ESP8266 is an autonomous board](http://makezine.com/2015/04/01/esp8266-5-microcontroller-wi-fi-now-arduino-compatible/)
