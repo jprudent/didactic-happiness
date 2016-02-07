@@ -1,0 +1,230 @@
+
+ch13:     file format elf32-i386
+
+
+Disassembly of section .text:
+
+08048060 <.text>:
+ 8048060:	eb 01                	jmp    0x8048063
+ 8048062:	e8 b8 30 00 00       	call   0x804b11f
+ 8048067:	00 bb 05 00 00 00    	add    %bh,0x5(%ebx)
+ 804806d:	b9 e2 80 04 08       	mov    $0x80480e2,%ecx
+ 8048072:	cd 80                	int    $0x80
+ 8048074:	eb 01                	jmp    0x8048077
+ 8048076:	ce                   	into   
+ 8048077:	cc                   	int3   
+ 8048078:	eb 01                	jmp    0x804807b
+ 804807a:	eb b8                	jmp    0x8048034
+ 804807c:	30 00                	xor    %al,(%eax)
+ 804807e:	00 00                	add    %al,(%eax)
+ 8048080:	bb 05 00 00 00       	mov    $0x5,%ebx
+ 8048085:	b9 94 81 04 08       	mov    $0x8048194,%ecx
+ 804808a:	cd 80                	int    $0x80
+ 804808c:	eb 01                	jmp    0x804808f
+ 804808e:	e8 cc eb 01 ce       	call   0xd6066c5f
+ 8048093:	b8 30 00 00 00       	mov    $0x30,%eax
+ 8048098:	bb 05 00 00 00       	mov    $0x5,%ebx
+ 804809d:	b9 04 81 04 08       	mov    $0x8048104,%ecx
+ 80480a2:	cd 80                	int    $0x80
+ 80480a4:	eb 01                	jmp    0x80480a7
+ 80480a6:	eb cc                	jmp    0x8048074
+ 80480a8:	eb 01                	jmp    0x80480ab
+ 80480aa:	e8 b8 30 00 00       	call   0x804b167
+ 80480af:	00 bb 05 00 00 00    	add    %bh,0x5(%ebx)
+ 80480b5:	b9 38 81 04 08       	mov    $0x8048138,%ecx
+ 80480ba:	cd 80                	int    $0x80
+ 80480bc:	eb 01                	jmp    0x80480bf
+ 80480be:	ce                   	into   
+ 80480bf:	cc                   	int3   
+ 80480c0:	eb 01                	jmp    0x80480c3
+ 80480c2:	eb b8                	jmp    0x804807c
+ 80480c4:	30 00                	xor    %al,(%eax)
+ 80480c6:	00 00                	add    %al,(%eax)
+ 80480c8:	bb 05 00 00 00       	mov    $0x5,%ebx
+ 80480cd:	b9 49 81 04 08       	mov    $0x8048149,%ecx
+ 80480d2:	cd 80                	int    $0x80
+ 80480d4:	eb 01                	jmp    0x80480d7
+ 80480d6:	e8 cc eb 01 e8       	call   0xf0066ca7
+ 80480db:	b8 01 00 00 00       	mov    $0x1,%eax
+ 80480e0:	cd 80                	int    $0x80
+ 80480e2:	b8 04 81 04 08       	mov    $0x8048104,%eax
+ 80480e7:	eb 18                	jmp    0x8048101
+ 80480e9:	3d e8 82 04 08       	cmp    $0x80482e8,%eax
+ 80480ee:	74 13                	je     0x8048103
+ 80480f0:	eb 01                	jmp    0x80480f3
+ 80480f2:	e8 81 30 c1 8f       	call   0x97c5b178
+ 80480f7:	04 08                	add    $0x8,%al
+ 80480f9:	83 c0 04             	add    $0x4,%eax
+ 80480fc:	eb 01                	jmp    0x80480ff
+ 80480fe:	eb eb                	jmp    0x80480eb
+ 8048100:	e8 eb e6 c3 7a       	call   0x82c867f0
+ 8048105:	8e 04 08             	mov    (%eax,%ecx,1),%es
+ 8048108:	c1                   	(bad)  
+ 8048109:	36 39 8a c5 87 be 1c 	cmp    %ecx,%ss:0x1cbe87c5(%edx)
+ 8048110:	c1 8f 04 e0 74 8f 04 	rorl   $0x4,-0x708b1ffc(%edi)
+ 8048117:	08 7a 8f             	or     %bh,-0x71(%edx)
+ 804811a:	04 08                	add    $0x8,%al
+ 804811c:	c1                   	(bad)  
+ 804811d:	36 55                	ss push %ebp
+ 804811f:	8a c5                	mov    %ch,%al
+ 8048121:	87 be 88 c1 8f 04    	xchg   %edi,0x48fc188(%esi)
+ 8048127:	e0 68                	loopne 0x8048191
+ 8048129:	8f 04 08             	popl   (%eax,%ecx,1)
+ 804812c:	7a de                	jp     0x804810c
+ 804812e:	86 0c c9             	xchg   %cl,(%ecx,%ecx,8)
+ 8048131:	8e c7                	mov    %edi,%es
+ 8048133:	43                   	inc    %ebx
+ 8048134:	07                   	pop    %es
+ 8048135:	8c 04 cb             	mov    %es,(%ebx,%ecx,8)
+ 8048138:	79 de                	jns    0x8048118
+ 804813a:	86 0c c9             	xchg   %cl,(%ecx,%ecx,8)
+ 804813d:	0f 3c                	(bad)  
+ 804813f:	08 b5 89 84 38 3d    	or     %dh,0x3d388489(%ebp)
+ 8048145:	cf                   	iret   
+ 8048146:	ef                   	out    %eax,(%dx)
+ 8048147:	fd                   	std    
+ 8048148:	02 37                	add    (%edi),%dh
+ 804814a:	55                   	push   %ebp
+ 804814b:	8a c5                	mov    %ch,%al
+ 804814d:	87 bf d9 43 8b 0c    	xchg   %edi,0xc8b43d9(%edi)
+ 8048153:	82                   	(bad)  
+ 8048154:	c9                   	leave  
+ 8048155:	b5 0f                	mov    $0xf,%ch
+ 8048157:	7d c8                	jge    0x8048121
+ 8048159:	0f fd 08             	paddw  (%eax),%mm1
+ 804815c:	b5 92                	mov    $0x92,%ch
+ 804815e:	44                   	inc    %esp
+ 804815f:	4b                   	dec    %ebx
+ 8048160:	2a 7e bf             	sub    -0x41(%esi),%bh
+ 8048163:	09 c1                	or     %eax,%ecx
+ 8048165:	8f 04 b1             	popl   (%ecx,%esi,4)
+ 8048168:	c6                   	(bad)  
+ 8048169:	0d 00 00 7b 99       	or     $0x997b0000,%eax
+ 804816e:	04 08                	add    $0x8,%al
+ 8048170:	c1 67 53 08          	shll   $0x8,0x53(%edi)
+ 8048174:	c1 8f ec 6a c1 8f 04 	rorl   $0x4,-0x703e9514(%edi)
+ 804817b:	b3 c0                	mov    $0xc0,%bl
+ 804817d:	8f 04 08             	popl   (%eax,%ecx,1)
+ 8048180:	78 6b                	js     0x80481ed
+ 8048182:	85 0c c9             	test   %ecx,(%ecx,%ecx,8)
+ 8048185:	35 27 08 c1 8f       	xor    $0x8fc10827,%eax
+ 804818a:	ec                   	in     (%dx),%al
+ 804818b:	36 c1 8f 04 e0 88 8f 	rorl   $0x4,%ss:-0x70771ffc(%edi)
+ 8048192:	04 
+ 8048193:	08 f0                	or     %dh,%al
+ 8048195:	4f                   	dec    %edi
+ 8048196:	bf 68 41 8b 0c       	mov    $0xc8b4168,%edi
+ 804819b:	89 3a                	mov    %edi,(%edx)
+ 804819d:	6b 86 0c c9 fb 03 3b 	imul   $0x3b,0x3fbc90c(%esi),%eax
+ 80481a4:	c2 0c c7             	ret    $0xc70c
+ 80481a7:	0c 2a                	or     $0x2a,%al
+ 80481a9:	7e bf                	jle    0x804816a
+ 80481ab:	ec                   	in     (%dx),%al
+ 80481ac:	43                   	inc    %ebx
+ 80481ad:	8b 0c 33             	mov    (%ebx,%esi,1),%ecx
+ 80481b0:	c2 fb 1d             	ret    $0x1dfb
+ 80481b3:	b3 c0                	mov    $0xc0,%bl
+ 80481b5:	8f 04 08             	popl   (%eax,%ecx,1)
+ 80481b8:	78 92                	js     0x804814c
+ 80481ba:	86 0c c9             	xchg   %cl,(%ecx,%ecx,8)
+ 80481bd:	35 24 08 c1 8f       	xor    $0x8fc10824,%eax
+ 80481c2:	ec                   	in     (%dx),%al
+ 80481c3:	0e                   	push   %cs
+ 80481c4:	c1 8f 04 e0 d0 8f 04 	rorl   $0x4,-0x702f1ffc(%edi)
+ 80481cb:	08 02                	or     %al,(%edx)
+ 80481cd:	37                   	aaa    
+ 80481ce:	00 08                	add    %cl,(%eax)
+ 80481d0:	c1 8f c9 88 02 37 07 	rorl   $0x7,0x370288c9(%edi)
+ 80481d7:	08 c1                	or     %al,%cl
+ 80481d9:	8f c9                	(bad)  
+ 80481db:	88 02                	mov    %al,(%edx)
+ 80481dd:	37                   	aaa    
+ 80481de:	05 08 c1 8f c9       	add    $0xc98fc108,%eax
+ 80481e3:	88 86 fd 65 7c bb    	mov    %al,-0x44839a03(%esi)
+ 80481e9:	a3 24 7c a9 e6       	mov    %eax,0xe6a97c24
+ 80481ee:	77 28                	ja     0x8048218
+ 80481f0:	a8 fc                	test   $0xfc,%al
+ 80481f2:	24 7c                	and    $0x7c,%al
+ 80481f4:	a9 ea 24 6f ae       	test   $0xae6f24ea,%eax
+ 80481f9:	e0 60                	loopne 0x804825b
+ 80481fb:	28 b1 ee 77 7b b6    	sub    %dh,-0x49848812(%ecx)
+ 8048201:	e0 76                	loopne 0x8048279
+ 8048203:	6c                   	insb   (%dx),%es:(%edi)
+ 8048204:	e1 ae                	loope  0x80481b4
+ 8048206:	0e                   	push   %cs
+ 8048207:	4a                   	dec    %edx
+ 8048208:	a0 eb 24 78 a0       	mov    0xa07824eb,%al
+ 804820d:	fc                   	cld    
+ 804820e:	77 7f                	ja     0x804828f
+ 8048210:	ae                   	scas   %es:(%edi),%al
+ 8048211:	fd                   	std    
+ 8048212:	60                   	pusha  
+ 8048213:	24 e1                	and    $0xe1,%al
+ 8048215:	fc                   	cld    
+ 8048216:	6b 7a b3 f6          	imul   $0xfffffff6,-0x4d(%edx),%edi
+ 804821a:	24 29                	and    $0x29,%al
+ 804821c:	cb                   	lret   
+ 804821d:	de 51 41             	ficom  0x41(%ecx)
+ 8048220:	95                   	xchg   %eax,%ebp
+ 8048221:	af                   	scas   %es:(%edi),%eax
+ 8048222:	25 28 84 f7 61       	and    $0x61f78428,%eax
+ 8048227:	6b b4 fb 65 6a ad ea 	imul   $0x24,-0x1552959b(%ebx,%edi,8),%esi
+ 804822e:	24 
+ 804822f:	61                   	popa   
+ 8048230:	b2 af                	mov    $0xaf,%dl
+ 8048232:	69 67 a5 e6 62 61 a4 	imul   $0xa46162e6,-0x5b(%edi),%esp
+ 8048239:	eb 24                	jmp    0x804825f
+ 804823b:	29 cb                	sub    %ecx,%ebx
+ 804823d:	ca 6a 7c             	lret   $0x7c6a
+ 8048240:	a4                   	movsb  %ds:(%esi),%es:(%edi)
+ 8048241:	fd                   	std    
+ 8048242:	24 7c                	and    $0x7c,%al
+ 8048244:	a9 ea 24 78 a0       	test   $0xa07824ea,%eax
+ 8048249:	fc                   	cld    
+ 804824a:	77 7f                	ja     0x80482cb
+ 804824c:	ae                   	scas   %es:(%edi),%al
+ 804824d:	fd                   	std    
+ 804824e:	60                   	pusha  
+ 804824f:	32 e1                	xor    %cl,%ah
+ 8048251:	8f 04 08             	popl   (%eax,%ecx,1)
+ 8048254:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 804825b:	08 c1                	or     %al,%cl
+ 804825d:	8f 04 08             	popl   (%eax,%ecx,1)
+ 8048260:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 8048267:	08 c1                	or     %al,%cl
+ 8048269:	8f 04 08             	popl   (%eax,%ecx,1)
+ 804826c:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 8048273:	08 c1                	or     %al,%cl
+ 8048275:	8f 04 08             	popl   (%eax,%ecx,1)
+ 8048278:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 804827f:	08 c1                	or     %al,%cl
+ 8048281:	8f 04 08             	popl   (%eax,%ecx,1)
+ 8048284:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 804828b:	08 c1                	or     %al,%cl
+ 804828d:	8f 04 08             	popl   (%eax,%ecx,1)
+ 8048290:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 8048297:	08 c1                	or     %al,%cl
+ 8048299:	8f 04 08             	popl   (%eax,%ecx,1)
+ 804829c:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 80482a3:	08 c1                	or     %al,%cl
+ 80482a5:	8f 04 08             	popl   (%eax,%ecx,1)
+ 80482a8:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 80482af:	08 c1                	or     %al,%cl
+ 80482b1:	8f 04 08             	popl   (%eax,%ecx,1)
+ 80482b4:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 80482bb:	08 c1                	or     %al,%cl
+ 80482bd:	8f 04 08             	popl   (%eax,%ecx,1)
+ 80482c0:	c1 8f 04 08 c1 8f 04 	rorl   $0x4,-0x703ef7fc(%edi)
+ 80482c7:	08 c1                	or     %al,%cl
+ 80482c9:	8f 04 08             	popl   (%eax,%ecx,1)
+ 80482cc:	c1 8f 04 08 c1 2a cb 	rorl   $0xcb,0x2ac10804(%edi)
+ 80482d3:	95                   	xchg   %eax,%ebp
+ 80482d4:	75 52                	jne    0x8048328
+ 80482d6:	8c bc 54 20 91 a7 49 	mov    %?,0x49a79120(%esp,%edx,2)
+ 80482dd:	3b cb                	cmp    %ebx,%ecx
+ 80482df:	9f                   	lahf   
+ 80482e0:	78 0a                	js     0x80482ec
+ 80482e2:	d9 08                	(bad)  (%eax)
+ 80482e4:	cb                   	lret   
+ 80482e5:	e0 5e                	loopne 0x8048345
+ 80482e7:	76                   	.byte 0x76
