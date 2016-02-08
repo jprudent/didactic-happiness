@@ -1,0 +1,7 @@
+0xFFFFD961 = input
+80485a5: input sur la stack
+0xFFFFC6E0 = copy input
+
+0xFFFFC660 = ???
+,0x8049960 = THEPASSWORDISEASYTOCRACK
+call 804851c

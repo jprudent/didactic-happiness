@@ -1,0 +1,73 @@
+
+ch20.bin:     file format elf32-i386
+
+
+Disassembly of section .text:
+
+08048080 <.text>:
+// print message
+ 8048080:	b8 04 00 00 00       	mov    $0x4,%eax
+ 8048085:	bb 01 00 00 00       	mov    $0x1,%ebx
+ 804808a:	b9 a1 91 04 08       	mov    $0x80491a1,%ecx
+ 804808f:	ba 26 00 00 00       	mov    $0x26,%edx
+ 8048094:	cd 80                	int    $0x80
+
+// read user input
+ 8048096:	b8 03 00 00 00       	mov    $0x3,%eax
+ 804809b:	31 db                	xor    %ebx,%ebx
+ 804809d:	b9 88 91 04 08       	mov    $0x8049188,%ecx
+ 80480a2:	ba 33 00 00 00       	mov    $0x33,%edx
+ 80480a7:	cd 80                	int    $0x80
+
+ 80480a9:	31 c9                	xor    %ecx,%ecx
+ 80480ab:	b8 80 80 04 08       	mov    $0x8048080,%eax // start offset of program
+ 80480b0:	bb 23 81 04 08       	mov    $0x8048123,%ebx // end offset of progam
+ 80480b5:	e8 5b 00 00 00       	call   0x8048115 // calcul
+ 
+ 80480ba:	89 ca                	mov    %ecx,%edx // ecx (checksum) ; edx = checksum 0x1477E161
+ 80480bc:	b9 19 00 00 00       	mov    $0x19,%ecx // ecx = 25
+
+ loop:
+ 80480c1:	b8 55 91 04 08       	mov    $0x8049155,%eax // MAGIC 
+ 80480c6:	bb 88 91 04 08       	mov    $0x8049188,%ebx // ebx = user password
+ 80480cb:	d1 ca                	ror    %edx  // edx = edx ror 1
+ 80480cd:	8a 44 08 ff          	mov    -0x1(%eax,%ecx,1),%al // al = MAGIC[ecx-1]
+ 80480d1:	8a 5c 0b ff          	mov    -0x1(%ebx,%ecx,1),%bl // bl = KEY[ecx -1]
+ 80480d5:	30 d8                	xor    %bl,%al
+ 80480d7:	30 d0                	xor    %dl,%al
+ 80480d9:	75 1b                	jne    0x80480f6 //if (dl != al) goto fail
+ 80480db:	49                   	dec    %ecx
+ 80480dc:	75 e3                	jne    0x80480c1 if(ecx != 0) goto loop
+ 
+success:
+ 80480de:	b8 04 00 00 00       	mov    $0x4,%eax
+ 80480e3:	bb 01 00 00 00       	mov    $0x1,%ebx
+ 80480e8:	b9 24 91 04 08       	mov    $0x8049124,%ecx
+ 80480ed:	ba 26 00 00 00       	mov    $0x26,%edx
+ 80480f2:	cd 80                	int    $0x80
+
+ 80480f4:	eb 16                	jmp    0x804810c // exit()
+
+ failed:
+ 80480f6:	b8 04 00 00 00       	mov    $0x4,%eax
+ 80480fb:	bb 01 00 00 00       	mov    $0x1,%ebx
+ 8048100:	b9 4a 91 04 08       	mov    $0x804914a,%ecx
+ 8048105:	ba 0b 00 00 00       	mov    $0xb,%edx
+ 804810a:	cd 80                	int    $0x80
+
+ exit:
+ 804810c:	b8 01 00 00 00       	mov    $0x1,%eax // exit
+ 8048111:	31 db                	xor    %ebx,%ebx
+ 8048113:	cd 80                	int    $0x80
+
+ calcul:
+ 8048115:	29 c3                	sub    %eax,%ebx // ebx = taille du programme
+ 8048117:	31 c9                	xor    %ecx,%ecx // ecx = 0
+
+ loop:
+ 8048119:	02 08                	add    (%eax),%cl // ecx = ecx + opcode @eax
+ 804811b:	c1 c1 03             	rol    $0x3,%ecx // ecx = rol ecx 3
+ 804811e:	40                   	inc    %eax  // eax++
+ 804811f:	4b                   	dec    %ebx  // ebx--
+ 8048120:	75 f7                	jne    0x8048119 if(ebx != 0) goto loop 
+ 8048122:	c3                   	ret    

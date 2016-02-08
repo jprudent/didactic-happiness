@@ -1,0 +1,9 @@
+0x8048b60: apres input
+taille du buffer : 0x54
+0xffffd69c:	"azerty\n"
+0x8048e4c: push input sur stack
+
+8048bce: apres malloc ok
+
+0xfffed69d:	"38583489_VQLGE_TQPTYD_KJTIV_"
+

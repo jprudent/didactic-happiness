@@ -1,0 +1,4 @@
+set $eax=0
+set *(unsigned char*)0x8048497=0x90
+ksuiealohgy
+easy
