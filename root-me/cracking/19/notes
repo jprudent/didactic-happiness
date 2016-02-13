@@ -1,0 +1,124 @@
+0x8049110: button handler
+0x8049145: routine pour vérifier si on est dans un debugger 
+(verif des timestamps)
+0x8049164: verif que le temps mis à s'exécuter est < 0x3000
+0x804919b: encore une verif
+0x80491fd: là ou on va qd on est en debug
+0x804921d: encore une verif
+0x80492f1: encore une verif
+
+EBX: 0x08087580
+0x8049311: verif que le nom > 3
+
+0x080842C8 contient le mdp
+0x804933f: transform le mdp en base 10
+
+/* strtoull example */
+#include <stdio.h>      /* printf, NULL */
+#include <stdlib.h>     /* strtoull */
+
+int main ()
+{
+  char szNumbers[] = "250068492 7b06af00 1100011011110101010001100000 0x6fffff";
+  char * pEnd;
+  unsigned long long int ulli1, ulli2, ulli3, ulli4;
+  ulli1 = strtoull (szNumbers, &pEnd, 10);
+  ulli2 = strtoull (pEnd, &pEnd, 16);
+  ulli3 = strtoull (pEnd, &pEnd, 2);
+  ulli4 = strtoull (pEnd, NULL, 0);
+  printf ("The decimal equivalents are: %llu, %llu, %llu and %llu.\n", ulli1, ulli2, ulli3, 
+ulli4);
+  return 0;
+}
+
+
+0x8049370: encore une verif
+
+0x80493ae: you loose !
+
+47806 = BABE
+
+=> 0x804933f:	call   0x8048d3c <strtoull@plt>
+   0x8049344:	mov    ecx,eax
+   0x8049346:	mov    edi,edx
+   0x8049348:	push   edx // modif par strtoull = 0
+   0x8049349:	push   eax // BABE
+   0x804934a:	push   ecx // BABE
+   0x804934b:	rdtsc  
+   0x804934d:	mov    ecx,eax
+
+essayer 
+>>> 0x2 ^ 0x7AEB540B
+2062242825
+
+=> 0x8049483:	mov    ecx,DWORD PTR [ebp-0x2c]
+   0x8049486:	xor    edx,edi // EDX=2 , EDI=0
+   0x8049488:	xor    eax,ecx // EAX: 0x7AEB540B  ECX: 0x0000BABE 
+   0x804948a:	or     edx,eax 
+   0x804948c:	jne    0x8049387
+   0x8049492:	mov    DWORD PTR [esp+0x10],0x0
+   0x804949a:	mov    DWORD PTR [esp+0xc],0x0
+   0x80494a2:	mov    DWORD PTR [esp+0x8],0x0
+
+0x8048f51: bien regarder
+
+
+0x8048f94: encore une verif
+0x8048fc4: encore une verif
+0x8048ffc: encore une verif
+0x80490dd: encore une verif
+
+Pour chaque lettre :
+sar 0x1F
+
+   |       0x08049045    31c9           xor ecx, ecx                    edi = 2                                
+   |       0x08049047    85ff           test edi, edi                                                   
+   |       0x08049049    ba01000000     mov edx, 1                                                      
+   | ,===< 0x0804904e    744b           je 0x804909b                   ;[3]                             
+   | |     0x08049050    0fbec0         movsx eax, al // eax = caractere du nom                                                   
+   | |     0x08049053    31c9           xor ecx, ecx                                                    
+   | |     0x08049055    89c2           mov edx, eax // edx = carac                                                   
+   | |     0x08049057    31db           xor ebx, ebx                                                    
+   | |     0x08049059    c1fa1f         sar edx, 0x1f  // edx = carac sar 0x1F                                                   
+   | |     0x0804905c    8955ec         mov dword [ebp - 0x14], edx  // ebp-14=c sar 1F                                    
+   | |     0x0804905f    ba01000000     mov edx, 1                                                      
+   | |     0x08049064    8945e8         mov dword [ebp - 0x18], eax // ebp-18 = c                                     
+   | |     0x08049067    8955d8         mov dword [ebp - 0x28], edx // ebp-28 = 1                                     
+   | |     0x0804906a    894ddc         mov dword [ebp - 0x24], ecx // ebp-24 = 0                                    
+   | |     0x0804906d    8d7600         lea esi, dword [esi]                                            
+   |.----> 0x08049070    8b4de8         mov ecx, dword [ebp - 0x18] // ecx = c                                     
+   |||     0x08049073    83c301         add ebx, 1                  // ebx = 1                                    
+   |||     0x08049076    8b75ec         mov esi, dword [ebp - 0x14]  // esi = c sar 1F                                   
+   |||     0x08049079    0faf4ddc       imul ecx, dword [ebp - 0x24] // ecx = c * 0                                   
+   |||     0x0804907d    0faf75d8       imul esi, dword [ebp - 0x28] // esi = c sar 1F * 1                                  
+   |||     0x08049081    8b45e8         mov eax, dword [ebp - 0x18]  // eax = c                                        
+   |||     0x08049084    f765d8         mul dword [ebp - 0x28] // eax = c * (                                          
+   |||     0x08049087    01f1           add ecx, esi // ecx = ecx + (c sar 1F * 1)                                                   
+   |||     0x08049089    01ca           add edx, ecx                                                    
+   |||     0x0804908b    39df           cmp edi, ebx                                                    
+   |||     0x0804908d    8945d8         mov dword [ebp - 0x28], eax //c * c                                     
+   |||     0x08049090    8955dc         mov dword [ebp - 0x24], edx                                     
+   |`====< 0x08049093    77db           ja 0x8049070     // boucle conditionnée par edi, d'où 
+vient edi?                
+   | |     0x08049095    8b55d8         mov edx, dword [ebp - 0x28]                                     
+   | |     0x08049098    8b4ddc         mov ecx, dword [ebp - 0x24]                                     
+   | `---> 0x0804909b    e80b000000     call 0x80490ab                 ;[5]                            
+
+
+
+0x08084300 = name
+
+name = "Name"
+edi = 2
+
+run 2 ebp = 0xFFFFCED8
+ebp-20 = 0
+
+for c in name :
+  ebp-28 = 1
+  for cpt in [0..edi]:
+    ebp-28 = ebp-28 * chr(c)
+  ebp-20 = ebp-20 + ebp-28
+  edi = edi +1
+    
+

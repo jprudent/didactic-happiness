@@ -1,0 +1,193 @@
+0xfffe9214 password
+ecx = password
+eax = len
+suppression \n = 0
+
+eop = 0x080562c0
+
+|           0x080562c0 b  60             pushal
+|           0x080562c1    81ec0c020000   sub esp, 0x20c
+|           0x080562c7    89e6           mov esi, esp
+|       ,=< 0x080562c9    e954010000     jmp 0x8056422                
+|       |   ; CALL XREF from 0x08056422 (entry0)
+
+Print password :
+|       |   0x080562ce b  5f             pop edi
+|       |   0x080562cf    b804000000     mov eax, 4
+|       |   0x080562d4    bb01000000     mov ebx, 1
+|       |   0x080562d9    683a200000     push 0x203a
+|       |   0x080562de    68776f7264     push 0x64726f77
+|       |   0x080562e3    6850617373     push 0x73736150
+|       |   0x080562e8    89e1           mov ecx, esp
+|       |   0x080562ea    ba0a000000     mov edx, 0xa
+|       |   0x080562ef    cd80           int 0x80
+
+
+Read passord (length 0xc) in 0xfffced64 (on stack):
+;syscall[0xffffffff][-143058696]=? ; sym.imp._Jv_RegisterClasses
+|       |   0x080562f1    83c40c         add esp, 0xc
+|       |   0x080562f4    b803000000     mov eax, 3
+|       |   0x080562f9    bb00000000     mov ebx, 0
+|       |   0x080562fe    89f1           mov ecx, esi
+|       |   0x08056300    ba00020000     mov edx, 0x200                ; 512
+|       |   0x08056305    cd80           int 0x80 
+;syscall[0xffffffff][-143058696]=? ; sym.imp._Jv_RegisterClasses
+|       |   0x08056307 b  89f3           mov ebx, esi
+|       |   0x08056309    01c3           add ebx, eax
+|       |   0x0805630b    c643ff00       mov byte [ebx - 1], 0 // ecrase \n avec un 0
+
+|    .----> 0x0805630f    833f00         cmp dword [edi], 0 // quand on a parcouru les 4 structures
+|    | ,==< 0x08056312    743c           je 0x8056350
+
+                 
+edi est un pointeur de tableau vers une structure qui fait 20 (0x1C) bytes :
+0ptrEncrypted = un tableau de taille sizeEncrypted
+4sizeEncrypted = 
+8checksum = check ptr encrypted with key is equal to checksum (taille= 12)
+???
+
+|    | ||   0x08056314    ff7704         push dword [edi + 4] // 0x7d5c
+|    | ||   0x08056317    ff37           push dword [edi]  // 0x08049210
+|    | ||   0x08056319    e83d000000     call 0x805635b  //xor - 0xaa sur 0x08049210 (cf bas)               
+;entry0(unk, unk)
+
+
+|    | ||   0x0805631e    81c600020000   add esi, 0x200 // esi = @password + 0x200
+|    | ||   0x08056324    56             push esi // un buffer 
+|    | ||   0x08056325    ff7704         push dword [edi + 4] // la taille du tableau
+|    | ||   0x08056328    ff37           push dword [edi] // le tableau xoré
+|    | ||   0x0805632a    e84f000000     call 0x805637e // réécriture à partir du xor
+
+               
+;entry0(unk, unk, unk)
+|    | ||   0x0805632f    8d4708         lea eax, dword [edi + 8]       ; 
+0x8  ; 8
+|    | ||   0x08056332    50             push eax
+|    | ||   0x08056333    56             push esi
+|    | ||   0x08056334    e87a000000     call 0x80563b3   // verif             
+;entry0(unk, unk)
+|    | ||   0x08056339    83f800         cmp eax, 
+|    |,===< 0x0805633c    0f84aa000000   je 0x80563ec  // go to Bad Password                
+|    ||||   0x08056348    83c41c         add esp, 0x1c
+|    ||||   0x0805634b    83c714         add edi, 0x14
+|    `====< 0x0805634e    ebbf           jmp 0x805630f // do it again until edi = 0
+               
+|     |`--> 0x08056350    81c40c020000   add esp, 0x20c
+|   ,=====< 0x08056356    e9c1000000     jmp 0x805641c                
+|   `-----> 0x0805641c    61             popal
+| ========< 0x0805641d    e95e36ffff     jmp 0x8049a80
+
+
+///////////////////////////////////////////////////////////////
+fonction de xor
+//////////////////////////////////////////////////////////////
+
+//////// CALL
+            0x08056314    ff7704         push dword [edi + 4]                                         
+|     | |   0x08056317    ff37           push dword [edi]                                             
+|     | |   ;-- eip:                                                                                  
+|     | |   0x08056319    e83d000000     call 0x805635b 
+
+/////// FUNCTION
+
+           0x0805635b    8b5c2404       mov ebx, dword [esp + 4]       ; [0x4:4]=-1 ; 4              
+|           0x0805635f    8b442408       mov eax, dword [esp + 8]       ; [0x8:4]=-1 ; 8              
+|           0x08056363    89f1           mov ecx, esi                                                 
+ecx = password
+eax = compteur
+ebx = tableau à encoder
+|     .---> 0x08056365    83f800         cmp eax, 0                                                   
+|     | ,=< 0x08056368    7413           je 0x805637d                  ;[1]                           
+|     | |   ;-- eip:                                                                                  
+|     | |   0x0805636a    803900         cmp byte [ecx], 0                                            
+|     |,==< 0x0805636d    7502           jne 0x8056371                 ;[2]                           
+|     |||   0x0805636f    89f1           mov ecx, esi                                                 
+|     |`--> 0x08056371    8a11           mov dl, byte [ecx]                                           
+|     | |   0x08056373    3013           xor byte [ebx], dl                                           
+|     | |   0x08056375    802baa         sub byte [ebx], 0xaa                                         
+|     | |   0x08056378    48             dec eax                                                      
+|     | |   0x08056379    43             inc ebx                                                      
+|     | |   0x0805637a    41             inc ecx                                                      
+|     `===< 0x0805637b    ebe8           jmp 0x8056365                 ;[3]  
+
+////////// TRADUCTION
+
+ebx = [0xe7, 0x6c, 0xcc, 0x6e....]
+ecx = password
+i = 0x7d5c
+while i > 0:
+  for c in ecx:
+    ebx[i] = ebx[i] ^ ord(c)
+    ebx[i] = ebx[i] - 0xaa
+    i = i + 1
+
+
+//////////////////////////////////////////////////////////
+Fonction de recalcul
+////////////////////////////////////////////////////////
+
+//////// APPEL
+
+|    | ||   0x0805631e    81c600020000   add esi, 0x200 // esi = @password + 0x200
+|    | ||   0x08056324    56             push esi // un buffer 
+|    | ||   0x08056325    ff7704         push dword [edi + 4] // la taille du tableau
+|    | ||   0x08056328    ff37           push dword [edi] // le tableau xoré
+|    | ||   0x0805632a    e84f000000     call 0x805637e // réécriture à partir du xor
+
+////////// FONCTION
+
+            0x0805637e    8b442404       mov eax, dword [esp + 4]       ; tableau xoré            
+            0x08056382    8b5c2408       mov ebx, dword [esp + 8]       ; taille du tableau            
+            0x08056386    8b4c240c       mov ecx, dword [esp + 0xc]     ; buffer         
+// zeroes buffer
+            0x0805638a    60             pushal                                                     
+            0x0805638b    6a0c           push 0xc                      ; 12                         
+            0x0805638d    51             push ecx                                                   
+            0x0805638e    e844000000     call 0x80563d7                ;[1]                         
+              ^- 0x080563d7(unk, unk, unk, unk) ; eip                                               
+            0x08056393    83c408         add esp, 8                                                 
+            0x08056396    61             popal                                                      
+
+            0x08056397    31d2           xor edx, edx // edx = compteur du buffer                                              
+// loop over xored array and compute magic number
+      .---> 0x08056399    83fb00         cmp ebx, 0                                                 
+      | ,=< 0x0805639c    7414           je 0x80563b2  // tant qu'on n'a pas parcouru le tableau en entier                        
+      | |   0x0805639e    83fa0c         cmp edx, 0xc                  ; 12                         
+      |,==< 0x080563a1    7502           jne 0x80563a5                 ;[3]                         
+      |||   0x080563a3    31d2           xor edx, edx                                               
+
+      |`--> 0x080563a5    60             pushal                                                     
+      | |   0x080563a6    8a18           mov bl, byte [eax]                                         
+      | |   0x080563a8    01ca           add edx, ecx                                               
+      | |   0x080563aa    301a           xor byte [edx], bl // buffer[edx] = buffer[edx] ^ tab[eax]                                        
+      | |   0x080563ac    61             popal                                                      
+
+      | |   0x080563ad    42             inc edx                                                    
+      | |   0x080563ae    40             inc eax                                                    
+      | |   0x080563af    4b             dec ebx                                                    
+      `===< 0x080563b0    ebe7           jmp 0x8056399                 ;[4]                         
+        `-> 0x080563b2    c3             ret                                                        
+
+1tab = [...cf ci dessus ...]
+ecx = [0 0 0 0 0 0 0 0 0 0...] #0xC
+ebx = 0x7d5c
+while ebx > 0:
+  for edx in range(0,0xc)
+    f1 = f1tab[0x7d5c - ebx]
+    ecx[edx] = ecx[edx] ^ f1
+
+//////////////////////////////////////////////
+check
+/////////////////////////////////////////////
+
+// CALL
+       |    0x0805632f b  8d4708         lea eax, dword [edi + 8]       ; 0x8  ; 8                  
+       |    0x08056332    50             push eax    // expected magic number                                               
+       |    0x08056333    56             push esi    // actual magic number                                               
+       |    0x08056334    e87a000000     call 0x80563b3                ;[1]
+
+eax = 1 => OK
+eax = 0 => KO
+                         
+
+
