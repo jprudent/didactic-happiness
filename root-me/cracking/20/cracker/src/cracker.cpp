@@ -2957,7 +2957,7 @@ unsigned char *bytes_at_pos(int pos, CodeRef code_ref) {
     return buffer;
 }
 
-unsigned char xork(unsigned char *key, size_t key_len, unsigned char *bytes_at_pos, size_t bytes_at_pos_len) {
+inline unsigned char xork(unsigned char *key, size_t key_len, unsigned char *bytes_at_pos, size_t bytes_at_pos_len) {
     unsigned char m = 0;
     for (size_t i = 0, k = 0; i < bytes_at_pos_len; i++, k = (k + 1) % key_len) {
         m ^= (unsigned char) ((bytes_at_pos[i] ^ key[k]) - 0xAA);
@@ -2989,9 +2989,6 @@ int main(void) {
             if (m != code_ref.magic[pos]) {
                 ok = false;
                 break;
-            } else {
-//                cout << "code ref " << c << "ok" << (int)m << endl;
-//                printCombination(combination);
             }
         }
         if (ok) {
