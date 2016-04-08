@@ -5,4 +5,4 @@
 (defn hex-simple [n] (format "%02x" n))
 
 (defn unsigned8 [x]
-  (if (pos? x) x (+ x 256)))
+  (if (neg? x) (+ x 256) x))

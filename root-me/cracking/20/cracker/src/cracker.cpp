@@ -2943,7 +2943,7 @@ CodeRef p2 = {
         0x7d5c,
         (unsigned char[]) { 0x35, 0xc9, 0x40, 0xe2, 0x97, 0xde, 0x83, 0x53, 0x3a, 0xb3, 0xdc, 0x98}};
 
-size_t len_bytes_at_pos(CodeRef code_ref) {
+inline size_t len_bytes_at_pos(CodeRef code_ref) {
     return (size_t) (code_ref.len / 0xC);
 }
 
@@ -2966,24 +2966,35 @@ inline unsigned char xork(unsigned char *key, size_t key_len, unsigned char *byt
 }
 
 
+void print_bytes_at_pos(unsigned char * bytes) {
+    size_t i = 0;
+    while(bytes[i] != 0) {
+        printf("%X", bytes[i]);
+    }
+    cout << endl;
+}
+
+
 int main(void) {
 
     int pos = 1;
-    CodeRef code_refs[]{p0, p1, p2};
+    CodeRef code_refs[]{p0,p1, p2};
     size_t nb_code_ref = 3;
     cout << nb_code_ref << " code refs" << endl;
     unsigned char *bytes_at_pos_code_refs[nb_code_ref]{};
     for (int i = 0; i < nb_code_ref; i++) {
         bytes_at_pos_code_refs[i] = bytes_at_pos(pos, code_refs[i]);
+        cout << "bytes at pos " << i;
+        print_bytes_at_pos(bytes_at_pos_code_refs[i]);
     }
-    const int key_len = 6;
+    const int key_len = 5;
     unsigned char *combination = makeCombination(key_len);
     long nbCombinations = pow(RANGE_COMB, lenCombination(combination));
     cout << "expected " << nbCombinations << " combinations for a key of " << lenCombination(combination) << endl;
     int totalValid = 0;
     for (long i = 0; i < nbCombinations; i++) {
         bool ok = true;
-        for (int c = 0; c < 3; c++) {
+        for (int c = 0; c < nb_code_ref; c++) {
             CodeRef code_ref = code_refs[c];
             unsigned char m = xork(combination, key_len, bytes_at_pos_code_refs[c], len_bytes_at_pos(code_ref));
             if (m != code_ref.magic[pos]) {

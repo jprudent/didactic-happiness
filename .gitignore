@@ -1,0 +1,5 @@
+.idea/
+**/*.iml
+target
+**/*.lock
+root-me/cracking/20/rusted-solver/dep-src
