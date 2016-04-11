@@ -3,7 +3,11 @@
             [hickory.render :as hr]))
 
 (defn m->hickory [m]
-  (map (fn [[k v]] {:type :element :tag k :content (str v)}) m))
+  (letfn [(v->element [[k v]]
+            {:type    :element
+             :tag     k
+             :content (if (map? v) (m->hickory v) (str v))})]
+    (map v->element m)))
 
 (defn xml-request [m]
   (hr/hickory-to-html {:type :document :content (m->hickory m)}))
