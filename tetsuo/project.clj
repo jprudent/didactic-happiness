@@ -11,7 +11,8 @@
                  [org.clojure/core.async "0.2.374"
                   :exclusions [org.clojure/tools.reader]]
                  [reagent "0.5.1"]
-                 [hickory "0.6.0"]]
+                 [hickory "0.6.0"]
+                 [cljs-http "0.1.11"]]
   
   :plugins [[lein-figwheel "0.5.2"]
             [lein-cljsbuild "1.1.3" :exclusions [[org.clojure/clojure]]]]

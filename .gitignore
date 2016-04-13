@@ -2,3 +2,6 @@
 *.iml
 **/*.iml
 **/.idea
+**/target
+**/*.log
+tetsuo/resources/public/js/compiled

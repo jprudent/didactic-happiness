@@ -30,10 +30,6 @@
 (defn extract-feeds [hick]
   (s/select (s/tag :feed) hick))
 
-(defn extract-entries [feed]
-  (s/select (s/tag :entry) feed))
-
-
 (defn parse [s]
   (hc/as-hickory (hc/parse s)))
 
