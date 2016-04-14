@@ -1,2 +1,20 @@
 /* some style */
 
+table th, td {
+    border: 1px solid black;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+ul {
+    list-style: none;
+    margin-left: 0;
+    padding-left: 1em;
+    text-indent: -1em;
+}
+
+li {
+    margin-bottom: 1em;
+}

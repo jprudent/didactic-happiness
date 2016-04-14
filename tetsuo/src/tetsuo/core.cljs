@@ -35,22 +35,15 @@
 
 (defn target-value [event] (-> event .-target .-value))
 
-(defmulti feed-element-handler :tag)
-
 (defn element-value [element]
   (apply str (->> element
                   :content
                   (filter string?))))
 
-(defmethod feed-element-handler :default [element]
-  [:div (str (:tag element)) " : " (element-value element)])
-
-(defmethod feed-element-handler :link [element]
-  [:div [:a {:href (get-in element [:attrs :href] "#")}
-         (str (element-value element) (get-in element [:attrs :rel] ""))]])
-
-(defmethod feed-element-handler :title [element]
-  [:h2 (element-value element)])
+(defn feed-title [element]
+  (when element
+    (print "yyyyyy" element)
+    [:h2 (element-value element)]))
 
 (defn str-content [entry tag]
   (for [alert (s/select (s/tag tag) entry)]
@@ -59,67 +52,86 @@
 (defn li [v]
   (when v [:li v]))
 
-(defn item [label v]
-  (li (str label v)))
-
-(defn ul [label element tag]
+(defn td [element tag]
   (let [values (str-content element tag)]
-    (when (not (empty? values))
-      [:p label
-       [:ul
-        (map li values)]])))
+    [:td
+     [:ul
+      (map li values)]]))
 
-(defn entry-element-handler [element]
-  [:div
-   [:h3 (str-content element :title)]
-   (ul "Dose usuelle : " element :vidal:doseRange)
-   (ul "Fréquence : " element :vidal:frequencyRange)
-   (ul "Dose cumulative totale : " element :vidal:cumulatedMaximumDose)
-   (ul "Dose unitaire maximale (en une prise) : " element :vidal:usualMaximumDoseAtOnce)
-   (ul "Durée min usuelle : " element :vidal:usualMinimumDuration)
-   (ul "Durée max usuelle : " element :vidal:usualMaximumDuration)
-   (ul "Durée absolue min usuelle : " element :vidal:usualMinimumAbsoluteDuration)
-   (ul "Durée absolue max usuelle : " element :vidal:usualMaximumAbsoluteDuration)
-   (ul "Indications : " element :vidal:indication)
-   (ul "Voies : " element :vidal:route)
-   (ul "Alertes : " element :vidal:alert)])
+(defn output-entry [element]
+  [:tr
+   (td element :vidal:indication)
+   (td element :vidal:phase)
+   (td element :vidal:condition)
+   (td element :vidal:route)
+   (td element :vidal:doseRange)
+   (td element :vidal:frequencyRange)
+   (td element :vidal:cumulatedMaximumDose)
+   (td element :vidal:usualMaximumDoseAtOnce)
+   (td element :vidal:usualMinimumDuration)
+   (td element :vidal:usualMaximumDuration)
+   (td element :vidal:usualMinimumAbsoluteDuration)
+   (td element :vidal:usualMaximumAbsoluteDuration)
+   (td element :vidal:alert)])
 
-(defmethod feed-element-handler :entry [element]
-  (println "entry")
-  [:div (entry-element-handler element)])
 
-(defn output-scientific-tool [vmp-id]
-  [:iframe {:src   (str "http://posology.vidal.net/#/" vmp-id "/posology")
-            :style {:width "100%"
+(defn output-scientific-tool [state]
+  [:iframe {:src   (str "http://posology.vidal.net/#/" (:vmp-id @state) "/posology")
+            :style {:width  "100%"
                     :height "1000px"}}])
 
-(defmulti output-http-response :status)
+(defmulti output-http-response (fn [response state] (:status response)))
 
-(defmethod output-http-response 200 [response]
+(defn output-entries [entries]
+  [:table
+   [:tr
+    [:td "Indications"]
+    [:td "Phase"]
+    [:td "Conditions"]
+    [:td "Routes"]
+    [:td "Dose usuelle"]
+    [:td "Fréquence"]
+    [:td "Dose cumulative totale"]
+    [:td "Dose unitaire maximale (en une prise)"]
+    [:td "Durée min usuelle"]
+    [:td "Durée max usuelle"]
+    [:td "Durée absolue min usuelle"]
+    [:td "Durée absolue max usuelle"]
+    [:td "Alertes"]]
+   (map output-entry entries)]
+  )
+
+(defn output-feed [feed]
   [:div
+   (feed-title (first (s/select (s/child (s/tag :feed) (s/tag :title)) feed)))
+   (output-entries (s/select (s/tag :entry) feed))])
+
+(defmethod output-http-response 200 [response state]
+  [:div
+
    (->> response
         :body
         xml/parse
         xml/extract-feeds
-        (map #(xml/walk-feed % feed-element-handler)))
-   (output-scientific-tool 46)])
+        (map output-feed))
+   (output-scientific-tool state)])
 
-(defmethod output-http-response 400 [_]
+(defmethod output-http-response 400 [_ _]
   [:p "mauvaise requête"])
 
-(defmethod output-http-response 500 [_]
+(defmethod output-http-response 500 [_ _]
   [:p "erreur serveur"])
 
-(defmethod output-http-response 204 [_]
+(defmethod output-http-response 204 [_ _]
   [:p "aucun descripteur posologique correspondant"])
 
-(defmethod output-http-response :default [r]
+(defmethod output-http-response :default [r _]
   (println "no handlers for : " r))
 
 
 
 (defn output [state]
-  (output-http-response (:response @state)))
+  (output-http-response (:response @state) state))
 
 (defn valid-input? [state]
   true)
@@ -145,7 +157,6 @@
                            (input-number "height" "height" {:on-change (partial save-patient! [:height])})
                            (input-select "hepathic insufficiency" "hepaticInsufficiency" [["NONE" "None"] ["SEVERE" "Severe"]] {:on-change (partial save-patient! [:hepatic-insufficiency])})
                            [output app-state]]
-
                           (. js/document (getElementById "app")))
 
 (comment
