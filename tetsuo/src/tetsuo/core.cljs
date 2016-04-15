@@ -84,21 +84,23 @@
 
 (defn output-entries [entries]
   [:table
-   [:tr
-    [:td "Indications"]
-    [:td "Phase"]
-    [:td "Conditions"]
-    [:td "Routes"]
-    [:td "Dose usuelle"]
-    [:td "Fréquence"]
-    [:td "Dose cumulative totale"]
-    [:td "Dose unitaire maximale (en une prise)"]
-    [:td "Durée min usuelle"]
-    [:td "Durée max usuelle"]
-    [:td "Durée absolue min usuelle"]
-    [:td "Durée absolue max usuelle"]
-    [:td "Alertes"]]
-   (map output-entry entries)]
+   [:thead
+    [:tr
+     [:th "Indications"]
+     [:th "Phase"]
+     [:th "Conditions"]
+     [:th "Routes"]
+     [:th "Dose usuelle"]
+     [:th "Fréquence"]
+     [:th "Dose cumulative totale"]
+     [:th "Dose unitaire maximale (en une prise)"]
+     [:th "Durée min usuelle"]
+     [:th "Durée max usuelle"]
+     [:th "Durée absolue min usuelle"]
+     [:th "Durée absolue max usuelle"]
+     [:th "Alertes"]]]
+   [:tbody
+    (map output-entry entries)]]
   )
 
 (defn output-feed [feed]
@@ -125,6 +127,9 @@
 (defmethod output-http-response 204 [_ _]
   [:p "aucun descripteur posologique correspondant"])
 
+(defmethod output-http-response 0 [_ _]
+  [:p "problème de connection avec le serveur"])
+
 (defmethod output-http-response :default [r _]
   (println "no handlers for : " r))
 
@@ -150,9 +155,13 @@
   (save-state! (into [:body :posology-request :patient] selector) event))
 
 (reagent/render-component [:div {}
-                           (input-number "VMP id" "vmp-id" {:on-change (partial save-state! [:vmp-id])})
-                           (input-date "date of birth" "dateOfBirth" {:on-change (partial save-patient! [:dateOfBirth])})
-                           (input-select "gender" "gender" [["MALE" "Male"] ["FEMALE" "Female"]] {:on-change (partial save-patient! [:gender])})
+                           (input-number "VMP id" "vmp-id"
+                                         {:on-change (partial save-state! [:vmp-id])})
+                           (input-date "date of birth" "dateOfBirth"
+                                       {:on-change (partial save-patient! [:dateOfBirth])})
+                           (input-select "gender" "gender" [["" "None"] ["MALE" "Male"] ["FEMALE" "Female"]]
+                                         {:on-change (partial save-patient! [:gender])
+                                          :value (get-in @app-state [:body :posology-request :patient :gender])})
                            (input-number "weight" "weight" {:on-change (partial save-patient! [:weight])})
                            (input-number "height" "height" {:on-change (partial save-patient! [:height])})
                            (input-select "hepathic insufficiency" "hepaticInsufficiency" [["NONE" "None"] ["SEVERE" "Severe"]] {:on-change (partial save-patient! [:hepatic-insufficiency])})
