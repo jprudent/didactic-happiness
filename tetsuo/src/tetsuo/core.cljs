@@ -20,6 +20,10 @@
   (labeled label input-name
            (input input-name :date attrs)))
 
+(defn input-text [label input-name attrs]
+  (labeled label input-name
+           (input input-name :text attrs)))
+
 (defn input-number [label input-name attrs]
   (labeled label input-name
            (input input-name :number attrs)))
@@ -154,6 +158,13 @@
 (defn save-patient! [selector event]
   (save-state! (into [:body :posology-request :patient] selector) event))
 
+(defn search-vmp-component [state]
+  [:div
+   (input-text "VMP name" "vmp-name" {:on-change (partial save-state! [:vmp-name])})
+   [:iframe {:src (str "http://apirest-dev.vidal.fr/#!/rest/api/vmps?q=" (:vmp-name @state))
+             :style {:width  "100%"
+                     :height "1000px"}}]])
+
 (reagent/render-component [:div {}
                            (input-number "VMP id" "vmp-id"
                                          {:on-change (partial save-state! [:vmp-id])})
@@ -165,7 +176,8 @@
                            (input-number "weight" "weight" {:on-change (partial save-patient! [:weight])})
                            (input-number "height" "height" {:on-change (partial save-patient! [:height])})
                            (input-select "hepathic insufficiency" "hepaticInsufficiency" [["NONE" "None"] ["SEVERE" "Severe"]] {:on-change (partial save-patient! [:hepatic-insufficiency])})
-                           [output app-state]]
+                           [output app-state]
+                           [search-vmp-component app-state]]
                           (. js/document (getElementById "app")))
 
 (comment
