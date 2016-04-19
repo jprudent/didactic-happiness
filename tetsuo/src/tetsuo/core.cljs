@@ -76,6 +76,7 @@
    (td element :vidal:usualMaximumDuration)
    (td element :vidal:usualMinimumAbsoluteDuration)
    (td element :vidal:usualMaximumAbsoluteDuration)
+   (td element :vidal:adaptation)
    (td element :vidal:alert)])
 
 
@@ -102,6 +103,7 @@
      [:th "Durée max usuelle"]
      [:th "Durée absolue min usuelle"]
      [:th "Durée absolue max usuelle"]
+     [:th "Adaptations"]
      [:th "Alertes"]]]
    [:tbody
     (map output-entry entries)]]
@@ -114,13 +116,11 @@
 
 (defmethod output-http-response 200 [response state]
   [:div
-
    (->> response
         :body
         xml/parse
         xml/extract-feeds
-        (map output-feed))
-   (output-scientific-tool state)])
+        (map output-feed))])
 
 (defmethod output-http-response 400 [_ _]
   [:p "mauvaise requête"])
@@ -136,8 +136,6 @@
 
 (defmethod output-http-response :default [r _]
   (println "no handlers for : " r))
-
-
 
 (defn output [state]
   (output-http-response (:response @state) state))
@@ -177,8 +175,6 @@
                            (input-number "height" "height" {:on-change (partial save-patient! [:height])})
                            (input-select "hepathic insufficiency" "hepaticInsufficiency" [["NONE" "None"] ["SEVERE" "Severe"]] {:on-change (partial save-patient! [:hepatic-insufficiency])})
                            [output app-state]
+                           [output-scientific-tool app-state]
                            [search-vmp-component app-state]]
                           (. js/document (getElementById "app")))
-
-(comment
-  (cli/posology-descriptors 2 handler))
