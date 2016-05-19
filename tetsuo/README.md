@@ -1,12 +1,17 @@
 # tetsuo
 
-FIXME: Write a one-line description of your library/project.
+A simple tool helping development of posologies
 
-## Overview
+## Quick run
 
-FIXME: Write a paragraph about the library/project and highlight its goals.
+excalibur rest should be up and running on localhost:8088
 
-## Setup
+    lein figwheel
+
+    chromium-browser --disable-web-security  --user-data-dir http://localhost:3449
+
+
+## Setup for developper
 
 To get an interactive development environment run:
 
