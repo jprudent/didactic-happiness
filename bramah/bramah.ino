@@ -1,34 +1,32 @@
-#include "SHA256.h"
-#include "Base64.h"
+/* Arduino USB HID Keyboard Demo
+ * Random Key/Random Delay
+ */
 
-const char* PASSWORD = "pass";
-const char* SITE = "gmail.com";
-const size_t HLEN = 32;
+uint8_t buf[8] = { 
+  0 };   /* Keyboard report buffer */
 
-SHA256 sha256;
-
-void setup() {
+void setup() 
+{
   Serial.begin(9600);
-  // Essayer : http://blog.petrockblock.com/2012/05/19/usb-keyboard-with-arduino-and-v-usb-library-an-example/
-  // Keyboard.begin();
-
-  char output[HLEN];
-  sha256.reset();
-  sha256.update(PASSWORD, strlen(PASSWORD));
-  sha256.update(SITE, strlen(SITE));
-  sha256.finalize(output, HLEN);
-
-  for (int i = 0; i < HLEN; i++) {
-    Serial.write(output[i]);
-  }
-
-  int b64l = base64_enc_len(HLEN);
-  char b64encoded[b64l];
-  base64_encode(b64encoded, output, HLEN);
-  Serial.println(b64encoded);
-  //Keyboard.print(b64encoded);
+  randomSeed(analogRead(0));
+  delay(200);
 }
 
-void loop() {
+void loop() 
+{
+  int randomChar = random(4, 130);
+  long randomDelay = random(1000, 10000);
 
+  delay(randomDelay);
+
+  buf[2] = randomChar;    // Random character
+  Serial.write(buf, 8); // Send keypress
+  releaseKey();
+}
+
+void releaseKey() 
+{
+  buf[0] = 0;
+  buf[2] = 0;
+  Serial.write(buf, 8); // Release key  
 }
