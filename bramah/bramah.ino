@@ -1,46 +1,16 @@
-#include "SHA256.h"
-#include "Base64.h"
 #include <Keypad.h>
 #include <ctype.h>
-#include "HidKeyboard.h"
+//#include "HidKeyboard.h"
+#include "PasswordGenerator.h"
 
 /**
  * Password generator stuff
  */
 const char* PASSWORD = "passw";
 const char* SITE = "gmail.com";
-const size_t HLEN = 32;
-
-SHA256 hashcode;
 
 void debug(const char * s) {
-  Serial.println(s);
-}
-
-// Compute the hash of s1 + s2
-// output: the output string of size HLEN
-void hash(char * output, const char * s1, const char * s2) {
-  hashcode.reset();
-  hashcode.update(s1, strlen(s1));
-  hashcode.update(s2, strlen(s2));
-  hashcode.finalize(output, HLEN);
-}
-
-// Encode input in ASCII readable output
-// output must have HLEN size
-// output may not be reversable to input
-void encode_to_ascii(char * output, char * input) {
-  const int b64l = base64_enc_len(HLEN);
-  char b64encoded[b64l];
-  base64_encode(b64encoded, input, HLEN);
-  memcpy(output, b64encoded, HLEN);
-}
-
-// output: the output string of size HLEN
-void generate_password(char * output, const char * master_password, const char * memo) {
-  char sha[HLEN];
-  hash(sha, master_password, memo);
-  encode_to_ascii(output, sha);
+    Serial.println(s);
 }
 
 /**
@@ -50,17 +20,17 @@ const byte ROWS = 4; //four rows
 const byte COLS = 3; //three columns
 // Define the keymaps.  The blank spot (lower left) is the space character.
 char alphaKeys[ROWS][COLS] = {
-  { 'a', 'd', 'g' },
-  { 'j', 'm', 'p' },
-  { 's', 'v', 'y' },
-  { ' ', '.', '#' }
+    { 'a', 'd', 'g' },
+    { 'j', 'm', 'p' },
+    { 's', 'v', 'y' },
+    { ' ', '.', '#' }
 };
 
 char numberKeys[ROWS][COLS] = {
-  { '1', '2', '3' },
-  { '4', '5', '6' },
-  { '7', '8', '9' },
-  { ' ', '0', '#' }
+    { '1', '2', '3' },
+    { '4', '5', '6' },
+    { '7', '8', '9' },
+    { ' ', '0', '#' }
 };
 
 boolean alpha = false;   // Start with the numeric keypad.
@@ -77,14 +47,14 @@ unsigned long startTime;
 const byte ledPin = 13;
 
 void setupKeypad() {
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, LOW);                 // Turns the LED on.
-  ltrpad.begin( makeKeymap(alphaKeys) );
-  numpad.begin( makeKeymap(numberKeys) );
-  ltrpad.addEventListener(keypadEvent_ltr);  // Add an event listener.
-  ltrpad.setHoldTime(500);                   // Default is 1000mS
-  numpad.addEventListener(keypadEvent_num);  // Add an event listener.
-  numpad.setHoldTime(500);                   // Default is 1000mS
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, LOW);                 // Turns the LED on.
+    ltrpad.begin( makeKeymap(alphaKeys) );
+    numpad.begin( makeKeymap(numberKeys) );
+    ltrpad.addEventListener(keypadEvent_ltr);  // Add an event listener.
+    ltrpad.setHoldTime(500);                   // Default is 1000mS
+    numpad.addEventListener(keypadEvent_num);  // Add an event listener.
+    numpad.setHoldTime(500);                   // Default is 1000mS
 }
 
 char key;
@@ -137,17 +107,17 @@ void swOnState( char key ) {
                     virtKey++;                   // so select the next character on that key.
                     pressCount++;                // Tracks how many times we press the same key.
                 }
-                    if (pressCount > 2) {    // Last character reached so cycle back to start.
-                        pressCount = 0;
-                        virtKey = key;
-                    }
-                    Serial.print(virtKey);   // Used for testing.
+                if (pressCount > 2) {    // Last character reached so cycle back to start.
+                    pressCount = 0;
+                    virtKey = key;
                 }
-                if (isdigit(key) || key == ' ' || key == '.')
-                    Serial.print(key);
-                if (key == '#')
-                    Serial.println();
-                break;
+                Serial.print(virtKey);   // Used for testing.
+            }
+            if (isdigit(key) || key == ' ' || key == '.')
+                Serial.print(key);
+            if (key == '#')
+                Serial.println();
+            break;
 
         case HOLD:
             if (key == '#')  {               // Toggle between keymaps.
@@ -177,19 +147,20 @@ void swOnState( char key ) {
  * Setup & loop
  */
 void setup() {
-  Serial.begin(9600);
-  setupKeypad();
-  delay(1000);
+    Serial.begin(9600);
+    setupKeypad();
+    delay(1000);
 }
 
 void loop() {
-  //loopKeypad();
-  //char output[HLEN + 1];
-  //generate_password(output, PASSWORD, SITE);
-  //output[HLEN] = 0;
-  //type_on_keyboard(output);
-  //delay(2000);
-  HidKeyboard kbd;
-  kbd.type_on_keyboard("bourgogne ");
-  delay(2000);
+    //loopKeypad();
+    PasswordGenerator pwdgen;
+    char output[HLEN + 1];
+    pwdgen.generate_password(output, PASSWORD, SITE);
+    Serial.println(output);
+    //type_on_keyboard(output);
+    //delay(2000);
+    //HidKeyboard kbd;
+    //kbd.type_on_keyboard("bourgogne ");
+    delay(2000);
 }
