@@ -13,6 +13,12 @@ each flash.
 
 h1. Diary
 
+h3. Day 4
+Spent some time finding a nice way to have input. I opt for a keypad with
+multitap, but I'm too lazy to try anything this evening.
+The Keypad library that comes with arduino can support this. There is an
+example called DynamicKeypad.ino.
+
 h3. Day 3
 I finally managed to generate a password and type it on keyboard.
 I have to check that my mapping to hid is correct.
