@@ -1,6 +1,5 @@
 #include "PasswordGenerator.h"
 #include "SHA256.h"
-#include "Base64.h"
 #include "string.h"
 #include "Arduino.h"
 
