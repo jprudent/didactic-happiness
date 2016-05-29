@@ -9,7 +9,6 @@ class MultitapKeypad {
       MultitapKeypad(void (*onRotateKeyCb)(char), void (*onConfirmKeyCb)(char));
       ~MultitapKeypad();
       char getKeys();
-      void setup();
     private:
       Keypad *numpad;
       Keypad *ltrpad;

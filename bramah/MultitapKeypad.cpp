@@ -1,3 +1,5 @@
+// sorry for that, i didn't mean to make your eyes bleeding.
+
 #include "MultitapKeypad.h"
 #include <Keypad.h>
 
@@ -22,11 +24,6 @@ boolean alpha = false;   // Start with the numeric keypad.
 
 byte rowPins[ROWS] = {9, 8, 7, 6}; //connect to the row pinouts of the keypad
 byte colPins[COLS] = {5, 4, 3}; //connect to the column pinouts of the keypad
-
-// Create two new keypads, one is a number pad and the other is a letter pad.
-//Keypad numpad( makeKeymap(numberKeys), rowPins, colPins, sizeof(rowPins), sizeof(colPins) );
-//Keypad ltrpad( makeKeymap(alphaKeys), rowPins, colPins, sizeof(rowPins), sizeof(colPins) );
-
 
 unsigned long startTime;
 const byte ledPin = 13;
@@ -64,7 +61,7 @@ void MultitapKeypad::swOnState(char key, KeyState kpadState) {
         }
       }
       else if (isdigit(key) || key == ' ' || key == '.') {
-        Serial.print(key);
+        virtKey = key;
       }
       this->onRotateKeyCb(virtKey);
       break;
@@ -91,9 +88,6 @@ MultitapKeypad::MultitapKeypad(void (*onRotateKeyCb)(char), void (*onConfirmKeyC
   this->ltrpad = new Keypad( makeKeymap(alphaKeys), rowPins, colPins, sizeof(rowPins), sizeof(colPins) );
   this->onRotateKeyCb = onRotateKeyCb;
   this->onConfirmKeyCb = onConfirmKeyCb;
-};
-
-void MultitapKeypad::setup() {
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, LOW);                 // Turns the LED on.
   ltrpad->begin( makeKeymap(alphaKeys) );
@@ -101,7 +95,7 @@ void MultitapKeypad::setup() {
   ltrpad->setHoldTime(500);                   // Default is 1000mS
   numpad->setHoldTime(500);                   // Default is 1000mS
   Serial.println("loaded");
-}
+};
 
 MultitapKeypad::~MultitapKeypad() {
   free(this->numpad);

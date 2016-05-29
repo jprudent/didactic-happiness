@@ -13,6 +13,18 @@ each flash.
 
 h1. Diary
 
+h3. Day 6-7
+The weekend. Display is OK. I mean I can type on keypad and characters are
+output on LCD. I struggle a lot with C++ because I program without having an in
+depth knowledge of the language. The wiring of the LCD is painful.
+Next step is to implement backspace and enter.
+
+h3. Day 5
+Got a multitap keypad. But I don't like it. Usage is horrible and so is the
+underlying code. A T9 style input would be so much better. And the Keypad 
+library is unsuitable for my needs (is it?). And there is no backspace,
+*no bullshit*.
+
 h3. Day 4
 Spent some time finding a nice way to have input. I opt for a keypad with
 multitap, but I'm too lazy to try anything this evening.
