@@ -6,12 +6,15 @@
 
 class MultitapKeypad {
     public:
-      MultitapKeypad(void (*onRotateKeyCb)(char), void (*onConfirmKeyCb)(char));
+      MultitapKeypad(
+        void (*onRotateKeyCb)(char),
+        void (*onConfirmKeyCb)(char));
       ~MultitapKeypad();
-      char getKeys();
+      void readKeypad();
     private:
-      Keypad *numpad;
-      Keypad *ltrpad;
+      Keypad *numberKeypad;
+      Keypad *letterKeypad;
+      Keypad *currentKeypad;
       void (*onRotateKeyCb)(char);
       void (*onConfirmKeyCb)(char);
       void keypadEvent_ltr(char key); 

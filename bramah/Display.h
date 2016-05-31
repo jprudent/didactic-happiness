@@ -22,7 +22,11 @@ class Display {
     Display();
     ~Display();
     void append(char);
+    void append(char *);
     void replace(char);
+    void erase();
+    char *getLine1();
+    void reset();
   private:
     LiquidCrystal *lcd;
     char * line1;

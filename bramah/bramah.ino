@@ -6,24 +6,40 @@
 #include "Display.h"
 
 
-/**
- * Password generator stuff
- */
-const char* PASSWORD = "passw";
-const char* SITE = "gmail.com";
+const char* GOD_PASSWORD = "passw";
 
 Display *display;
-MultitapKeypad *mKeypad;
+MultitapKeypad *multitapKeypad;
+PasswordGenerator *passwordGenerator;
+HidKeyboard *hidKeyboard;
+
 void logRotate(char c) {
-  Serial.print("rotate");
-  Serial.println(c);
-  display->replace(c);
+  if (c != '\n' && c != '\b') {
+    display->replace(c);
+  }
 }
 
+bool GENERATED = false;
+char * PASSWORD;
+
 void logConfirm(char c) {
-  Serial.print("confirm");
-  Serial.println(c);
-  display->append(c);
+  if (GENERATED) {
+    if (c == '\n') {
+      hidKeyboard->type_on_keyboard(PASSWORD);
+    }
+  } else {
+    if (c == '\n') {
+      char* site = display->getLine1();
+      passwordGenerator->generate_password(PASSWORD, GOD_PASSWORD, site);
+      display->reset();
+      display->append(PASSWORD);
+      GENERATED = true;
+    } else if (c == '\b') {
+      display->erase();
+    } else {
+      display->append(c);
+    }
+  }
 }
 
 
@@ -31,24 +47,16 @@ void logConfirm(char c) {
  * Setup & loop
  */
 void setup() {
-    Serial.begin(9600);
-    mKeypad = new MultitapKeypad(logRotate, logConfirm);
-    display = new Display();
-    
+  PASSWORD = (char *)malloc((HLEN + 1) * sizeof(char));
+  Serial.begin(9600);
+  multitapKeypad = new MultitapKeypad(logRotate, logConfirm);
+  display = new Display();
+  passwordGenerator = new PasswordGenerator();
+  hidKeyboard = new HidKeyboard();
 
   // Print a message to the LCD.);
 }
 
 void loop() {
-    //loopKeypad();
-    //PasswordGen"erator pwdgen;
-    //char output[HLEN + 1];
-    //pwdgen.generate_password(output, PASSWORD, SITE);
-    //Serial.println(output);
-    //type_on_keyboard(output);
-    //delay(2000);
-    //HidKeyboard kbd;
-    //kbd.type_on_keyboard("bourgogne ");
-    //getLcd()->print("Made in");
-    mKeypad->getKeys(); 
+  multitapKeypad->readKeypad();
 }

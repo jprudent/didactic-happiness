@@ -10,8 +10,23 @@ Before launching any of them, we must put the little CPU in flashing mode,
 making briefly a bridge between RST and GND. Hard reboot is necessary after
 each flash.
 
+h1. Bugs
+
+- The '\' is printed as the Yen symbol.
+
+- Only 16 characters are printed on scree
+
+
 
 h1. Diary
+
+h3. Day 8
+Bought components on the internet. Notably : 
+- Arduino nano : I expect it to work like UNO and be able to flash it to act as
+  a keyboard
+- Arduino micro : Apparently less powerful but ship comes with USB keyboard for
+  free.
+No Code :(
 
 h3. Day 6-7
 The weekend. Display is OK. I mean I can type on keypad and characters are
