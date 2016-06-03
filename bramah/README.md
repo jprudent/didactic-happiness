@@ -1,4 +1,4 @@
-h1. Motivations
+# Motivations
 
 Avec le récent scandale des mots de passe volés de LinkedIn (ce ne sont pas les
 seuls!), je me suis demandé si mes mots de passe étaient vraiment sûrs. 
@@ -31,7 +31,7 @@ J'ai passé en revue trois méthodes pour gérer ses mots de passe.
       toujours possible.
 
    3. Il y a carrément des services sur internet pour gérer ses mots de passe.
-      Mais bon, j'ai pas confiance, tout comme j'aurai pas confiance en une
+      Mais bon, j'ai pas confiance, tout comme je n'aurais pas confiance en une
       société tierce qui garderait un double des clés de ma voiture.
 
 Il y a un an je me suis acheté un kit de démarrage Arduino. J'ai joué un peu
@@ -40,7 +40,7 @@ avec au début, et ça prend la poussière depuis.
 Et si je fabriquais un appareil qui réponde à mon besoin de stocker mes mots de
 passe ?
 
-h2. Le concept
+# Le concept
 
 C'est un mélange des trois méthodes citées plus haut :
 
@@ -82,7 +82,7 @@ authentication) :
 Je ne sais pas si ce concept est original (sûrement pas!) mais je n'ai trouvé
 nul part quelque chose de similaire.
 
-h3. Scénario d'utilisation de l'appareil
+# Scénario d'utilisation de l'appareil
 
 J'ai nommé cet appareil `Bramah` en hommage au célèbre sérurrier anglais (que
 personne ne connais, sauf wikipedia).
@@ -116,7 +116,7 @@ Voici à quoi ressemble Bramah à l'heure actuel.
 J'ai pas mal d'axes d'amélioration en tête. La route est longue mais la voie
 est libre.
 
-h3. Détails sur la génération du mot de passe
+# Détails sur la génération du mot de passe
 
 Comme je l'ai mentionné dans l'introduction, Bramah est capable de générer de
 façon reproductible un mot de passe unique pour la combinaison du mot de passe
@@ -175,7 +175,7 @@ caractère '~' au caractère '!').
 Le code qui génère le mot de passe est dans le fichier `PasswordGenerator.cpp`.
 Je ne suis pas bon en C++, mais si vous l'êtes, n'hésitez pas à commenter mon code.
 
-h3. Le keypad
+# Le keypad
 
 La solution keypad est une solution de repli. J'ai utilisé le keypad fourni
 avec mon kit de démarrage Arduino. En terme de design, je pense que c'est le
@@ -194,6 +194,118 @@ faire une API simple. L'API consiste en 2 callbacks:
 
 La touche '#' pressée plus de 500 ms permet de passer du clavier numérique au 
 clavier alphabétique.
+
+Le code se trouve dans le fichier `MultitapKeypad.cpp`
+
+# L'écran
+
+Là encore j'ai utilisé l'écran LCD 16 colonnes 2 lignes fournit avec mon kit.
+Le montage est celui proposé sur [la page du site
+arduino](https://www.arduino.cc/en/Tutorial/HelloWorld?from=Tutorial.LiquidCrystal).
+
+J'ai créer une API de haut niveau qui s'appuie sur la librairie
+`LiquidCrystal`. L'API propose quatre méthode :
+- `void append(char)` pour ajouter un caractère
+- `void append(char *) pour ajouter une chaine
+- `void replace(char)` pour remplacer le dernier carctère
+- `void erase()` pour effacer le dernier caractère
+- `char* getLine1()` pour récupérer la ligne 
+- `void reset()` pour tout effacer et reparir à zéro
+
+Tout le code se trouve dans le fichier `Display.cpp`.
+
+# Le clavier virtuel
+
+La carte de développement possède en fait deux microcontroleurs Atmel. 
+
+- Le plus gros est un ATmega328P. C'est celui là qui fait tourner notre
+  programme. Mais il n'est pas connecté directement à l'USB.
+
+- Le plus petit est un ATmega16u2. Son rôle est de recevoir le programme à
+  envoyer par le port USB et de l'écrire dans la mémoire flash de l'ATmega328P.
+
+Il existe un firmware alternatif pour l'ATmega16u2 qui implémente la
+spécification HID.
+La spécification HID définit un protocol de communication USB générique qui
+permet de développer des périphériques tels qu'un clavier ou une souris. Le
+système d'exploitation a un driver HID générique capable de comprendre
+n'importe quel périphérique qui implémente HID. C'est la raison pour laquelle
+quand on branche un clavier ou une souris USB, elle est reconnue à chaud sans
+nécessiter de driver particulier.
+
+Quand on flashe l'ATmega16u2 avec le firmware HID et qu'on branche l'arduino
+sur le port USB de l'ordinateur, il est reconnu comme périphérique HID.
+Le firmware HID de l'ATmega16u2 reçoit les commandes en série de l'ATmega328P
+qui les transmet par USB à l'ordinateur.  
+
+Malheureusement, une fois flashé, l'ATmega16u2 n'est plus capable de programmer
+l'ATmega328P comme à l'usuel. Il faut donc restaurer le firmware d'origine du
+ATmega16u2 pour écrire nos programmes sur l'ATmega328P.
+
+Le cycle de développement est donc :
+1. Ecrire un programme qui communique des commandes HID via le port série à
+   l'ATmega16u2.
+2. Flasher l'ATmega16u2 avec le firmware HID.
+3. Rebooter la carte Arduino
+4. Tester que notre programme simule correctement un clavier.
+6. Flasher l'ATmega16u2 avec le firmware d'origine
+7. Rebooter la carte Arduino
+8. Retour en 1)
+
+C'est un peu pénible mais on y arrive!
+
+La procédure pour flasher l'ATmega16u2 est similaire au
+flashage de l'[ATmega8u2](https://www.arduino.cc/en/Hacking/DFUProgramming8U2)
+qu'il faut adapter à l'ATmega16u2 de la carte Arduino R3.
+
+Il faut passer en mode [DFU](://en.wikipedia.org/wiki/USB#DFU) (Device Firmware Update).Ce mode USB est spécialement conçu pour la mise à jour de firmware. Pour cela il suffit de
+relier la pin "reset" de l'ATmega16u2 à la masse. 
+
+Ensuite il suffit d'envoyer le nouveau firmware via USB grâce à un utilitaire
+qui s'appelle `dfu-programmer`. Pour mon Archlinux, il n'était pas présent dans
+les repos officiels, mais il est dispo dans un
+[AUR](https://aur.archlinux.org/packages/dfu-programmer/). Pour le reste des
+mortels (qui utilise un système inférieur au mien), la [page sur le site 
+d'Arduino](https://www.arduino.cc/en/Hacking/DFUProgramming8U2) vous dira comment l'installer.
+
+La séquence d'instructions suivantes efface le firmware actuel, écrit le
+nouveau et redémarre le microcontrôleur :
+
+    sudo dfu-programmer atmega16u2 erase
+    sudo dfu-programmer atmega16u2 flash --debug 1 Arduino-keyboard-0.3.hex
+    sudo dfu-programmer atmega16u2 reset
+
+La seconde commande flash le microcontrolleur avec un firmware contenu dans le
+fichier `Arduino-keyboard-0.3.hex`.
+Quand on cherche des informations pour simuler un clavier avec un Arduino Uno,
+on finit toujours par arriver sur la page de [Mitch
+Tech](http://mitchtech.net/arduino-usb-hid-keyboard/). C'est là que j'ai chopé
+le firmware sans trop me poser de questions.
+
+Bon maintenant qu'on sait faire passer l'Arduino pour un clavier, parlons un
+peu de code.
+
+J'ai créé une API de haut niveau qui n'a qu'une seule méthode, `void
+type_on_keyboard(char*)` qui permet au clavier virtuel de saisir une phrase.
+
+Concernant les claviers, la norme HID définit une table de correspondance entre
+un ID et un caractère. On peut trouver cette table dans la [documentation
+officielle](http://www.usb.org/developers/hidpage/Hut1_12v2.pdf) à la rubrique
+"Keyboard/Keypad Page (0x07)". Cette table nous apprend par exemple que la
+lettre 'a' correspond à l'id 4.
+
+Ma fonction `type_on_keyboard` parcourt la chaine en entrée. Pour chaque
+caractère ASCII, elle détermine l'ID de la lettre correspondant et l'envoie sur
+le port série via `Serial.write`.
+
+Le code se trouve dans le fichier `HidKeyboard.cpp`. 
+
+# Recoller les morceaux
+
+On a passé en revu comment récupérer les touches saisies au keypad, comment
+controler l'écran et comment simuler un clavier. Il ne reste plus qu'à mélanger
+tout ça pour créer Bramah.
+
 
 h1. How to
 
@@ -217,7 +329,7 @@ h1. Bugs
 
 h1. Diary
 
-h3. Day 8
+#. Day 8
 Bought components on the internet. Notably : 
 - Arduino nano : I expect it to work like UNO and be able to flash it to act as
   a keyboard
@@ -225,29 +337,29 @@ Bought components on the internet. Notably :
   free.
 No Code :(
 
-h3. Day 6-7
+#. Day 6-7
 The weekend. Display is OK. I mean I can type on keypad and characters are
 output on LCD. I struggle a lot with C++ because I program without having an in
 depth knowledge of the language. The wiring of the LCD is painful.
 Next step is to implement backspace and enter.
 
-h3. Day 5
+#. Day 5
 Got a multitap keypad. But I don't like it. Usage is horrible and so is the
 underlying code. A T9 style input would be so much better. And the Keypad 
 library is unsuitable for my needs (is it?). And there is no backspace,
 *no bullshit*.
 
-h3. Day 4
+#. Day 4
 Spent some time finding a nice way to have input. I opt for a keypad with
 multitap, but I'm too lazy to try anything this evening.
 The Keypad library that comes with arduino can support this. There is an
 example called DynamicKeypad.ino.
 
-h3. Day 3
+#. Day 3
 I finally managed to generate a password and type it on keyboard.
 I have to check that my mapping to hid is correct.
 
-h3. Day 2
+#. Day 2
 Tried to use the Keyboard library but it doesn't work with Uno
 Found 2 workarounds :
 - A soft usb :
@@ -260,6 +372,6 @@ Finally, opted for flashing the USB controller.
 Now, I have to use http://www.usb.org/developers/hidpage/Hut1_12v2.pdf in order
 to output the correct letter. 
 
-h3. Day 1
+#. Day 1
 
 Had a first POC : can generate a SHA256 and Base64 the output
