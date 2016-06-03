@@ -61,6 +61,13 @@ Les avantages sont les suivants :
   de passe de dévérouillage de l'appareil. Et donc de générer des mots de passe
   de la même façon.
 - L'appareil est déconnecté du réseau. On se met à l'abris de 99% des virus.
+- On peut avoir un appareil au bureau et chez soi sans avoir besoin de les
+  synchroniser. Cela évite de se les promener partout, comme un téléphone.
+- Il est possible de créer des applications qui se comportent comme l'appareil,
+  cependant on perd en sécurité (virus, hacker, ...)
+- On peut prêter et emprunter l'appareil à une tierce personne dont on a
+  confiance. Du moment que l'appareil n'est pas compromis et ne stocke pas votre 
+  mot de passe.
 
 Mais il y a des inconvénients :
 - Il ne faut pas oublier le mot de passe pour dévérouiller l'appareil, sinon on
@@ -195,6 +202,12 @@ faire une API simple. L'API consiste en 2 callbacks:
 La touche '#' pressée plus de 500 ms permet de passer du clavier numérique au 
 clavier alphabétique.
 
+Le clavier alphabétique sait gérer plusieurs lettres pour une même touche. Si
+on a appuie sur 1, le clavier vous dira que 'a' a été pressé. Si on rappuie sur
+1, il dira 'b', encore une fois 'c', et encore une fois 'a'. La touche physique
+2 correspond à 'd', 'e', 'f'. C'est comme écrire un SMS sur un vieux téléphone
+portable.
+
 Le code se trouve dans le fichier `MultitapKeypad.cpp`
 
 # L'écran
@@ -211,6 +224,8 @@ J'ai créer une API de haut niveau qui s'appuie sur la librairie
 - `void erase()` pour effacer le dernier caractère
 - `char* getLine1()` pour récupérer la ligne 
 - `void reset()` pour tout effacer et reparir à zéro
+
+En interne on gère une chaîne de caractère correspondant à la ligne 1 affichée.
 
 Tout le code se trouve dans le fichier `Display.cpp`.
 
@@ -300,32 +315,89 @@ le port série via `Serial.write`.
 
 Le code se trouve dans le fichier `HidKeyboard.cpp`. 
 
+Notez qu'il existe deux autres solutions que je n'ai pas explorée :
+- [V-USB]() est une implémentation logicielle d'HID. Il me semble possible de
+  l'utiliser sur l'ATmega128P en ajoutant une autre prise USB. Ca eviterait de
+  devoir flasher l'ATmega16u2 sans arrêt. D'ailleurs ça ne
+  m'étonnerait que mon fameux firmware HID que je balance sur l'ATmega16u2
+  utilise cette librairie.
+-  
+
 # Recoller les morceaux
 
 On a passé en revu comment récupérer les touches saisies au keypad, comment
 controler l'écran et comment simuler un clavier. Il ne reste plus qu'à mélanger
 tout ça pour créer Bramah.
 
+Pour suivre mes explications, aidez-vous du code source `bramah.ino`.
 
-h1. How to
+Comme je l'ai dit plus haut, pour le moment le mot de passe de déverrouillage
+est hardcodé dans le programme. Il s'agit de la variable globale
+`GOD_PASSWORD`.
 
-In order to be able to act as a HID keyboard, the arduino uno little CPU that acts as USB bridge has to be flashed with a keyboard HID firmware. But, with a keyboard HID firmware, we can't send new sketch, so we have to flash it again to the original firmware.
+Il y a 4 autres variables globales correspondantes aux composants décrits
+ci-dessus :
+- `display` pour gérer l'affichage
+- `multitapKeypad` pour gérer la saisie au keypad
+- `passwordGenerator` pour générer un mot de passe
+- `hidKeyboard` pour gérer le clavier virtuel
 
-There is two scrips :
-flash-keyboard.sh
-flash-original.sh
+Puis viennent les variables propres à l'état :
+- `GENERATED` est un booléen qui vaut faux tant que le mot de passe n'a pas été
+  généré.
+- `PASSWORD` est le mot de passe généré
 
-Before launching any of them, we must put the little CPU in flashing mode,
-making briefly a bridge between RST and GND. Hard reboot is necessary after
-each flash.
+La méthode `setup` initialise les différentes composants et alloue la mémoire
+pour stocker le mot de passe. 
 
-h1. Bugs
+La méthode `loop` ne fait que lire la saisie de touches sur le keypad.
 
-- The '\' is printed as the Yen symbol.
+Si l'on regarde de plus près comment est initialisé `multitapKeypad`, on voit
+qu'on lui passe deux fonctions `logRotate` et `logConfirm`. 
 
-- Only 16 characters are printed on scree
+`logRotate` est appelée à chaque fois qu'une touche du keypad est appuyée. Elle
+ne fait que remplacer la dernière lettre affichée par celle qui vient d'être
+pressée. Si on appuie physiquement sur 1, 'a' s'affiche. Si on rappuie sur 1,
+'b' s'affiche et remplace 'a'.
+
+`logConfirm` est appelé suite à un appui long sur une touche. Elle est plus
+complexe. Si le mot de passe n'a pas encore été généré, elle gère 3 cas :
+- un appui long sur la touche entrée lance la génération du mot de passe en
+  récupérant la chaine affichée à l'écran (l'identifiant du site), puis affiche
+  le mot de passe généré. Elle passe la variable `GENERATED` à vrai.
+- un appui long sur backspace supprime le dernier caractère affiché
+- un appui long sur une autre touche valide le caractère en l'affichant
+
+Si le mot de passe a déjà été généré et que la touche "entrée" est longuement
+appuyée, alors on envoie le mot de passe généré au clavier virtuel pour qu'il
+soit saisi sur l'ordinateur.
+
+# To be continued
+
+Au final, j'ai réussi à prouver que mon idée est réalisable. Elle n'est certes
+pas encore utilisable au quotidie, mais c'est déjà une étape de franchie. La prochaine
+étape est de régler les 2 ou 3 bugs existants et de faire une version un minimum
+transportable en soudant les composants et en les encastrant dans un boitier.
+
+Puis j'achèterai ce qu'il faut pour miniaturiser le plus possible Bramah :
+- un Arduino Micro
+- un écran de Nokia 3310
+- un keypad de taille réduite
+
+Enfin j'améliorerai Bramah pour :
+- implémenter le déverrouillage avec un mot de passe et un badge RFID
+- ajouter un module bluetooth pour simuler un clavier bluetooth afin de saisir
+  automatiquement le mot de passe sur un téléphone
+
+Je suis vraiment très impressionné par la facilité d'utilisation de l'Arduino.
+Il m'a suffit d'une semaine entre la germination de l'idée à un prototype. 
+Les ressources sont également nombreuses sur internet, ça hack dans tous les
+sens !
 
 
+Vos remarques et questions sont les bienvenues. 
+Contactez moi par mail ou sur Twitter.
+A+
 
 h1. Diary
 
