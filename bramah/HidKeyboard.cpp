@@ -18,7 +18,7 @@ HidKeyboard::~HidKeyboard() {
 };
 
 size_t HidKeyboard::index_of(const char ascii_char, const char * s) {
-  for (size_t i = 0; i < strlen(s); i++) {
+  for (size_t i = 0; i < strlen(s); i++) { // TODO bug à cause des \0, ne pas utiliser strlen !!
     if (s[i] == ascii_char) {
       return i;
     }

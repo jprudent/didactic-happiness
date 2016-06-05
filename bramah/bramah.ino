@@ -5,13 +5,18 @@
 #include "MultitapKeypad.h"
 #include "Display.h"
 
-
+// hardcoded unlock password
 const char* GOD_PASSWORD = "passw";
 
+// components
 Display *display;
 MultitapKeypad *multitapKeypad;
 PasswordGenerator *passwordGenerator;
 HidKeyboard *hidKeyboard;
+
+// state
+bool GENERATED = false;
+char * PASSWORD;
 
 void logRotate(char c) {
   if (c != '\n' && c != '\b') {
@@ -19,8 +24,6 @@ void logRotate(char c) {
   }
 }
 
-bool GENERATED = false;
-char * PASSWORD;
 
 void logConfirm(char c) {
   if (GENERATED) {
@@ -53,8 +56,6 @@ void setup() {
   display = new Display();
   passwordGenerator = new PasswordGenerator();
   hidKeyboard = new HidKeyboard();
-
-  // Print a message to the LCD.);
 }
 
 void loop() {
