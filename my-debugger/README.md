@@ -1,4 +1,8 @@
-This is a toy used to learn what a debugger is made of.
+Un debugger est un outil fabuleux :
+Cette sensation de contrôle divin. La possibilité de figer l'exécution d'un
+process et d'en inspecter les arcanes de sa mémoire. 
+C'était les deux phrases lyriques de cet article. Nous verrons que le divin
+n'est qu'une machinerie bien huilée.
 
 # Références 
 
@@ -11,7 +15,7 @@ This is a toy used to learn what a debugger is made of.
 - man 2 ptrace
 
 J'utilise du franglish.
-Je ne parle que de Linux sous archi x86-64
+Je ne parle que de Linux sous archi x86-64.
 
 ## Qu'est-ce que le CPU
 - registres
@@ -25,8 +29,8 @@ non priviledged
 
 Un process est la version vivante d'un programme.
 Constitué de :
- - data
- - code machine (text) asm
+- data
+- code machine (text) asm
 
 ## Qu'est-ce qu'un process signal ?
 
@@ -37,8 +41,8 @@ Un process enregistre un handler pour chaque type de signal.
 Une interruption est un signal envoyé au kernel depuis un process.
 Chaque type d'interruption est associé à un handler.
 exemple:
- - exit
- - syscall
+- exit
+- syscall
 
 ## Qu'est-ce qu'un system call ?
 
@@ -47,48 +51,34 @@ C'est une API.
 Sous Linux, elle implément le standard POSIX.
 
 exemple :
- - I/O
- - process management 
+- I/O
+- process management 
 
 [http://blog.rchapman.org/post/36801038863/linux-system-call-table-for-x86-64](Linux System Call Table for x86_64)
 
 Chaque syscall a un identifiant. Il peut avoir jusqu'à 6 paramètres passés par registre CPU.
+Les paramètres sont passés par convention dans les registres : RDI,RSI,RDX,RCX,R8,R9. 
 
 Exemple: Affichage à l'écran (copié d'[ici](http://cs.lmu.edu/~ray/notes/linuxsyscalls))
 Voici ce que donne le code désassemblé d'un hello world (`objdump -d a.out`):
 
-```
-  4000d4:	48 c7 c0 01 00 00 00 	mov    $0x1,%rax
-  4000db:	48 c7 c7 01 00 00 00 	mov    $0x1,%rdi
-  4000e2:	48 c7 c6 fe 00 40 00 	mov    $0x4000fe,%rsi
-  4000e9:	48 c7 c2 0d 00 00 00 	mov    $0xd,%rdx
-  4000f0:	0f 05                	syscall 
-```
+    ```
+    4000d4:	48 c7 c0 01 00 00 00 	mov    $0x1,%rax
+    4000db:	48 c7 c7 01 00 00 00 	mov    $0x1,%rdi
+    4000e2:	48 c7 c6 fe 00 40 00 	mov    $0x4000fe,%rsi
+    4000e9:	48 c7 c2 0d 00 00 00 	mov    $0xd,%rdx
+    4000f0:	0f 05                	syscall 
+    ```
 
 Traduit en français, cela donne : "Appel du syscall `sys_write` (RAX=1) pour écrire dans le file descriptor 1 (RDI=1), alias la sortie standard, la chaîne de caractère à l'adresse 0x4000fe (RSI=0x4000fe) de longueur 13 (RDX=0xd). Notez l'instruction `syscall` qui est une vraie instruction assembleur. 
-## ptrace
 
-```
-#include <stdio.h>
-
-int main() { 
-  printf("hello");
-  return 0; 
-}
-```
-
-gcc -o toto toto.c
-
-./toto
-hello
-
-## Première implémentation d'un debugger
+## "Démarrer en mode debug" 
 
 Dans cette première étape, nous allons voir comment démarrer un processus en "mode debug", le mettre en pause, l'inspecter et le laisser reprendre son exécution.
 
 Je tiens à préciser que cette partie est une adaptation 64 bits de [cet article original](http://www.linuxjournal.com/article/6100?page=0,0). N'hésitez pas à vous y référer si mes explications sont insuffisantes :)
 
-```
+``` C
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -108,29 +98,29 @@ int main()
     else {
         wait(NULL);
         orig_rax = ptrace(PTRACE_PEEKUSER,
-                          child, 8 * ORIG_RAX,
-                          NULL);
+                child, 8 * ORIG_RAX,
+                NULL);
         printf("The child made a "
-               "system call %ld\n", orig_rax);
+                "system call %ld\n", orig_rax);
         ptrace(PTRACE_CONT, child, NULL, NULL);
     }
     return 0;
 }
 ```
 
-gcc -o ptrace_ex1 ptrace_ex1.c
-./ptrace_ex1                  
-The child made a system call 59
+    gcc -o ptrace_ex1 ptrace_ex1.c
+    ./ptrace_ex1                  
+    The child made a system call 59
 
 L22: clone du process. Pour rappel, le syscall `fork` est le seul moyen de créer des process (à ma connaissance). `fork` procède à une copie presque intégrale du processus appelant (mémoire, registres CPU, ...). L'appelant devient le processus père du clone qui est donc son fils. Les 2 processus continuent leurs exécution aprè l'appel à `fork`. Je disais copie _presque_ intégrale car dans le processus père `fork` renvoie le PID du fils et dans le fils il renvoie 0. Dans notre exemple le père est le _debugger_ et le fils le _tracee_.
 
-Tracee :
+### Tracee :
 
 L14: se mettre en mode TRACEME. Dans ce mode, le process enfant s'arrête à chaque fois qu'il reçoit un signal.
 
-L15: Remplacement du core image par celle de `toto` en faisant appel au syscall `execve` via la fonction `execl`. `fork` permet de créer des process, `execve` permet de les remplacer ! Dans la man page, on peut lire qu'un process en mode TRACEME reçoit implicitement un signal SIGTRAP quand il fait un appel à `execve`. Le tracee est donc arrêté juste avant qu'il n'ait pu exécuter `execve`.
+L15: Remplacement du core image par celle de `toto` en faisant appel au syscall `execve` via la fonction `execl`. `fork` permet de créer des process, `execve` permet de remplacer le code à exécuter ! Dans la man page, on peut lire qu'un process en mode TRACEME reçoit implicitement un signal SIGTRAP quand il fait un appel à `execve`. Le tracee est donc arrêté juste avant qu'il n'ait pu exécuter `execve` puisqueile mode TRACEME arrête le process à la réception du signal.
 
-Debugger :
+### Debugger :
 
 L18: `wait` permet d'attendre un changement d'état dans l'un des processus fils. Nous avons vu que le tracee stoppe son exécution à l'appel de `execve`. Le debugger attend que le tracee passe à l'état STOPPED.  
 
@@ -141,7 +131,7 @@ L24: Le debugger lance la commande PTRACE_CONT qui informe le kernel de laisser 
 
 
 L26: Le debugger et le tracee terminent leur exécution.
- 
-Le man de ptrace liste toutes les commandes disponibles, parmis lesquelles la lecture et l'écriture des registres CPU ou de la mémoire du tracee. Indispensable pour écrire un débugger !
+
+Nous venons de voir trois commandes de `ptrace` :  `PTRACE_TRACEME`, `PTRACE_PEEKUSER`,  `PTRACE_CONT` qui constituent la première brique de notre debugger.
 
 

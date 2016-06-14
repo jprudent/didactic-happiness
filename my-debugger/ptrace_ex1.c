@@ -12,7 +12,7 @@ int main()
     child = fork();
     if(child == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
-        execl("toto", "toto", NULL);
+        execl("/usr/bin/ls", ".");
     }
     else {
         wait(NULL);
@@ -22,6 +22,7 @@ int main()
         printf("The child made a "
                "system call %ld\n", orig_rax);
         ptrace(PTRACE_CONT, child, NULL, NULL);
+        wait(NULL);
     }
     return 0;
 }
