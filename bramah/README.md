@@ -313,15 +313,28 @@ Ma fonction `type_on_keyboard` parcourt la chaine en entrée. Pour chaque
 caractère ASCII, elle détermine l'ID de la lettre correspondant et l'envoie sur
 le port série via `Serial.write`.
 
+L'utilisation de `Serial` pour simuler le clavier, proscrit son utilisation à
+des fins de débogage. En effet, exécuter `Serial.println("coucou")` quand le
+firmware HID est écrit dans l'ATmega16u2 produit une séquence de touche bizarre
+qui peut par exemple fermer la fenêtre qui a le focus.
+
 Le code se trouve dans le fichier `HidKeyboard.cpp`. 
 
-Notez qu'il existe deux autres solutions que je n'ai pas explorée :
-- [V-USB]() est une implémentation logicielle d'HID. Il me semble possible de
-  l'utiliser sur l'ATmega128P en ajoutant une autre prise USB. Ca eviterait de
-  devoir flasher l'ATmega16u2 sans arrêt. D'ailleurs ça ne
+Notez qu'il existe deux autres solutions que je n'ai pas explorées :
+
+- [V-USB](https://www.obdev.at/products/vusb/index.html) est une implémentation 
+  logicielle d'HID. Il me semble possible de
+  l'utiliser sur l'ATmega128P en ajoutant une autre prise USB, comme [dans ce
+  tutoriel](http://blog.petrockblock.com/2012/05/19/usb-keyboard-with-arduino-and-v-usb-library-an-example/).
+  Ca eviterait de devoir flasher l'ATmega16u2 sans arrêt. D'ailleurs ça ne
   m'étonnerait que mon fameux firmware HID que je balance sur l'ATmega16u2
   utilise cette librairie.
--  
+
+- [HoodLoader](https://github.com/NicoHood/HoodLoader2) est apparemment un
+  firmware pour l'ATmega16u2 capable à la fois de pouvoir reprogrammer
+  l'ATmega128P et de se comporter comme un matériel HID. Avec en bonus,
+  la possibilité d'envoyer ses propres sketchs sur l'ATmega16u2. 
+  L'auteur a également développé une [librairie HID](https://github.com/NicoHood/HID/)
 
 # Recoller les morceaux
 

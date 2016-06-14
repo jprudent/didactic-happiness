@@ -6,8 +6,9 @@
 const size_t KBD_BUF_SIZE = 8;
 const char KEY_LEFT_SHIFT = 0x02;
 const char KEY_QUESTION_MARK = 0x38;
-const char * SIMPLE_KEYS = "abcdefghijklmnopqrstuvwxyz1234567890\x0A\x1B\x08\t -=[]\\\0;'`,./\0";
-const char * SHIFT_KEYS  = "ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()\0\0\0\0\0_+{}|\0:\"~<>?";
+const size_t KEY_MAPPING_LEN = 54; 
+const char SIMPLE_KEYS[KEY_MAPPING_LEN] = {'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','1','2','3','4','5','6','7','8','9','0','\x0A','\x1B','\x08','\t',' ', '-','=','[',']','\\','#',';','\'','`',',','.','/'};
+const char SHIFT_KEYS[KEY_MAPPING_LEN]  = {'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','!','@','#','$','%','^','&','*','(',')','\0',  '\0',  '\0',  '\0','\0','_','+','{','}','|', '~',':','"', '~','<','>','?'};
 const size_t MODIFIER_IDX = 0;
 const size_t KEY1_IDX = 2;
 
@@ -18,7 +19,7 @@ HidKeyboard::~HidKeyboard() {
 };
 
 size_t HidKeyboard::index_of(const char ascii_char, const char * s) {
-  for (size_t i = 0; i < strlen(s); i++) { // TODO bug à cause des \0, ne pas utiliser strlen !!
+  for (size_t i = 0; i < KEY_MAPPING_LEN; i++) { 
     if (s[i] == ascii_char) {
       return i;
     }
