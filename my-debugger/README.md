@@ -1,4 +1,4 @@
-Un debugger est un outil fabuleux :
+Un tracer est un outil fabuleux :
 Cette sensation de contrôle divin. La possibilité de figer l'exécution d'un
 process et d'en inspecter les arcanes de sa mémoire. 
 C'était les deux phrases lyriques de cet article. Nous verrons que le divin
@@ -112,7 +112,7 @@ int main()
     ./ptrace_ex1                  
     The child made a system call 59
 
-L22: clone du process. Pour rappel, le syscall `fork` est le seul moyen de créer des process (à ma connaissance). `fork` procède à une copie presque intégrale du processus appelant (mémoire, registres CPU, ...). L'appelant devient le processus père du clone qui est donc son fils. Les 2 processus continuent leurs exécution aprè l'appel à `fork`. Je disais copie _presque_ intégrale car dans le processus père `fork` renvoie le PID du fils et dans le fils il renvoie 0. Dans notre exemple le père est le _debugger_ et le fils le _tracee_.
+L22: clone du process. Pour rappel, le syscall `fork` est le seul moyen de créer des process (à ma connaissance). `fork` procède à une copie presque intégrale du processus appelant (mémoire, registres CPU, ...). L'appelant devient le processus père du clone qui est donc son fils. Les 2 processus continuent leurs exécution aprè l'appel à `fork`. Je disais copie _presque_ intégrale car dans le processus père `fork` renvoie le PID du fils et dans le fils il renvoie 0. Dans notre exemple le père est le _tracer_ et le fils le _tracee_.
 
 ### Tracee :
 
@@ -120,18 +120,57 @@ L14: se mettre en mode TRACEME. Dans ce mode, le process enfant s'arrête à cha
 
 L15: Remplacement du core image par celle de `toto` en faisant appel au syscall `execve` via la fonction `execl`. `fork` permet de créer des process, `execve` permet de remplacer le code à exécuter ! Dans la man page, on peut lire qu'un process en mode TRACEME reçoit implicitement un signal SIGTRAP quand il fait un appel à `execve`. Le tracee est donc arrêté juste avant qu'il n'ait pu exécuter `execve` puisqueile mode TRACEME arrête le process à la réception du signal.
 
-### Debugger :
+### tracer :
 
-L18: `wait` permet d'attendre un changement d'état dans l'un des processus fils. Nous avons vu que le tracee stoppe son exécution à l'appel de `execve`. Le debugger attend que le tracee passe à l'état STOPPED.  
+L18: `wait` permet d'attendre un changement d'état dans l'un des processus fils. Nous avons vu que le tracee stoppe son exécution à l'appel de `execve`. Le tracer attend que le tracee passe à l'état STOPPED.  
 
 L19: Le tracee étant arrêté, le débugger a tout le loisir de l'inspecter. Ici il utilise la commande `PTRACE_PEEKUSER` qui permet d'inspecter les registres du CPU, plus particulièrement le registre RAX. A l'issu de l'appel `ptrace`, la variable `orig_rax` contient ne numéro du syscall correspondant à `execve`, soit 59.
 Les valeurs de registre ne sont pas lues en live depuis le CPU. En fait, quand le kernel stoppe le tracee il enregistre le contexte du processus, dont les registres, afin que ce dernier puisse reprendre son exécution plus tard, comme si de rien n'était. Les valeurs renvoyées par `ptrace` sont issues de cet enregistrement.
 
-L24: Le debugger lance la commande PTRACE_CONT qui informe le kernel de laisser le tracee continuer son exécution. 
+L24: Le tracer lance la commande PTRACE_CONT qui informe le kernel de laisser le tracee continuer son exécution. 
 
 
-L26: Le debugger et le tracee terminent leur exécution.
+L26: Le tracer et le tracee terminent leur exécution.
 
-Nous venons de voir trois commandes de `ptrace` :  `PTRACE_TRACEME`, `PTRACE_PEEKUSER`,  `PTRACE_CONT` qui constituent la première brique de notre debugger.
+## Rendre l'implicite explicite 
+
+Le jeu de signaux entre le _tracer_ et le _tracee_ est assez complexe. En
+effet, l'appel au syscall `execve` implique un signal STOP implicite. [Cet
+article](https://idea.popcount.org/2012-12-11-linux-process-states/) explique plutôt bien l'intéraction entre un processus père et fils. Simplifions un peu le code pour mettre en relief ces intéractions :
+```
+ptrace_ex2.c
+```
+
+La fonction `waitchild` est un wrapper à `waitpid`. Elle permet de bloquer
+jusqu'à ce qu'un processus fils passe à l'état STOP ou TERMINATED.
+
+La fonction `main` est un `fork`, et on se trouve avec une branche pour le
+_tracee_ et une autre pour le _tracer_. 
+
+Le _tracee_ récupère son pid avec la fonction `getpid` et s'envoie
+explicitement un signal STOP via `kill`. Notons que `kill` est un syscall d'id 62.
+Dans la version précédente le signal STOP était implicitement envoyé via
+le syscall `execve`.
+
+Le _tracer_ fait un premier `waitpid`. Il attend que son fils passe à l'état
+STOP. Ensuite il inspecte les registres du _tracee_ et le relance comme précédemment. Enfin
+il fait un second `waitpid` qui doit correspondre au _tracee_ passant à l'état
+TERMINATED.
+
+    gcc -o ptrace_ex2 ptrace_ex2.c && ./ptrace_ex2
+    8815 stopped with signal 19
+    The child made a system call 62
+    Hasta luego
+    8815 exited with status 0
+
+Ce code est beaucoup plus clair mais il ne permet que de s'autodebugger.
+Utiliser `execve` permet de débugger un programme arbitraire.
 
 
+Nous avons vu qu'un debugger peut utiliser `ptrace` pour instrumenter l'exécution d'un
+processus fils créé via `fork`. 
+Nous venons de voir trois commandes de `ptrace` :  `PTRACE_TRACEME`, `PTRACE_PEEKUSER`,  `PTRACE_CONT` qui constituent la première brique de notre tracer.
+
+## Breakpoint
+
+Une des fonctionnalités les plus appréciées d
