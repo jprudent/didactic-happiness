@@ -14,6 +14,17 @@ n'est qu'une machinerie bien huilée.
 
 - man 2 ptrace
 
+- How debuggers work
+  [part1](http://eli.thegreenplace.net/2011/01/23/how-debuggers-work-part-1),
+  [part2](http://eli.thegreenplace.net/2011/01/27/how-debuggers-work-part-2-breakpoints),
+  [part3](http://eli.thegreenplace.net/2011/02/07/how-debuggers-work-part-3-debugging-information). En plus l'auteur a mis des références en bas de ses articles, ce que j'apprécie beaucoup ;)
+
+- Explication sur l'implémentation des [hardware breakpoints](https://www.kernel.org/doc/ols/2009/ols2009-pages-149-158.pdf)
+
+- Un autre article sur [le fonctionnement d'un debugger](http://www.alexonlinux.com/how-debugger-works)
+
+- [Implémentation d'un breakpoint](http://mainisusuallyafunction.blogspot.fr/2011/01/implementing-breakpoints-on-x86-linux.html)
+
 J'utilise du franglish.
 Je ne parle que de Linux sous archi x86-64.
 
@@ -163,6 +174,20 @@ TERMINATED.
     Hasta luego
     8815 exited with status 0
 
+Notez que le _tracee_ étant en mode TRACEME, il passe à l'état STOP quelque
+soit le signal reçu. Si on remplace le signal par SIGUSR1 :
+
+```
+kill(child, SIGUSR1);
+```
+
+on obtient l'exécution suivante :
+
+    9155 stopped with signal 10
+    The child made a system call 62
+    Hasta luego
+    9155 exited with status 0
+
 Ce code est beaucoup plus clair mais il ne permet que de s'autodebugger.
 Utiliser `execve` permet de débugger un programme arbitraire.
 
@@ -173,4 +198,5 @@ Nous venons de voir trois commandes de `ptrace` :  `PTRACE_TRACEME`, `PTRACE_PEE
 
 ## Breakpoint
 
-Une des fonctionnalités les plus appréciées d
+Une des fonctionnalités les plus appréciées d'un debugger est la possibilité de
+pouvoir 
