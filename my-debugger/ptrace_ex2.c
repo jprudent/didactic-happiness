@@ -27,7 +27,7 @@ int main() {
     if(child == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         child = getpid();
-        kill(child, SIGSTOP);
+        kill(child, SIGUSR1);
         printf("Hasta luego\n");
     }
     else {
