@@ -16,16 +16,16 @@ la manière la plus didactique d'apprendre ! Et c'est ce que je vous propose
 aujourd'hui, d'écrire un petit debugger pas super pratique mais fonctionnel.
 
 Concernant le fond, cet article ne traite que de Linux sous architecture x86_64.
+Il part du principe que vous avez de vagues notions sur ce qu'est :
+- l'[architecture x86](https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture)
+- le langage [assembleur x86](https://en.wikipedia.org/wiki/X86_instruction_listings)
+- le système Linux
+- un [process](https://en.wikipedia.org/wiki/Process_%28computing%29)
+- un [signal Unix](https://en.wikipedia.org/wiki/Unix_signal)
 
-Concernant la forme, cet article est en franglish (parce que je trouve bizzare
+Concernant la forme, cet article est en franglish (parce que je trouve étrange
 d'écrire _deboggueur_).
 
-# Rapide rappel sur le code assembleur
-
-Si vous savez lire le code assembleur, vous pouvez sauter cette section.
-
-- mnémonique / opcode
-- registres CPU
 
 # Rapide rappel sur les syscalls et les interruptions
 
@@ -93,7 +93,6 @@ Par exemple pour tracer tous les _syscall_ `write` de la commande `echo` :
     $strace -o '| grep write' echo "Hello"
     write(1, "Hello\n", 6)                  = 6
 
-On voit que `write` a été appelé avec les paramètres :
 - On écrit dans le file descriptor 1 (sortie standard),
 - Une chaine de caractère qui contient "Hello\n"
 - On écrit 6 caractères
@@ -104,7 +103,7 @@ CPU et fait exécuter l'instruction `syscall` au CPU. Et là magiquement
 l'exécution du process s'arrête (bloque) et ne reprend que lorsque le _syscall_
 a été réalisé.
 
-Cette tuyauterie s'appelle une _interruption_. Une interruption permet au
+La tuyauterie permettant cela s'appelle une _interruption_. Une interruption permet au
 CPU d'appeler une fonction du kernel. Donc quand le CPU exécute l'instruction
 `syscall`, il redonne la main au noyau qui se débrouille pour mettre en pause le
 process appelant, exécuter la commande _syscall_ demandée avec les paramètres,
@@ -148,10 +147,6 @@ En extrapolant, on peut voir le `fork` comme une [
 mitose](https://fr.wikipedia.org/wiki/Mitose) cellulaire. Avant la mitose
 on a 1 cellule et après la mitose on a 2 cellules qui partagent exactement
 le même ADN (le code).
-
-# Signaux
-
-TODO
 
 # Trace moi si tu peux
 
@@ -224,6 +219,9 @@ commandes qui permettent de l'inspecter et de l'exécuter pas à pas.
 Les valeurs de registre ne sont pas lues en live depuis le CPU. En fait, quand le kernel stoppe le tracee il enregistre le contexte du processus, dont les registres, afin que ce dernier puisse reprendre son exécution plus tard, comme si de rien n'était. Les valeurs renvoyées par `ptrace` sont issues de cet enregistrement.
 
 - `PEEKTEXT` permet d'examiner la mémoire.
+
+- `SINGLESTEP` exécute l'instruction pointée par le registre `RIP` et repasse
+à l'état `STOPPED`.
 
 Le fonctionnement de ces deux commandes est illustré par le code suivant :
 
@@ -319,7 +317,8 @@ n'importe quel signal, puis exécutera `fizzbuzz` quand il passera à l'état `R
 sera auditée par le _tracer_.
 
 `waitchild` encapsule un appel à `waitpid`. Si le _tracee_ passe à l'état
-`STOPPED`, elle renvoie 0. Et si le _tracee_ passe à l'état 1, elle renvoie 0.
+`STOPPED`, elle renvoie 0. Et si le _tracee_ passe à l'état `TERMINATED`,
+elle renvoie 1.
 
 `trace` est une boucle dont la condition d'arrêt est le _tracee_ qui passe
 à l'état `TERMINATED`. Dans cette boucle, le _tracer_ :
@@ -332,7 +331,7 @@ Les valeurs de registre ne sont pas lues en live depuis le CPU. En fait, quand l
 le _tracee_ est arrêté, via la commande `PEEKTEXT`.
 
 3. `PEEKTEXT` écrit les octets en mémoire dans un `long` de 8 octets. Notons
-que mon système en [little endian](https://en.wikipedia.org/wiki/Endianness),
+que l'archi x86 est en [little endian](https://en.wikipedia.org/wiki/Endianness),
 cela signifie que l'octet à l'adresse pointée par `RIP` est récupéré dans l'octet
 de poids de plus faible du `long`. D'où les calculs binaires pour récupérer les
 deux premiers octets pointés par `RIP`.
