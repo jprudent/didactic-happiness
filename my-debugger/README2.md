@@ -24,7 +24,8 @@ d'écrire _deboggueur_).
 
 Si vous savez lire le code assembleur, vous pouvez sauter cette section.
 
-TODO
+- mnémonique / opcode
+- registres CPU
 
 # Rapide rappel sur les syscalls
 
@@ -58,6 +59,7 @@ En voici un extrait :
 | 0           | read              | `unsigned int file_descriptor`| `char * buffer` | `size_t length`  |
 | 1           | write             | `unsigned int file_descriptor`| `char * buffer` | `size_t length`  |
 | 57          | fork              |
+| 59          | execve            | `const char *filename`        | `const char *const argv[]` | `const char *const envp[]` |
 | 60          | exit              | `int error_code` |
 | 62          | kill              | `pid_t pid` | `int signal` |
 | 101         | ptrace            | `long request`                | `long pid`      | `unsigned long data` |
@@ -83,6 +85,19 @@ syscall
 ```
 
 Traduit en français, cela donne : "Appel du syscall `sys_write` (RAX=1) pour écrire dans le file descriptor 1 (RDI=1), alias la sortie standard, la chaîne de caractère à l'adresse 0x4000fe (RSI=0x4000fe) de longueur 13 (RDX=0xd). Notez l'instruction `syscall` qui est une vraie instruction assembleur x86_64.
+
+Il existe un utilitaire très pratique, `strace`, qui permet de tracer tous les
+_syscall_ effectués par un process.
+Par exemple pour tracer tous les _syscall_ `write` de la commande `echo` :
+
+    $strace -o '| grep write' echo "Hello"
+    write(1, "Hello\n", 6)                  = 6
+
+On voit que `write` a été appelé avec les paramètres :
+- On écrit dans le file descriptor 1 (sortie standard),
+- Une chaine de caractère qui contient "Hello\n"
+- On écrit 6 caractères
+- `write` a bien écrit 6 caractères
 
 # Salut fiston, c'est papa !
 
@@ -149,7 +164,6 @@ Le _tracee_ passe à l'état `RUNNING` quand le père lance la commande `ptrace`
 Le code suivant illustre ce principe :
 
 ``` C
-
 int main() {
     pid_t child = fork();
     if(child == 0) {
@@ -193,12 +207,231 @@ permettent de changer l'état (`RUNNING` / `STOPPED`) du _tracee_.
 # Traçons
 
 Lorsque le _tracee_ est à l'état `STOPPED`, `ptrace` fournit au _tracer_ des
-commandes qui permettent de l'inspecter.
+commandes qui permettent de l'inspecter et de l'exécuter pas à pas.
 
-`PEEKUSER` permet d'inspecter les registres du CPU.
+- `PEEKUSER` permet d'inspecter les registres du CPU.
 Les valeurs de registre ne sont pas lues en live depuis le CPU. En fait, quand le kernel stoppe le tracee il enregistre le contexte du processus, dont les registres, afin que ce dernier puisse reprendre son exécution plus tard, comme si de rien n'était. Les valeurs renvoyées par `ptrace` sont issues de cet enregistrement.
 
- 
+- `PEEKTEXT` permet d'examiner la mémoire.
+
+Le fonctionnement de ces deux commandes est illustré par le code suivant :
+
+```C
+#include <sys/ptrace.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <signal.h>
+#include <sys/user.h>
+#include <sys/reg.h>
+
+void fizzbuzz() {
+    for(int i = 0; i < 100; i++) {
+        int fizz = i % 3 == 0;
+        if(fizz) printf("Fizz");
+        int buzz = i % 5 == 0;
+        if(buzz) printf("Buzz");
+        if(!(fizz||buzz)) printf("%d", i);
+        printf(", ");
+    }
+}
+
+int waitchild(pid_t pid) {
+    int status;
+    waitpid(pid, &status, 0);
+    if(WIFSTOPPED(status)) {
+        return 0;
+    }
+    else if (WIFEXITED(status)) {
+        return 1;
+    }
+    else {
+        printf("%d raised an unexpected status %d", pid, status);
+        return 1;
+    }
+}
+
+void trace(pid_t child) {
+  unsigned long instruction, opcode1, opcode2, ip;
+  unsigned long jmps = 0;
+  do {
+    ip = ptrace(PTRACE_PEEKUSER, child, 8 * RIP, NULL);
+    instruction = ptrace(PTRACE_PEEKTEXT, child, ip, NULL);
+    opcode1 = instruction & 0x00000000000000FF;
+    opcode2 = (instruction & 0x000000000000FF00) >> 8;
+    if((opcode1 >= 0x70 && opcode1 <= 0x7F) ||
+       (opcode1 == 0x0F && (opcode2 >= 0x83 && opcode2 <= 0x87))) {
+         jmps = jmps + 1;
+    }
+    ptrace(PTRACE_SINGLESTEP, child, NULL, NULL);
+  } while(waitchild(child) < 1);
+  printf("\n=> There are %lu jumps\n", jmps);
+}
+
+int main() {
+    long instruction;
+    pid_t child = fork();
+    if(child == 0) {
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        child = getpid();
+        kill(child, SIGUSR1);
+        fizzbuzz();
+    }
+    else {
+        // wait for the child to stop
+        waitchild(child);
+        trace(child);
+    }
+    return 0;
+}
+```
+
+A l'exécution on a :
+
+    FizzBuzz, 1, 2, Fizz, 4, Buzz, Fizz, 7, 8, Fizz, Buzz, 11, Fizz, 13, 14, FizzBuzz, 16, 17, Fizz, 19, Buzz, Fizz, 22, 23, Fizz, Buzz, 26, Fizz, 28, 29, FizzBuzz, 31, 32, Fizz, 34, Buzz, Fizz, 37, 38, Fizz, Buzz, 41, Fizz, 43, 44, FizzBuzz, 46, 47, Fizz, 49, Buzz, Fizz, 52, 53, Fizz, Buzz, 56, Fizz, 58, 59, FizzBuzz, 61, 62, Fizz, 64, Buzz, Fizz, 67, 68, Fizz, Buzz, 71, Fizz, 73, 74, FizzBuzz, 76, 77, Fizz, 79, Buzz, Fizz, 82, 83, Fizz, Buzz, 86, Fizz, 88, 89, FizzBuzz, 91, 92, Fizz, 94, Buzz, Fizz, 97, 98, Fizz,
+    => There are 23037 jumps
+
+Plusieurs exécutions du programme retourne toujours le même nombre, ce qui
+est assez rassurant.
+
+Détaillons le programme :
+
+La fonction `main` reprend le même schéma que les exemples précédents :
+1. `fork` du process
+2. le _tracee_ se met en mode `TRACEME` et passe à l'état `STOPPED` en s'envoyant
+n'importe quel signal, puis exécutera `fizzbuzz` quand il passera à l'état `RUNNING`.
+3. Le _tracer_ attend que le _tracee_ passe à l'état `STOPPED` puis exécute
+`trace`
+
+`fizzbuzz` est une simple fonction qui implémente le célèbre [FizzBuzz](https://en.wikipedia.org/wiki/Fizz_buzz). C'est cette fonction qui
+sera auditée par le _tracer_.
+
+`waitchild` encapsule un appel à `waitpid`. Si le _tracee_ passe à l'état
+`STOPPED`, elle renvoie 0. Et si le _tracee_ passe à l'état 1, elle renvoie 0.
+
+`trace` est une boucle dont la condition d'arrêt est le _tracee_ qui passe
+à l'état `TERMINATED`. Dans cette boucle, le _tracer_ :
+
+1. Utilise la commande `PEEKUSER` afin de récupérer l'adresse de l'instruction
+courante stockée dans le registre `RIP`. `PEEKUSER` permet d'inspecter les registres du CPU.
+Les valeurs de registre ne sont pas lues en live depuis le CPU. En fait, quand le kernel stoppe le tracee il enregistre le contexte du processus, dont les registres, afin que ce dernier puisse reprendre son exécution plus tard, comme si de rien n'était. Les valeurs renvoyées par `ptrace` sont issues de cet enregistrement.
+
+2. Lit en mémoire, à l'adresse stockée dans `RIP`, l'instruction sur laquelle
+le _tracee_ est arrêté, via la commande `PEEKTEXT`.
+
+3. `PEEKTEXT` écrit les octets en mémoire dans un `long` de 8 octets. Notons
+que mon système en [little endian](https://en.wikipedia.org/wiki/Endianness),
+cela signifie que l'octet à l'adresse pointée par `RIP` est récupéré dans l'octet
+de poids de plus faible du `long`. D'où les calculs binaires pour récupérer les
+deux premiers octets pointés par `RIP`.
+
+4. On vérifie si l'instruction correspond à une instruction de saut
+conditionnel, auquel cas, on incrémente la variable `jmps`.
+
+5. On exécute la commande `SINGLESTEP` qui exécute *une seule* instruction du
+_tracee_ et lui envoie un signal `SIGTRAP` pour qu'il passe immédiatement à
+l'état `STOPPED`.
+
+6. Après l'exécution de la boucle, on affiche le résultat.
+
+*23000* sauts conditionnels est assez hallucinant, cela en fait 2300 par
+itération. `fizzbuzz` est assez simple, mais je pense que `printf` doit
+être assez compliqué et faire monter l'addition.
+
+# Tracer n'importe quoi
+
+Jusqu'ici, le _tracee_ était un process bien connu, que nous avions codé nous
+même. Ce que nous aimerions, c'est tracer n'importe quel programme.
+
+Le _syscall_ `excecve` permet de remplacer l'image du process appelant par un
+autre. A l'issu du _syscall_ `execve`, le process n'a plus rien à voir avec le
+code d'origine, il est complètement remplacé par le programme passé à `execve`.
+D'ailleurs, il n'y a aucun moyen de récupérer le résultat d'`execve`.
+
+`execve` a 3 paramètres :
+- le chemin du programme
+- les arguments à passer au programme
+- les variables d'environnement à passer au programme
+
+Une subtilité d'`execve` intéressante dans notre cas, est qu'un signal `SIGTRAP`
+est automatiquement envoyé après l'exécution d'`execve` si le process est en
+mode `TRACEME`. Ce qui siginifie que l'on peut se passer d'envoyer manuellement
+un signal dans le _tracee_. Lorsque `waitpid` donne la main au _tracer_, l'image
+du _tracee_ a été remplacée par celle du programme passé en paramètre d'`execve`.
+
+``` C
+int waitchild(pid_t pid) {
+    int status;
+    waitpid(pid, &status, 0);
+    if(WIFSTOPPED(status)) {
+        return 0;
+    }
+    else if (WIFEXITED(status)) {
+        return 1;
+    }
+    else {
+        printf("%d raised an unexpected status %d", pid, status);
+        return 1;
+    }
+}
+
+void trace(pid_t child) {
+  unsigned long instruction, opcode1, opcode2, ip;
+  unsigned long jmps = 0;
+  do {
+    ip = ptrace(PTRACE_PEEKUSER, child, 8 * RIP, NULL);
+    instruction = ptrace(PTRACE_PEEKTEXT, child, ip, NULL);
+    opcode1 = instruction & 0x00000000000000FF;
+    opcode2 = (instruction & 0x000000000000FF00) >> 8;
+    if((opcode1 >= 0x70 && opcode1 <= 0x7F) ||
+       (opcode1 == 0x0F && (opcode2 >= 0x83 && opcode2 <= 0x87))) {
+         jmps = jmps + 1;
+    }
+    ptrace(PTRACE_SINGLESTEP, child, NULL, NULL);
+  } while(waitchild(child) < 1);
+  printf("\n=> There are %lu jumps\n", jmps);
+}
+
+int main(int argc, char ** argv) {
+    long instruction;
+    pid_t child = fork();
+    if(child == 0) {
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        execve(argv[1], argv + 1, NULL);
+    }
+    else {
+        // wait for the child to stop
+        waitchild(child);
+        trace(child);
+    }
+    return 0;
+}
+```
+
+`waitpid` et `trace` n'ont pas été modifiés, `fizzbuzz` a été supprimé.
+
+`main` a subi quelques altérations :
+
+1. Le _tracee_ s'attend à ce que soient passés le chemin du programme à tracer
+dans `argv[1]` et les arguments du programme à tracer dans `argv[2]`, `argv[3]`,
+etc.
+
+2. Le _tracee_ ne s'envoie plus de signal lui-même pour passer à l'état `STOPPED`
+
+3. Le _tracee_ appel `execve`.
+
+Le code du _tracer_ n'a absolument pas changé.
+
+A l'exécution, cela donne :
+
+    ./ptrace_ex4 /usr/bin/ls /      
+    bin   dev  home  lib64	     media  opt   root	sbin  sys  usr
+    boot  etc  lib	 lost+found  mnt    proc  run	srv   tmp  var
+
+    => There are 44633 jumps
+
+
 # Références
 
 Cet article n'est pas tout à fait original. Ces quelques sources m'ont beaucoup

@@ -50,14 +50,12 @@ void trace(pid_t child) {
   printf("\n=> There are %lu jumps\n", jmps);
 }
 
-int main() {
+int main(int argc, char ** argv) {
     long instruction;
     pid_t child = fork();
     if(child == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
-        child = getpid();
-        kill(child, SIGUSR1);
-        fizzbuzz();
+        execve(argv[1], argv + 1, NULL);
     }
     else {
         // wait for the child to stop
