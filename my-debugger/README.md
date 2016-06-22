@@ -812,8 +812,9 @@ process et le noyau. Je comprends beaucoup mieux pourquoi on dit qu'un
 process bloque quand on fait de l'I/O, et j'en comprends le mécanisme.
 
 Malgré le fait que ce ne soit pas vraiment mon domaine de compétence,
-j'ai de plus en plus envie de faire de la programmation système. je vois
-le langage [Rust]() me faire des clins d'oeil.
+j'ai de plus en plus envie de faire de la programmation système.
+Le langage [Rust](https://doc.rust-lang.org/book/) commence sérieusement
+à m'intéresser.
 
 # Références
 
@@ -823,11 +824,11 @@ vivement la lecture.
 
 - `man 2 ptrace`
 
-- Playing with `ptrace` [http://www.linuxjournal.com/article/6100](Part I), [http://www.linuxjournal.com/article/6210](Part II)
+- Playing with ptrace [Part I](http://www.linuxjournal.com/article/6100), [Part II](http://www.linuxjournal.com/article/6210)
 
-- Nice [https://mikecvet.wordpress.com/2010/08/14/ptrace-tutorial/](write up about ptrace)
+- Nice [ptrace tutorial](https://mikecvet.wordpress.com/2010/08/14/ptrace-tutorial/])
 
-- Why [http://lwn.net/Articles/371501/](ptrace is aweful) ?
+- Why [ptrace is aweful](http://lwn.net/Articles/371501/) ?
 
 - How debuggers work
   [part1](http://eli.thegreenplace.net/2011/01/23/how-debuggers-work-part-1),
