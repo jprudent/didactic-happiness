@@ -62,14 +62,14 @@ qui définit un ensemble d'appels système.
 
 En voici un extrait :
 
-| %rax        | syscall           | %rdi                          | %rsi            | %rdx     | %rcx  | %r8 | %r9 |
-| ----------- |:-------------:| -----:|
-| 0           | read              | `unsigned int file_descriptor`| `char * buffer` | `size_t length`  |
-| 1           | write             | `unsigned int file_descriptor`| `char * buffer` | `size_t length`  |
-| 57          | fork              |
+| %rax        | syscall           | %rdi                          | %rsi            | %rdx            |     
+| ----------- | ----------------- | ----------------------------- | --------------- | --------------- |
+| 0           | read              | `unsigned int file_descriptor`| `char * buffer` | `size_t length` |
+| 1           | write             | `unsigned int file_descriptor`| `char * buffer` | `size_t length` |
+| 57          | fork              |                               |                 |                 |
 | 59          | execve            | `const char *filename`        | `const char *const argv[]` | `const char *const envp[]` |
-| 60          | exit              | `int error_code` |
-| 62          | kill              | `pid_t pid` | `int signal` |
+| 60          | exit              | `int error_code`              |                 |                 |
+| 62          | kill              | `pid_t pid`                   | `int signal`    |                 |
 | 101         | ptrace            | `long request`                | `long pid`      | `unsigned long data` |
 
  Allez voir la [liste complète](http://blog.rchapman.org/post/36801038863/linux-system-call-table-for-x86-64).
@@ -589,7 +589,7 @@ int main(int argc, char ** argv) {
 
 ```
 
-Woh! Ca commence à être gros ! Décorticons tout ça.
+Woh! Ca commence à être gros ! Décortiquons tout ça.
 
 `main` suis le même pattern que d'habitude: `fork`, et `TRACEME`, `execve` pour
 le _tracee_. En revanche le code du _tracer_ a pas mal changé :
