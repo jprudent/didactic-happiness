@@ -476,6 +476,16 @@ kernel pour envoyer un signal `SIGTRAP` à qui la lève.
 Voici à quoi ressemble une implémentation de breakpoint.
 
 ``` C
+#include <sys/ptrace.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <signal.h>
+#include <sys/user.h>
+#include <sys/reg.h>
+
 int waitchild(pid_t pid) {
     int status;
     waitpid(pid, &status, 0);
@@ -528,8 +538,8 @@ void removebp(pid_t tracee, unsigned long address, unsigned long original) {
 }
 
 void showregisters(pid_t tracee) {
-  printf("RIP = %lx\nRAX = %lx\n",
-        readRegister(tracee, RIP), readRegister(tracee, ORIG_RAX));
+  printf("RIP = %lx\n",
+        readRegister(tracee, RIP));
 }
 
 void setIp(pid_t tracee, unsigned long address) {
@@ -546,7 +556,6 @@ int main(int argc, char ** argv) {
     pid_t child = fork();
     if(child == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
-        printf("exec %s", argv[2]);
         execve(argv[2], argv + 2, NULL);
     }
     else {
@@ -574,35 +583,43 @@ int main(int argc, char ** argv) {
     }
     return 0;
 }
+
 ```
 
 Woh! Ca commence à être gros ! Décorticons tout ça.
 
 `main` suis le même pattern que d'habitude: `fork`, et `TRACEME`, `execve` pour
 le _tracee_. En revanche le code du _tracer_ a pas mal changé :
-- `waitchild` attend que le _tracee_ passe à l'état `STOPPED`.
+- Comme d'habitude, `waitchild` attend que le _tracee_ passe à l'état `STOPPED`.
 - `setbp` pose le point d'arrêt à l'adresse demandée. Concrêtement, il s'agit
 d'utiliser la commande `POKETEXT` pour écrire l'opcode 0xCC (`int 3`) à l'adresse
-du breakpoint.
+mémoire du breakpoint. `setbp` retourne l'instruction originale (très important!).
 - La commande `CONT` permet de continuer l'exécution du _tracee_ jusqu'à ce qu'il
 exécute cette fameuse `int 3` et passe à l'état `STOPPED`
-- On entre dans une boucle qui termine quand le _tracee_ passe à l'état
+- La boucle `while` termine quand le _tracee_ passe à l'état
 `TERMINATED`
-- Si on est rentré dans la boucle, cela signifie que l'`int 3` correspondant
-au breakpoint a été exécutée.
+- Si on est rentré dans la boucle, cela signifie que l'instruction `int 3`
+correspondant au breakpoint a été exécutée.
 - On affiche quelques registres et on bloque tant que l'utilisateur n'a pas pressé
-Ctrl+D au clavier.
-- A ce moment le registre IP vaut l'`bpAddress + 1`, car on a exécuter `int 3`.
- Si on laisse filer _tracee_ il n'exécutera jamais l'instruction qui était prévue,
- à l'adresse `bpAddress`. De plus, `bpAddress + 1` contient certainement une
- instruction inintelligible.
-- Donc le _tracer_ remet l'instruction originale à l'adresse `bpAddress` 
+Ctrl+D au clavier pour lui laisser le temps de lire.
+- A ce moment le registre _RIP_ vaut `bpAddress + 1`, car on a exécuté `int 3`
+qui fait un octet. Si on laisse filer le _tracee_ il n'exécutera jamais
+l'instruction qui était prévue à l'adresse `bpAddress`.
+De plus, `bpAddress + 1` contient certainement une instruction inintelligible.
+- Donc le _tracer_ remet l'instruction originale à l'adresse `bpAddress` via
+`POKETEXT`.
+- Puis le _tracer_ *rembobine* le fil d'exécution du _tracee_ en mettant le
+registre _RIP_ à `bpAddress` pour qu'il pointe l'instruction prévue.
+- Avec la commande `SINGLESTEP`, le _tracer_ commande au _tracee_ d'exécuter
+l'instruction à `bpAddress`
+- Enfin, le _tracer_ repose le breakpoint et laisse filer le _tracee_ jusqu'à
+ce que ce dernier passe à `TERMINATED` ou à `STOPPED` (s'il réexécute `int 3`
+à l'adresse `bpAddress`)
 
-
-Pour illustrer notre propos, notre _tracee_ sera le programme `fizzbuzz` suivant :
+Testons ce nouveau _tracer_ sur le programme `fizzbuzz` suivant :
 
 ```C
-void fizzbuzz()
+void fizzbuzz() {
     for(int i = 0; i < 100; i++) {
         int fizz = i % 3 == 0;
         if(fizz) printf("Fizz");
@@ -610,6 +627,7 @@ void fizzbuzz()
         if(buzz) printf("Buzz");
         if(!(fizz||buzz)) printf("%d", i);
         printf(", ");
+        fflush(stdout);
     }
 }
 
@@ -617,44 +635,159 @@ int main() {
     fizzbuzz();
 }
 
+
 ```
-On peut le décompiler le programme et chercher la fonction `fizzbuzz` :
+On peut décompiler le programme et chercher la fonction `fizzbuzz` :
 
     $ objdump -d fizzbuzz
 
-    00000000004004e6 <fizzbuzz>:
-      4004e6:	55                   	push   %rbp
-      4004e7:	48 89 e5             	mov    %rsp,%rbp
-      4004ea:	48 83 ec 10          	sub    $0x10,%rsp
-      4004ee:	c7 45 fc 00 00 00 00 	movl   $0x0,-0x4(%rbp)
-      4004f5:	e9 b4 00 00 00       	jmpq   4005ae <fizzbuzz+0xc8>
-      4004fa:	...
+    0000000000400576 <fizzbuzz>:
+      400576:	55                   	push   %rbp
+      400577:	48 89 e5             	mov    %rsp,%rbp
+      40057a:	48 83 ec 10          	sub    $0x10,%rsp
+      40057e:	c7 45 fc 00 00 00 00 	movl   $0x0,-0x4(%rbp)
+      400585:	e9 c3 00 00 00       	jmpq   40064d <fizzbuzz+0xd7>
+      40058a:	...
       ... BLA BLA FIZZ BUZZ BLA BLA ...
-      4005aa:	83 45 fc 01          	addl   $0x1,-0x4(%rbp)
-      4005ae:	83 7d fc 63          	cmpl   $0x63,-0x4(%rbp)
-      4005b2:	0f 8e 42 ff ff ff    	jle    4004fa <fizzbuzz+0x14>
-      4005b8:	90                   	nop
-      4005b9:	c9                   	leaveq
-      4005ba:	c3                   	retq
+      400649:	83 45 fc 01          	addl   $0x1,-0x4(%rbp)
+      40064d:	83 7d fc 63          	cmpl   $0x63,-0x4(%rbp)
+      400651:	0f 8e 33 ff ff ff    	jle    40058a <fizzbuzz+0x14>
+      400657:	90                   	nop
+      400658:	c9                   	leaveq
+      400659:	c3                   	retq   
+
 
 La fonction `fizzbuzz` est mappée à l'adresse 0x4004e6.
 
 On reconnait notre boucle :
-1. en 0x4004ee la variable `i` est initialisée à 0
-2. en 0x4004f5 on saute en 0x4005ae
-3. en 0x4005ae on compare `i` à 99
-4. en 0x4005b2 si `i` <= 99 on entre dans la boucle en 0x4004fa, sinon la fonction se termine
-5. en 0x4005aa qui est la dernière instruction de la boucle, `i` est incrémenté et retour en 4.
+1. en 0x40057e la variable `i` est initialisée à 0
+2. en 0x400585 on saute en 0x40064d
+3. en 0x40064d on compare `i` à 99
+4. en 0x400651 si `i` <= 99 on entre dans la boucle en 0x40058a, sinon la fonction se termine
+5. en 0x400649 qui est la dernière instruction de la boucle, `i` est incrémenté et retour en 4)
 
+Lançons `fizzbuzz` avec un point d'arrêt sur l'adresse 0x400651 :
 
+    ./ptrace_ex5 400651 ./fizzbuzz
+    exec ./fizzbuzzSet breakpoint at 400651, new instruction is c990ffffff338ecc instead of c990ffffff338e0f
+    Breakpoint hit !
+    RIP = 400652
 
+    Unset breakpoint at 400651, new instruction is c990ffffff338e0f, instead of c990ffffff338ecc
+    Set breakpoint at 400651, new instruction is c990ffffff338ecc instead of c990ffffff338e0f
+    FizzBuzz, Breakpoint hit ! // On a passé la première itération
+    RIP = 400652
 
+    Unset breakpoint at 400651, new instruction is c990ffffff338e0f, instead of c990ffffff338ecc
+    Set breakpoint at 400651, new instruction is c990ffffff338ecc instead of c990ffffff338e0f
+    1, Breakpoint hit ! // 2ème itération
+    RIP = 400652
+
+    ...
+
+Après avoir pressé 100 fois la touche entrée, le _tracer_ et le _tracee_ terminent
+leur exécution sans problème. Ouf!
+
+Cette implémentation des breakpoints est assez extraordinaire je trouve. Elle a
+l'avantage de ne pas ralentir le _tracee_ en dehors des moments où il est à
+l'état `STOPPED`.
+
+Il ne devrait pas être compliqué d'implémenter des breakpoints conditionnels.
+Je vous laisse faire ça chez vous tranquillement.
 
 # Breakpoints immutables
 
-TODO : avec du step by step
+Il est possible d'implémenter les breakpoints sans devoir modifier
+le code du _tracee_.
 
-# Live patch
+```C
+#include <sys/ptrace.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <signal.h>
+#include <sys/user.h>
+#include <sys/reg.h>
+
+int waitchild(pid_t pid) {
+    int status;
+    waitpid(pid, &status, 0);
+    if(WIFSTOPPED(status)) {
+        return 0;
+    }
+    else if (WIFEXITED(status)) {
+        return 1;
+    }
+    else {
+        printf("%d raised an unexpected status %d", pid, status);
+        return 1;
+    }
+}
+
+unsigned long to_ulong(char * s) {
+  return strtol(s, NULL, 16);
+}
+
+unsigned long readRegister(pid_t tracee, int reg) {
+  return ptrace(PTRACE_PEEKUSER, tracee, 8 * reg, NULL);
+}
+
+void showregisters(pid_t tracee) {
+  printf("RIP = %lx\n",
+        readRegister(tracee, RIP));
+}
+
+void presskey() {
+  getchar();
+}
+
+int main(int argc, char ** argv) {
+    unsigned long bpAddress = to_ulong(argv[1]);
+    pid_t child = fork();
+    unsigned long rip;
+    if(child == 0) {
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        execve(argv[2], argv + 2, NULL);
+    }
+    else {
+        // wait for the child to stop
+        waitchild(child);
+        do {
+          rip = readRegister(child, RIP);
+          if(rip == bpAddress) {
+            showregisters(child);
+            presskey();
+          }
+          ptrace(PTRACE_SINGLESTEP, child, NULL, NULL);
+        } while(waitchild(child) < 1);
+    }
+    return 0;
+}
+```
+
+Seul le code du _tracer_ a changé. L'idée est de dérouler le _tracee_ uniquement
+ en pas à pas et de s'arrêter quand _RIP_ vaut l'adresse du breakpoint.
+
+     ./ptrace_ex6 400651 ./fizzbuzz
+     RIP = 400651
+     FizzBuzz, RIP = 400651
+     1, RIP = 400651
+     2, RIP = 400651
+
+     ...
+
+C'est extrêmement simple comparé à l'autre implémentation mais cela ralentit
+beaucoup trop le _tracee_. En effet, pour chaque instruction exécutée il faut
+faire 2 _syscall_:
+1. `ptrace` `SINGLESTEP` qui fait passer le _tracee_ de l'état `STOPPED`
+à l'état `RUNNING` à l'état `STOPPED`
+2. `wait` pour attendre que le _tracee_ soit à l'état `STOPPED`
+
+Sachant, comme nous l'avons vu, qu'un _syscall_ passe par une interruption
+pour redonner la main au kernel, cette méthode ne fonctionne en pratique que
+sur des petits programmes comme `fizzbuzz`.
 
 # Techniques anti-debug
 
