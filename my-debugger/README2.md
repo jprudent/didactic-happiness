@@ -27,7 +27,7 @@ Si vous savez lire le code assembleur, vous pouvez sauter cette section.
 - mnémonique / opcode
 - registres CPU
 
-# Rapide rappel sur les syscalls
+# Rapide rappel sur les syscalls et les interruptions
 
 Si vous savez déjà ce qu'est un syscall, vous pouvez sauter cette section.
 
@@ -98,6 +98,17 @@ On voit que `write` a été appelé avec les paramètres :
 - Une chaine de caractère qui contient "Hello\n"
 - On écrit 6 caractères
 - `write` a bien écrit 6 caractères
+
+Donc le programme prépare les paramètres du _syscall_ dans les registres du
+CPU et fait exécuter l'instruction `syscall` au CPU. Et là magiquement
+l'exécution du process s'arrête (bloque) et ne reprend que lorsque le _syscall_
+a été réalisé.
+
+Cette tuyauterie s'appelle une _interruption_. Une interruption permet au
+CPU d'appeler une fonction du kernel. Donc quand le CPU exécute l'instruction
+`syscall`, il redonne la main au noyau qui se débrouille pour mettre en pause le
+process appelant, exécuter la commande _syscall_ demandée avec les paramètres,
+et relancer le process.
 
 # Salut fiston, c'est papa !
 
@@ -431,6 +442,230 @@ A l'exécution, cela donne :
 
     => There are 44633 jumps
 
+# Le format exécutable ELF
+
+Si vous connaissez le format ELF, savez ce qu'est une section et un entry point,
+vous pouvez passer cette section.
+
+TODO
+
+# Les interruptions
+
+
+
+# Breakpoints
+
+Jusqu'ici, le _tracer_ se contente de faire quelques calculs préprogrammés.
+L'une des fonctionnalités attendue d'un débugger est de pouvoir poser des
+points d'arrêt à une adresse particulière.
+
+La théorie est simple : il faut que le _tracee_ passe à l'état
+`STOPPED` au moment où il exécute l'instruction à l'adresse choisie.
+
+La pratique ressemble à un gros hack. Le _tracer_ *modifie* le code du
+_tracee_ pour qu'à l'adresse indiquée le _tracee_ reçoive un signal qui le
+mette à l'état `STOPPED`.
+
+Rappelez vous, la plus petite instruction assembleur peut faire un seul octet.
+Il faut donc que le code qui déclenche le signal fasse 1 octet afin de ne pas
+modifier plusieurs instructions.
+
+`int 3` a pour opcode 0xCC et lève une _interruption_ spécialement cablée dans le
+kernel pour envoyer un signal `SIGTRAP` à qui la lève.
+
+Voici à quoi ressemble une implémentation de breakpoint.
+
+``` C
+int waitchild(pid_t pid) {
+    int status;
+    waitpid(pid, &status, 0);
+    if(WIFSTOPPED(status)) {
+        return 0;
+    }
+    else if (WIFEXITED(status)) {
+        return 1;
+    }
+    else {
+        printf("%d raised an unexpected status %d", pid, status);
+        return 1;
+    }
+}
+
+unsigned long to_ulong(char * s) {
+  return strtol(s, NULL, 16);
+}
+
+unsigned long readMemoryAt(pid_t tracee, unsigned long address) {
+  return ptrace(PTRACE_PEEKTEXT, tracee, address, NULL);
+}
+
+void writeMemoryAt(pid_t tracee, unsigned long address, unsigned long instruction) {
+  ptrace(PTRACE_POKETEXT, tracee, address, instruction);
+}
+
+unsigned long readRegister(pid_t tracee, int reg) {
+  return ptrace(PTRACE_PEEKUSER, tracee, 8 * reg, NULL);
+}
+
+void writeRegister(pid_t tracee, int reg, unsigned long value) {
+  ptrace(PTRACE_POKEUSER, tracee, 8 * reg, value);
+}
+
+unsigned long setbp(pid_t tracee, unsigned long address) {
+    unsigned long original = readMemoryAt(tracee, address);
+    unsigned long sigtrap = (original & 0xFFFFFFFFFFFFFF00) | 0x00000000000000CC;
+    writeMemoryAt(tracee, address, sigtrap);
+    printf("Set breakpoint at %lx, new instruction is %lx instead of %lx\n",
+          address, readMemoryAt(tracee, address), original);
+    return original;
+}
+
+void removebp(pid_t tracee, unsigned long address, unsigned long original) {
+  unsigned long previously = readMemoryAt(tracee, address);
+  writeMemoryAt(tracee, address, original);
+  printf("Unset breakpoint at %lx, new instruction is %lx, instead of %lx\n",
+       address, readMemoryAt(tracee, address), previously);
+}
+
+void showregisters(pid_t tracee) {
+  printf("RIP = %lx\nRAX = %lx\n",
+        readRegister(tracee, RIP), readRegister(tracee, ORIG_RAX));
+}
+
+void setIp(pid_t tracee, unsigned long address) {
+  writeRegister(tracee, RIP, address);
+}
+
+void presskey() {
+  getchar();
+}
+
+int main(int argc, char ** argv) {
+    setbuf(stdout, NULL);
+    unsigned long bpAddress = to_ulong(argv[1]);
+    pid_t child = fork();
+    if(child == 0) {
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+        printf("exec %s", argv[2]);
+        execve(argv[2], argv + 2, NULL);
+    }
+    else {
+        // wait for the child to stop
+        waitchild(child);
+
+        unsigned long originalInstruction = setbp(child, bpAddress);
+        ptrace(PTRACE_CONT, child, NULL, NULL);
+
+        while(waitchild(child) < 1) {
+          printf("Breakpoint hit !\n");
+          showregisters(child);
+          presskey();
+
+          removebp(child, bpAddress, originalInstruction);
+          setIp(child, bpAddress);
+
+          ptrace(PTRACE_SINGLESTEP, child, NULL, NULL);
+          waitchild(child);
+
+          setbp(child, bpAddress);
+
+          ptrace(PTRACE_CONT, child, NULL, NULL);
+        }
+    }
+    return 0;
+}
+```
+
+Woh! Ca commence à être gros ! Décorticons tout ça.
+
+`main` suis le même pattern que d'habitude: `fork`, et `TRACEME`, `execve` pour
+le _tracee_. En revanche le code du _tracer_ a pas mal changé :
+- `waitchild` attend que le _tracee_ passe à l'état `STOPPED`.
+- `setbp` pose le point d'arrêt à l'adresse demandée. Concrêtement, il s'agit
+d'utiliser la commande `POKETEXT` pour écrire l'opcode 0xCC (`int 3`) à l'adresse
+du breakpoint.
+- La commande `CONT` permet de continuer l'exécution du _tracee_ jusqu'à ce qu'il
+exécute cette fameuse `int 3` et passe à l'état `STOPPED`
+- On entre dans une boucle qui termine quand le _tracee_ passe à l'état
+`TERMINATED`
+- Si on est rentré dans la boucle, cela signifie que l'`int 3` correspondant
+au breakpoint a été exécutée.
+- On affiche quelques registres et on bloque tant que l'utilisateur n'a pas pressé
+Ctrl+D au clavier.
+- A ce moment le registre IP vaut l'`bpAddress + 1`, car on a exécuter `int 3`.
+ Si on laisse filer _tracee_ il n'exécutera jamais l'instruction qui était prévue,
+ à l'adresse `bpAddress`. De plus, `bpAddress + 1` contient certainement une
+ instruction inintelligible.
+- Donc le _tracer_ remet l'instruction originale à l'adresse `bpAddress` 
+
+
+Pour illustrer notre propos, notre _tracee_ sera le programme `fizzbuzz` suivant :
+
+```C
+void fizzbuzz()
+    for(int i = 0; i < 100; i++) {
+        int fizz = i % 3 == 0;
+        if(fizz) printf("Fizz");
+        int buzz = i % 5 == 0;
+        if(buzz) printf("Buzz");
+        if(!(fizz||buzz)) printf("%d", i);
+        printf(", ");
+    }
+}
+
+int main() {
+    fizzbuzz();
+}
+
+```
+On peut le décompiler le programme et chercher la fonction `fizzbuzz` :
+
+    $ objdump -d fizzbuzz
+
+    00000000004004e6 <fizzbuzz>:
+      4004e6:	55                   	push   %rbp
+      4004e7:	48 89 e5             	mov    %rsp,%rbp
+      4004ea:	48 83 ec 10          	sub    $0x10,%rsp
+      4004ee:	c7 45 fc 00 00 00 00 	movl   $0x0,-0x4(%rbp)
+      4004f5:	e9 b4 00 00 00       	jmpq   4005ae <fizzbuzz+0xc8>
+      4004fa:	...
+      ... BLA BLA FIZZ BUZZ BLA BLA ...
+      4005aa:	83 45 fc 01          	addl   $0x1,-0x4(%rbp)
+      4005ae:	83 7d fc 63          	cmpl   $0x63,-0x4(%rbp)
+      4005b2:	0f 8e 42 ff ff ff    	jle    4004fa <fizzbuzz+0x14>
+      4005b8:	90                   	nop
+      4005b9:	c9                   	leaveq
+      4005ba:	c3                   	retq
+
+La fonction `fizzbuzz` est mappée à l'adresse 0x4004e6.
+
+On reconnait notre boucle :
+1. en 0x4004ee la variable `i` est initialisée à 0
+2. en 0x4004f5 on saute en 0x4005ae
+3. en 0x4005ae on compare `i` à 99
+4. en 0x4005b2 si `i` <= 99 on entre dans la boucle en 0x4004fa, sinon la fonction se termine
+5. en 0x4005aa qui est la dernière instruction de la boucle, `i` est incrémenté et retour en 4.
+
+
+
+
+
+# Breakpoints immutables
+
+TODO : avec du step by step
+
+# Live patch
+
+# Techniques anti-debug
+
+# Hard Breakpoints
+
+# Conclusion
+
+- Devrait mieux comprendre GDB
+- Protections inutiles
+
+# Aller plus loin
 
 # Références
 
