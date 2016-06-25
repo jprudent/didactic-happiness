@@ -1,7 +1,7 @@
 # Motivations
 
 Un debugger est un outil fabuleux :
-Cette sensation de contrôle divin ! La possibilité de figer l'exécution d'un
+cette sensation de contrôle divin ! La possibilité de figer l'exécution d'un
 process et d'inspecter les arcanes de sa mémoire.
 
 C'était les deux phrases lyriques de cet article :) Nous verrons que le divin
@@ -106,12 +106,12 @@ Par exemple pour tracer tous les _syscall_ `write` de la commande `echo` :
 - On écrit 6 caractères
 - `write` a bien écrit 6 caractères
 
-Donc le programme prépare les paramètres du _syscall_ dans les registres du
+Un process prépare les paramètres du _syscall_ dans les registres du
 CPU et fait exécuter l'instruction `syscall` au CPU. Et là magiquement
 l'exécution du process s'arrête (bloque) et ne reprend que lorsque le _syscall_
 a été réalisé.
 
-La tuyauterie permettant cela s'appelle une _interruption_. Une interruption permet au
+La tuyauterie permettant cela s'appelle une _interruption_. Une _interruption_ permet au
 CPU d'appeler une fonction du kernel. Donc quand le CPU exécute l'instruction
 `syscall`, il redonne la main au noyau qui se débrouille pour mettre en pause le
 process appelant, exécuter la commande _syscall_ demandée avec les paramètres,
@@ -130,7 +130,7 @@ est `systemd` (ou `init` sur des systèmes plus anciens) et votre navigateur
 est une feuille de l'arbre.
 
 Pour créer un process fils, un futur père utilise le syscall `fork`. C'est
-d'ailleurs la seule façon possible de créer des process. Voici un code typique :
+d'ailleurs la seule façon de créer des process. Voici un code typique :
 
 ``` C
 int main()
@@ -148,7 +148,8 @@ int main()
 `fork` procède à une copie presque intégrale du processus appelant (mémoire, registres CPU, ...). L'appelant devient le processus père du clone qui est donc son fils.
 Quand `fork` rend la main, les 2 processus continuent leurs exécution juste après l'appel à `fork`, sur le `if`.
 
-Je disais copie _presque_ intégrale car dans le processus père `fork` renvoie le PID du fils et dans le fils il renvoie 0. Le fils affichera donc "I am the child" et le père
+Je disais copie _presque_ intégrale car dans le process père, `fork` renvoie le PID du fils,
+et dans le process fils il renvoie 0. Le fils affichera donc "I am the child" et le père
 "I am the father of 1234".
 
 En extrapolant, on peut voir le `fork` comme une [
@@ -200,14 +201,16 @@ int main() {
 ```
 
 Le _tracee_ récupère son pid avec la fonction `getpid` et s'envoie
-un signal SIGUSR1 via `kill`. Notons que `kill` est un _syscall_.
-A la réception de ce signal, il passe à l'état `STOPPED` car il est en mode
+un signal SIGUSR1 via `kill`. Notons que `kill` est un _syscall_
+qui permet d'envoyer des signaux à un process. `kill` prend un PID comme
+premier paramètre. Le second paramètre est le signal à envoyer. On ne
+peut pas accompager des données supplémentaires à un signal.
+A la réception de ce signal, le _tracee_ passe à l'état `STOPPED` car il est en mode
 `TRACEME`.
 
 Le _tracer_ fait un premier `waitpid`. `waitpid` permet d'attendre un changement
 d'état de son processus fils. Ici, il attend que son fils passe à l'état
-`STOPPED`. Notons que `wait` est un _syscall_, ce qui permet au noyau de gérer
-sa tambouille interne.
+`STOPPED`. Notons que `wait` est un _syscall_ également.
 
 Une fois que `wait` redonne la main, le _tracer_ utilise `PTRACE_CONT` pour que
 le _tracee_ repasse à l'état `RUNNING` et continue de s'exécuter.
@@ -311,15 +314,18 @@ A l'exécution on a :
     FizzBuzz, 1, 2, Fizz, 4, Buzz, Fizz, 7, 8, Fizz, Buzz, 11, Fizz, 13, 14, FizzBuzz, 16, 17, Fizz, 19, Buzz, Fizz, 22, 23, Fizz, Buzz, 26, Fizz, 28, 29, FizzBuzz, 31, 32, Fizz, 34, Buzz, Fizz, 37, 38, Fizz, Buzz, 41, Fizz, 43, 44, FizzBuzz, 46, 47, Fizz, 49, Buzz, Fizz, 52, 53, Fizz, Buzz, 56, Fizz, 58, 59, FizzBuzz, 61, 62, Fizz, 64, Buzz, Fizz, 67, 68, Fizz, Buzz, 71, Fizz, 73, 74, FizzBuzz, 76, 77, Fizz, 79, Buzz, Fizz, 82, 83, Fizz, Buzz, 86, Fizz, 88, 89, FizzBuzz, 91, 92, Fizz, 94, Buzz, Fizz, 97, 98, Fizz,
     => There are 23037 jumps
 
-Plusieurs exécutions du programme retourne toujours le même nombre, ce qui
+Plusieurs exécutions du programme retournent toujours le même nombre, ce qui
 est assez rassurant.
 
 Détaillons le programme :
 
 La fonction `main` reprend le même schéma que les exemples précédents :
+
 1. `fork` du process
+
 2. le _tracee_ se met en mode `TRACEME` et passe à l'état `STOPPED` en s'envoyant
 n'importe quel signal, puis exécutera `fizzbuzz` quand il passera à l'état `RUNNING`.
+
 3. Le _tracer_ attend que le _tracee_ passe à l'état `STOPPED` puis exécute
 `trace`
 
@@ -335,7 +341,6 @@ elle renvoie 1.
 
 1. Utilise la commande `PEEKUSER` afin de récupérer l'adresse de l'instruction
 courante stockée dans le registre `RIP`. `PEEKUSER` permet d'inspecter les registres du CPU.
-Les valeurs de registre ne sont pas lues en live depuis le CPU. En fait, quand le kernel stoppe le tracee il enregistre le contexte du processus, dont les registres, afin que ce dernier puisse reprendre son exécution plus tard, comme si de rien n'était. Les valeurs renvoyées par `ptrace` sont issues de cet enregistrement.
 
 2. Lit en mémoire, à l'adresse stockée dans `RIP`, l'instruction sur laquelle
 le _tracee_ est arrêté, via la commande `PEEKTEXT`.
@@ -440,7 +445,7 @@ etc.
 
 2. Le _tracee_ ne s'envoie plus de signal lui-même pour passer à l'état `STOPPED`
 
-3. Le _tracee_ appel `execve`.
+3. Le _tracee_ appel `execve` qui envoie un signal `SIGTRAP` implicitement.
 
 Le code du _tracer_ n'a absolument pas changé.
 
@@ -612,7 +617,7 @@ De plus, `bpAddress + 1` contient certainement une instruction inintelligible.
 - Donc le _tracer_ remet l'instruction originale à l'adresse `bpAddress` via
 `POKETEXT`.
 - Puis le _tracer_ ***rembobine*** le fil d'exécution du _tracee_ en mettant le
-registre _RIP_ à `bpAddress` pour qu'il pointe l'instruction prévue.
+registre _RIP_ à `bpAddress` pour qu'il pointe sur l'instruction prévue.
 Pour cela, on utilise la commande `POKEUSER` pour affecter une valeur à un
 registre du CPU.
 - Avec la commande `SINGLESTEP`, le _tracer_ commande au _tracee_ d'exécuter
@@ -666,10 +671,15 @@ On peut décompiler le programme et chercher la fonction `fizzbuzz` :
 La fonction `fizzbuzz` est mappée en mémoire à l'adresse 0x4004e6.
 
 On reconnait notre boucle :
+
 1. en 0x40057e la variable `i` est initialisée à 0
+
 2. en 0x400585 on saute en 0x40064d
+
 3. en 0x40064d on compare `i` à 99
+
 4. en 0x400651 si `i` <= 99 on entre dans la boucle en 0x40058a, sinon la fonction se termine
+
 5. en 0x400649 qui est la dernière instruction de la boucle, `i` est incrémenté et retour en 4)
 
 Lançons `fizzbuzz` avec un point d'arrêt sur l'adresse 0x400651 :
@@ -787,8 +797,10 @@ Seul le code du _tracer_ a changé. L'idée est de dérouler le _tracee_ uniquem
 C'est extrêmement simple comparé à l'autre implémentation mais cela ralentit
 beaucoup trop le _tracee_. En effet, pour chaque instruction exécutée il faut
 faire 2 _syscall_:
+
 1. `ptrace` `SINGLESTEP` qui fait passer le _tracee_ de l'état `STOPPED`
 à l'état `RUNNING` à l'état `STOPPED`
+
 2. `wait` pour attendre que le _tracee_ soit à l'état `STOPPED`
 
 Sachant, comme nous l'avons vu, qu'un _syscall_ passe par une interruption
@@ -815,6 +827,18 @@ Malgré le fait que ce ne soit pas vraiment mon domaine de compétence,
 j'ai de plus en plus envie de faire de la programmation système.
 Le langage [Rust](https://doc.rust-lang.org/book/) commence sérieusement
 à m'intéresser.
+
+# Aller plus loin
+
+Il y a deux commandes `ptrace` que je n'ai pas présenté :
+
+- `ATTACH` permet de débugger un process existant, donc sans utiliser le
+mécanisme de `fork`
+- `SYSCALL` arrête le _tracee_ à chaque _syscall_. Cela permet d'implémenter
+la commande `strace`.
+
+Il existe aussi une troisième façon de poser des breakpoints: _hard breakpoints_.
+Ce mécanisme est implémenté directement au niveau du CPU via des registres dédiés.
 
 # Références
 
