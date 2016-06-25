@@ -7,17 +7,6 @@
 #include <sys/user.h>
 #include <sys/reg.h>
 
-void fizzbuzz() {
-    for(int i = 0; i < 100; i++) {
-        int fizz = i % 3 == 0;
-        if(fizz) printf("Fizz");
-        int buzz = i % 5 == 0;
-        if(buzz) printf("Buzz");
-        if(!(fizz||buzz)) printf("%d", i);
-        printf(", ");
-    }
-}
-
 int waitchild(pid_t pid) {
     int status;
     waitpid(pid, &status, 0);
