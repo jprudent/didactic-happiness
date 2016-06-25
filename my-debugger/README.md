@@ -662,8 +662,6 @@ Ecrire cet article me permet de mieux comprendre la [documentation de GDB](https
 
 Aussi, j'ai une bien meilleur cartographie des intéractions entre un process et le noyau. Je comprends beaucoup mieux pourquoi on dit qu'un process bloque quand on fait de l'I/O, et j'en comprends le mécanisme.
 
-Malgré le fait que ce ne soit pas vraiment mon domaine de compétence, j'ai de plus en plus envie de faire de la programmation système. Le langage [Rust](https://doc.rust-lang.org/book/) commence sérieusement à me faire de l'oeil.
-
 # Aller plus loin
 
 Il y a deux commandes `ptrace` que je n'ai pas présenté :
