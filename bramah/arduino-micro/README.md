@@ -21,4 +21,4 @@ Sometimes you just don't find stuff on the internet (or maybe your subconscient 
 
 # Arduino micro
 
-The Arduino micro board ships an _ATmega16u2_ chip. And that chip
+The Arduino micro board ships an _ATmega16u2_ chip. What is really nice is that this boards can act as an _USB HID_ ***and*** a _Serial to USB converter_ at the same time.
