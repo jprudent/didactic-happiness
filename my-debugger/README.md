@@ -654,17 +654,17 @@ Sachant, comme nous l'avons vu, qu'un _syscall_ passe par une interruption pour 
 
 # Conclusion
 
-C'était un bonne aventure ! Avant de m'y intéresser, un debugger était un outil magique aux mécanismes impalpables.
+C'était une bonne aventure ! Avant de m'y intéresser, un debugger était un outil magique aux mécanismes impalpables.
 
 Je connais désormais les rouages d'un debugger sous Linux. Je pense que pour OSX, on doit avoir quelque chose de très similaire.
 
 Ecrire cet article me permet de mieux comprendre la [documentation de GDB](https://www.gnu.org/software/gdb/documentation/).
 
-Aussi, j'ai une bien meilleur cartographie des intéractions entre un process et le noyau. Je comprends beaucoup mieux pourquoi on dit qu'un process bloque quand on fait de l'I/O, et j'en comprends le mécanisme.
+Aussi, j'ai une bien meilleure cartographie des interactions entre un process et le noyau. Je comprends beaucoup mieux pourquoi on dit qu'un process bloque quand on fait de l'I/O, et j'en comprends le mécanisme.
 
 # Aller plus loin
 
-Il y a deux commandes `ptrace` que je n'ai pas présenté :
+Il y a deux commandes `ptrace` que je n'ai pas présentées :
 
 - `ATTACH` permet de débugger un process existant, donc sans utiliser le mécanisme de `fork`
 - `SYSCALL` arrête le _tracee_ à chaque _syscall_. Cela permet d'implémenter la commande `strace`.
