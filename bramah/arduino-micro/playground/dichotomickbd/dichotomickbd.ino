@@ -11,5 +11,13 @@ void setup() {
 void loop() {
   delay(3000);
   Serial.println("hello");
+/*  Serial.println("currentLetter");
+  Serial.println(dichotomicKeyboard.currentLetter());
+  Serial.println(alpha->symbols);
+  Serial.println(keys[0]->symbols);
+  Serial.println(dichotomicKeyboard.keys[0]->symbols); */
+  Serial.println(dichotomicKeyboard.keys[0]->symbols);
+  Serial.println(dichotomicKeyboard.currentLetter());
+  dichotomicKeyboard.left();
   Serial.println(dichotomicKeyboard.currentLetter());
 }

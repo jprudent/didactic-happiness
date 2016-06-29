@@ -5,11 +5,11 @@
 
 class Keys {
   public:
-    Keys(char * symbols, size_t len);
+    Keys(const char * symbols, size_t len);
     char letterAt(size_t index);
     size_t maxIndex();
-  private:
-    char* symbols;
+  //private:
+    const char* symbols;
     int len;
 };
 
@@ -21,7 +21,7 @@ class Slice {
     void right();
     size_t half();
 
-  private:
+  //private:
     size_t a;
     size_t b;
     size_t size();
@@ -39,7 +39,7 @@ class DichotomicKeyboard {
     char currentLetter();
     void reset();
 
-  private:
+  //private:
 
     Keys ** keys;
     size_t currentKeysIndex;

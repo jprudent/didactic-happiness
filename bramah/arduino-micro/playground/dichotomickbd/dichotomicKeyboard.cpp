@@ -1,4 +1,5 @@
 #include "dichotomicKeyboard.h"
+#include "math.h"
 
 void checkArgument(bool condition) {
   if(!condition) {
@@ -6,16 +7,9 @@ void checkArgument(bool condition) {
   }
 }
 
-char* deepcopy(char * copy, size_t len) {
-  char * ret = new char[len];
-  for(int i=0; i<len; i++) {
-    ret[i] = copy[i];
-  }
-  return ret;
-}
-
-Keys::Keys(char * symbols, size_t len) {
-  this->symbols = deepcopy(symbols, len);
+Keys::Keys(const char * symbols, size_t len) {
+  checkArgument(len > 0);
+  this->symbols = symbols;
   this->len = len;
 }
 
@@ -29,7 +23,6 @@ size_t Keys::maxIndex() {
 
 
 Slice::Slice(size_t a, size_t b) {
-  checkArgument(a >= 0);
   checkArgument(b >= a);
   this->a = a;
   this->b = b;
@@ -39,11 +32,13 @@ Slice::Slice(size_t b) : Slice(0, b) {
 }
 
 void Slice::left() {
-  this->b = half();
+  int size = this->b - this->a + 1;
+  this->b = fmax(this->a, this->b - ceil(size / 2.0));
 }
 
 void Slice::right() {
-  this->a = half();
+  int size = this->b - this->a + 1;
+  this->a = fmin(this->b, this->a + ceil(size / 2.0));
 }
 
 size_t Slice::half() {
@@ -60,7 +55,7 @@ size_t Slice::halfSize() {
 
 Keys ** deepcopy(Keys ** copy, size_t nbKeys) {
   Keys** ret = new Keys*[nbKeys];
-  for(int i=0; i<nbKeys; i++) {
+  for(size_t i=0; i<nbKeys; i++) {
     ret[i] = new Keys(*copy[i]);
   }
   return ret;
@@ -68,7 +63,7 @@ Keys ** deepcopy(Keys ** copy, size_t nbKeys) {
 
 DichotomicKeyboard::DichotomicKeyboard(Keys** keyboards, size_t nbKeys) {
   checkArgument(nbKeys > 0);
-  this->keys = deepcopy(keys, nbKeys);
+  this->keys = deepcopy(keyboards, nbKeys);
   this->currentKeysIndex = 0;
   this->nbKeys = nbKeys;
   this->slice = new Slice(this->currentKeys()->maxIndex());
