@@ -50,6 +50,7 @@ void Display::replace(char c) {
 }
 
 void Display::erase() {
+  this->replace('\0');
   if (line1Len > 0) {
     line1Len = line1Len - 1;
   }

@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 #include "dichotomicKeyboard.h"
 #include "Display.h"
 #include <LiquidCrystal.h>
@@ -11,6 +13,7 @@ Display display = Display();
 #define BTN_LEFT 2
 #define BTN_RIGHT 3
 #define BTN_SELECT 4
+#define BTN_ERASE 5
 
 void pullupMode(byte pin) {
   pinMode(pin, INPUT);
@@ -22,32 +25,26 @@ void setup() {
   pullupMode(BTN_RIGHT);
   pullupMode(BTN_LEFT);
   pullupMode(BTN_SELECT);
+  pullupMode(BTN_ERASE);
 }
 
 void loop() {
   bool btnPressed = false;
-  char symbol = '\0';
   if(display.getLine1()[0] == '\0') {
-    symbol = dichotomicKeyboard.currentLetter();
-    display.replace(symbol);
+    display.replace(dichotomicKeyboard.currentLetter());
   } else if(isBtnPressed(BTN_LEFT)) {
-    symbol = dichotomicKeyboard.left();
-    display.replace(symbol);
-    Serial.println(symbol);
+    display.replace(dichotomicKeyboard.left());
     btnPressed = true;
   } else if (isBtnPressed(BTN_RIGHT)) {
-    symbol = dichotomicKeyboard.right();
-    display.replace(symbol);
-    Serial.println(symbol);
+    display.replace(dichotomicKeyboard.right());
     btnPressed = true;
   } else if(isBtnPressed(BTN_SELECT)) {
-    Serial.println("SELECT");
-    symbol = dichotomicKeyboard.currentLetter();
-    display.append(symbol);
-    Serial.println(symbol);
+    display.append(dichotomicKeyboard.currentLetter());
     dichotomicKeyboard.reset();
     display.replace(dichotomicKeyboard.currentLetter());
     btnPressed = true;
+  } else if (isBtnPressed(BTN_ERASE)) {
+    display.erase();
   }
 
   if(btnPressed) {
