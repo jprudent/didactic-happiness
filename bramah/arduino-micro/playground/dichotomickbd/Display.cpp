@@ -3,7 +3,7 @@
 #include "Display.h"
 
 void zeroes(char *s, size_t len) {
-  for (int i = 0; i <= len; i++) {
+  for (size_t i = 0; i <= len; i++) {
     s[i] = '\0';
   }
 }
@@ -37,7 +37,7 @@ void Display::append(char c) {
 }
 
 void Display::append(char *s) {
-  for(int i=0; i<strlen(s); i++) {
+  for(size_t i=0; i<strlen(s); i++) {
     this->append(s[i]);
   }
 }
