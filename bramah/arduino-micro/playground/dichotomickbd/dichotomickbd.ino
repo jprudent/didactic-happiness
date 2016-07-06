@@ -3,7 +3,11 @@
 #include "dichotomicKeyboard.h"
 #include "Display.h"
 #include "PasswordGenerator.h"
+#include "RandomSource.h"
+#include "HmacSecret.h"
 #include <LiquidCrystal.h>
+#include <Keyboard.h>
+#include <EEPROM.h>
 
 #define STEP_INPUT 0
 #define STEP_GENERATE 1
@@ -14,11 +18,14 @@
 #define BTN_ERASE 5
 #define BTN_OK 6
 
+
 Keys * alpha = new Keys("abcdefghijklmnopqrstuvwxyz", 26);
 Keys ** keys = new Keys*[1] {alpha};
 DichotomicKeyboard dichotomicKeyboard = DichotomicKeyboard(keys, 1);
 PasswordGenerator passwordGenerator = PasswordGenerator();
 Display display = Display();
+HmacSecret hmacSecret = HmacSecret(RandomSource());
+
 int PHASE = STEP_INPUT;
 
 void pullupMode(byte pin) {
@@ -28,11 +35,13 @@ void pullupMode(byte pin) {
 
 void setup() {
   Serial.begin(9600);
+  while(!Serial) {;}
   pullupMode(BTN_RIGHT);
   pullupMode(BTN_LEFT);
   pullupMode(BTN_SELECT);
   pullupMode(BTN_ERASE);
   pullupMode(BTN_OK);
+  hmacSecret.setup();
 }
 
 void generate() {
@@ -43,9 +52,10 @@ void generate() {
   strcpy(website, line1);
   website[strlen(website) - 1] = '\0';
 
-  Serial.println(website);
-  passwordGenerator.generate_password(generatedPassword, "GOD_PASSWORD", website);
-  Serial.println(generatedPassword);
+  passwordGenerator.generate_password(generatedPassword, hmacSecret.secretHmac(), website);
+
+  Keyboard.print(generatedPassword);
+
 }
 
 void loop() {

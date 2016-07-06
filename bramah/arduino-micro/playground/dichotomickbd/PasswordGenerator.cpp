@@ -13,13 +13,11 @@ PasswordGenerator::PasswordGenerator() {
 PasswordGenerator::~PasswordGenerator() {
 }
 
-// Compute the hash of s1 + s2
 // output: the output string of size HLEN
-void PasswordGenerator::hash(char * output, const char * s1, const char * s2) {
-    hashcode.reset();
-    hashcode.update(s1, strlen(s1));
-    hashcode.update(s2, strlen(s2));
-    hashcode.finalize(output, HLEN);
+void PasswordGenerator::hash(char * output, const char * hmacSecret, const char * s) {
+    hashcode.resetHMAC(hmacSecret, 16);
+    hashcode.update(s, strlen(s));
+    hashcode.finalizeHMAC(hmacSecret, 16, output, HLEN);
 };
 
 
@@ -34,8 +32,8 @@ void PasswordGenerator::encode_to_ascii(char * output, char * input) {
 };
 
 // output: the output string of size HLEN
-void PasswordGenerator::generate_password(char * output, const char * master_password, const char * memo) {
+void PasswordGenerator::generate_password(char * output, const char * hmacSecret, const char * s) {
     char sha[HLEN];
-    hash(sha, master_password, memo);
+    hash(sha, hmacSecret, s);
     encode_to_ascii(output, sha);
 };
