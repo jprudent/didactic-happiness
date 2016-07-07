@@ -24,7 +24,7 @@ Keys ** keys = new Keys*[1] {alpha};
 DichotomicKeyboard dichotomicKeyboard = DichotomicKeyboard(keys, 1);
 PasswordGenerator passwordGenerator = PasswordGenerator();
 Display display = Display();
-HmacSecret hmacSecret = HmacSecret(RandomSource());
+HmacSecret * hmacSecret;
 
 int PHASE = STEP_INPUT;
 
@@ -41,7 +41,8 @@ void setup() {
   pullupMode(BTN_SELECT);
   pullupMode(BTN_ERASE);
   pullupMode(BTN_OK);
-  hmacSecret.setup();
+  hmacSecret = new HmacSecret(RandomSource());
+  hmacSecret->setup();
 }
 
 void generate() {
@@ -52,7 +53,7 @@ void generate() {
   strcpy(website, line1);
   website[strlen(website) - 1] = '\0';
 
-  passwordGenerator.generate_password(generatedPassword, hmacSecret.secretHmac(), website);
+  passwordGenerator.generate_password(generatedPassword, hmacSecret->secretHmac(), website);
 
   Keyboard.print(generatedPassword);
 
