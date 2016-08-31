@@ -12,11 +12,11 @@
 #define STEP_INPUT 0
 #define STEP_GENERATE 1
 
-#define BTN_LEFT 2
-#define BTN_RIGHT 3
-#define BTN_SELECT 4
-#define BTN_ERASE 5
-#define BTN_OK 6
+#define BTN_LEFT A5
+#define BTN_RIGHT A3
+#define BTN_SELECT A2
+#define BTN_ERASE A1
+#define BTN_OK 13
 
 
 Keys * alpha = new Keys("abcdefghijklmnopqrstuvwxyz", 26);
@@ -34,8 +34,8 @@ void pullupMode(byte pin) {
 }
 
 void setup() {
-  Serial.begin(9600);
-  while(!Serial) {;}
+  // Serial.begin(9600);
+  // while(!Serial) {;}
   pullupMode(BTN_RIGHT);
   pullupMode(BTN_LEFT);
   pullupMode(BTN_SELECT);
