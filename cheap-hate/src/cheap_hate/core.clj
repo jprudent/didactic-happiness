@@ -2,14 +2,43 @@
 
 
 
-(def ^:static MEMORY_SIZE 0x1000)
-(def fresh-memory (vec (repeat MEMORY_SIZE 0)))
-(def fresh-screen-memory )
+;; This is the array of bitmap fonts
+;; Each line represents a 8x5 pixels character
+(def sprites
+  [0xF0 0x90 0x90 0x90 0xF0                                 ;; 0
+   0x20 0x60 0x20 0x20 0x70                                 ;; 1
+   0xF0 0x10 0xF0 0x80 0xF0                                 ;; 2
+   0xF0 0x10 0xF0 0x10 0xF0                                 ;; 3
+   0x90 0x90 0xF0 0x10 0x10                                 ;; 4
+   0xF0 0x80 0xF0 0x10 0xF0                                 ;; 5
+   0xF0 0x80 0xF0 0x90 0xF0                                 ;; 6
+   0xF0 0x10 0x20 0x40 0x40                                 ;; 7
+   0xF0 0x90 0xF0 0x90 0xF0                                 ;; 8
+   0xF0 0x90 0xF0 0x10 0xF0                                 ;; 9
+   0xF0 0x90 0xF0 0x90 0x90                                 ;; A
+   0xE0 0x90 0xE0 0x90 0xE0                                 ;; B
+   0xF0 0x80 0x80 0x80 0xF0                                 ;; C
+   0xE0 0x90 0x90 0x90 0xE0                                 ;; D
+   0xF0 0x80 0xF0 0x80 0xF0                                 ;; E
+   0xF0 0x80 0xF0 0x80 0x80                                 ;; F
+   ])
+
+(def MEMORY_MAP
+  {:fonts-offset  0
+   :program-offset 0x200
+   :program-size  (- 0x1000 0x200)})
+
+(def fresh-memory (into (into sprites (repeat (- (:program-offset MEMORY_MAP) (count sprites)) 0))
+                        (repeat (:program-size MEMORY_MAP) 0)))
+
+(def fresh-screen-memory)
 (def fresh-machine {} #_{:memory        empty-memory
                          :registers     {:V0 0, :V1 0, :V2 0, :V3 0
                                          :V4 0, :V5 0, :V6 0, :V7 0
                                          :V8 0, :V9 0, :V10 0, :V11 0}
                          :screen-memory 0})
+
+
 
 
 (defn power-of-2 [exp]

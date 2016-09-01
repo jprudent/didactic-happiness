@@ -22,3 +22,6 @@ The stack is only used to store return addresses when subroutines are called. Th
 CHIP-8 has two timers. They both count down at 60 hertz, until they reach 0.
 Delay timer: This timer is intended to be used for timing the events of games. Its value can be set and read.
 Sound timer: This timer is used for sound effects. When its value is nonzero, a beeping sound is made.
+
+
+http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
