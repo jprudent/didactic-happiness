@@ -3,8 +3,8 @@
 
 
 (def ^:static MEMORY_SIZE 0x1000)
-(def empty-memory (vec (repeat MEMORY_SIZE 0)))
-
+(def fresh-memory (vec (repeat MEMORY_SIZE 0)))
+(def fresh-screen-memory )
 (def fresh-machine {} #_{:memory        empty-memory
                          :registers     {:V0 0, :V1 0, :V2 0, :V3 0
                                          :V4 0, :V5 0, :V6 0, :V7 0
@@ -30,56 +30,57 @@
         masked (bit-and x mask)]
     (bit-shift-right masked bits)))
 
-(def head (partial nth-word 4 3))
-(def tail (partial nth-word 4 0))
-(def ttail (partial nth-word 4 1))
-(defn head-tail [opcode] [(head opcode) (tail opcode)])
-(defn head-ttail [opcode] [(head opcode) (ttail opcode) (tail opcode)])
+(def w0 (partial nth-word 4 0))
+(def w3 (partial nth-word 4 3))
+(def w1 (partial nth-word 4 1))
+(defn w3-w1-w0 [opcode] [(w3 opcode) (w1 opcode) (w0 opcode)])
 (def address (partial nth-word 12 0))
 (def vx (partial nth-word 4 2))
 (def vy (partial nth-word 4 1))
-(def value (partial nth-word 8 0))
+(def nn (partial nth-word 8 0))
 (def height (partial nth-word 4 0))
 
 (defn extract-opcode
   "given an opcode extract information"
   [opcode]
-  (cond
-    (= opcode 0x00E0) [:clear-screen]
-    (= opcode 0x00EE) [:return]
-    (= 0 (head opcode)) [:RCA-1802]
-    (= 1 (head opcode)) [:jmp (address opcode)]
-    (= 2 (head opcode)) [:call (address opcode)]
-    (= 3 (head opcode)) [:skip-if (vx opcode) = (value opcode)]
-    (= 4 (head opcode)) [:skip-if (vx opcode) not= (value opcode)]
-    (= [5 0] (head-tail opcode)) [:skip-if (vx opcode) = (vy opcode)]
-    (= 6 (head opcode)) [:mov-value (vx opcode) (value opcode)]
-    (= 7 (head opcode)) [:add-value (vx opcode) (value opcode)]
-    (= [8 0] (head-tail opcode)) [:mov-register (vx opcode) (vy opcode)]
-    (= [8 1] (head-tail opcode)) [:or (vx opcode) (vy opcode)]
-    (= [8 2] (head-tail opcode)) [:and (vx opcode) (vy opcode)]
-    (= [8 3] (head-tail opcode)) [:xor (vx opcode) (vy opcode)]
-    (= [8 4] (head-tail opcode)) [:add-register (vx opcode) (vy opcode)]
-    (= [8 5] (head-tail opcode)) [:sub-register (vx opcode) (vy opcode)]
-    (= [8 6] (head-tail opcode)) [:shr (vx opcode)]
-    (= [8 7] (head-tail opcode)) [:sub-reverse-register (vx opcode) (vy opcode)]
-    (= [8 0xE] (head-tail opcode)) [:shl (vx opcode)]
-    (= [9 0] (head-tail opcode)) [:skip-if (vx opcode) not= (vy opcode)]
-    (= 0xA (head opcode)) [:mov-ip (address opcode)]
-    (= 0xB (head opcode)) [:jmp-add-v0 (address opcode)]
-    (= 0xC (head opcode)) [:random (vx opcode) (value opcode)]
-    (= 0xD (head opcode)) [:draw (vx opcode) (vy opcode) (height opcode)]
-    (= [0xE 9 0xE] (head-ttail opcode)) [:skip-if-key = (vx opcode)]
-    (= [0xE 0xA 1] (head-ttail opcode)) [:skip-if-key not= (vx opcode)]
-    (= [0xF 0 7] (head-ttail opcode)) [:mov-timer (vx opcode)]
-    (= [0xF 0 0xA] (head-ttail opcode)) [:mov-wait-key (vx opcode)]
-    (= [0xF 1 5] (head-ttail opcode)) [:set-delay-timer (vx opcode)]
-    (= [0xF 1 8] (head-ttail opcode)) [:set-sound-timer (vx opcode)]
-    (= [0xF 1 0xE] (head-ttail opcode)) [:add-ip (vx opcode)]
-    (= [0xF 2 9] (head-ttail opcode)) [:set-font-ip (vx opcode)]
-    (= [0xF 3 3] (head-ttail opcode)) [:set-ip-decimal (vx opcode)]
-    (= [0xF 5 5] (head-ttail opcode)) [:set-memory (vx opcode)]
-    (= [0xF 6 5] (head-ttail opcode)) [:set-registers (vx opcode)]))
+  (let [[w3 _ w0 :as w3-w1-w0] (w3-w1-w0 opcode)
+        w3-w0 [w3 w0]]
+    (cond
+      (= opcode 0x00E0) [:clear-screen]
+      (= opcode 0x00EE) [:return]
+      (= 0 w3) [:RCA-1802]
+      (= 1 w3) [:jmp address]
+      (= 2 w3) [:call address]
+      (= 3 w3) [:skip-if vx = nn]
+      (= 4 w3) [:skip-if vx not= nn]
+      (= [5 0] [w3 w0]) [:skip-if vx = vy]
+      (= 6 w3) [:mov-value vx nn]
+      (= 7 w3) [:add-value vx nn]
+      (= [8 0] w3-w0) [:mov-register vx vy]
+      (= [8 1] w3-w0) [:or vx vy]
+      (= [8 2] w3-w0) [:and vx vy]
+      (= [8 3] w3-w0) [:xor vx vy]
+      (= [8 4] w3-w0) [:add-register vx vy]
+      (= [8 5] w3-w0) [:sub-register vx vy]
+      (= [8 6] w3-w0) [:shr vx]
+      (= [8 7] w3-w0) [:sub-reverse-register vx vy]
+      (= [8 0xE] w3-w0) [:shl vx]
+      (= [9 0] w3-w0) [:skip-if vx not= vy]
+      (= 0xA w3) [:mov-ip address]
+      (= 0xB w3) [:jmp-add-v0 address]
+      (= 0xC w3) [:random vx nn]
+      (= 0xD w3) [:draw vx vy height]
+      (= [0xE 9 0xE] w3-w1-w0) [:skip-if-key = vx]
+      (= [0xE 0xA 1] w3-w1-w0) [:skip-if-key not= vx]
+      (= [0xF 0 7] w3-w1-w0) [:mov-timer vx]
+      (= [0xF 0 0xA] w3-w1-w0) [:mov-wait-key vx]
+      (= [0xF 1 5] w3-w1-w0) [:set-delay-timer vx]
+      (= [0xF 1 8] w3-w1-w0) [:set-sound-timer vx]
+      (= [0xF 1 0xE] w3-w1-w0) [:add-ip vx]
+      (= [0xF 2 9] w3-w1-w0) [:set-font-ip vx]
+      (= [0xF 3 3] w3-w1-w0) [:set-ip-decimal vx]
+      (= [0xF 5 5] w3-w1-w0) [:set-memory vx]
+      (= [0xF 6 5] w3-w1-w0) [:set-registers vx])))
 
 (def opcode-mapping
   {:0NNN "Calls RCA 1802 program at address NNN. Not necessary for most ROMs."
@@ -118,9 +119,16 @@
    :FX55 "Stores V0 to VX (including VX) in memory starting at address I.[4]"
    :FX65 "Fills V0 to VX (including VX) with values from memory starting at address I.[4]"})
 
+(defmulti command first)
+
+(defmethod command :clear-screen [_]
+  (fn [machine]
+    (assoc machine :screen-memory fresh-screen-memory)))
+
 (defn decode-opcode
   "decode an opcode and return a function to apply on the machine"
   [opcode]
+  (extract-opcode opcode)
   (fn [machine]
     (println (get opcode-mapping opcode))
     machine))
