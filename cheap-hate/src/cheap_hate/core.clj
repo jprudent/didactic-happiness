@@ -11,6 +11,76 @@
                                          :V8 0, :V9 0, :V10 0, :V11 0}
                          :screen-memory 0})
 
+
+(defn power-of-2 [exp]
+  (bit-shift-left 1 exp))
+
+(defn mask-of-size [size]
+  (dec (power-of-2 size)))
+
+(defn nth-word
+  "returns the nth word in x, 0 being the righmost position.
+  The word size is specified in bits
+
+  (map (fn [nth] (nth-word 12 nth 0xABCD)) [0 1 2 3])
+  => (0xBCD 0xA 0 0)"
+  [word-size nth x]
+  (let [bits   (* nth word-size)
+        mask   (bit-shift-left (mask-of-size word-size) bits)
+        masked (bit-and x mask)]
+    (bit-shift-right masked bits)))
+
+(def head (partial nth-word 4 3))
+(def tail (partial nth-word 4 0))
+(def ttail (partial nth-word 4 1))
+(defn head-tail [opcode] [(head opcode) (tail opcode)])
+(defn head-ttail [opcode] [(head opcode) (ttail opcode) (tail opcode)])
+(def address (partial nth-word 12 0))
+(def vx (partial nth-word 4 2))
+(def vy (partial nth-word 4 1))
+(def value (partial nth-word 8 0))
+(def height (partial nth-word 4 0))
+
+(defn extract-opcode
+  "given an opcode extract information"
+  [opcode]
+  (cond
+    (= opcode 0x00E0) [:clear-screen]
+    (= opcode 0x00EE) [:return]
+    (= 0 (head opcode)) [:RCA-1802]
+    (= 1 (head opcode)) [:jmp (address opcode)]
+    (= 2 (head opcode)) [:call (address opcode)]
+    (= 3 (head opcode)) [:skip-if (vx opcode) = (value opcode)]
+    (= 4 (head opcode)) [:skip-if (vx opcode) not= (value opcode)]
+    (= [5 0] (head-tail opcode)) [:skip-if (vx opcode) = (vy opcode)]
+    (= 6 (head opcode)) [:mov-value (vx opcode) (value opcode)]
+    (= 7 (head opcode)) [:add-value (vx opcode) (value opcode)]
+    (= [8 0] (head-tail opcode)) [:mov-register (vx opcode) (vy opcode)]
+    (= [8 1] (head-tail opcode)) [:or (vx opcode) (vy opcode)]
+    (= [8 2] (head-tail opcode)) [:and (vx opcode) (vy opcode)]
+    (= [8 3] (head-tail opcode)) [:xor (vx opcode) (vy opcode)]
+    (= [8 4] (head-tail opcode)) [:add-register (vx opcode) (vy opcode)]
+    (= [8 5] (head-tail opcode)) [:sub-register (vx opcode) (vy opcode)]
+    (= [8 6] (head-tail opcode)) [:shr (vx opcode)]
+    (= [8 7] (head-tail opcode)) [:sub-reverse-register (vx opcode) (vy opcode)]
+    (= [8 0xE] (head-tail opcode)) [:shl (vx opcode)]
+    (= [9 0] (head-tail opcode)) [:skip-if (vx opcode) not= (vy opcode)]
+    (= 0xA (head opcode)) [:mov-ip (address opcode)]
+    (= 0xB (head opcode)) [:jmp-add-v0 (address opcode)]
+    (= 0xC (head opcode)) [:random (vx opcode) (value opcode)]
+    (= 0xD (head opcode)) [:draw (vx opcode) (vy opcode) (height opcode)]
+    (= [0xE 9 0xE] (head-ttail opcode)) [:skip-if-key = (vx opcode)]
+    (= [0xE 0xA 1] (head-ttail opcode)) [:skip-if-key not= (vx opcode)]
+    (= [0xF 0 7] (head-ttail opcode)) [:mov-timer (vx opcode)]
+    (= [0xF 0 0xA] (head-ttail opcode)) [:mov-wait-key (vx opcode)]
+    (= [0xF 1 5] (head-ttail opcode)) [:set-delay-timer (vx opcode)]
+    (= [0xF 1 8] (head-ttail opcode)) [:set-sound-timer (vx opcode)]
+    (= [0xF 1 0xE] (head-ttail opcode)) [:add-ip (vx opcode)]
+    (= [0xF 2 9] (head-ttail opcode)) [:set-font-ip (vx opcode)]
+    (= [0xF 3 3] (head-ttail opcode)) [:set-ip-decimal (vx opcode)]
+    (= [0xF 5 5] (head-ttail opcode)) [:set-memory (vx opcode)]
+    (= [0xF 6 5] (head-ttail opcode)) [:set-registers (vx opcode)]))
+
 (def opcode-mapping
   {:0NNN "Calls RCA 1802 program at address NNN. Not necessary for most ROMs."
    :00E0 "Clears the screen."
