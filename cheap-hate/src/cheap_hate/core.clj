@@ -26,7 +26,7 @@
 ;; A fresh machine craving for a program to run
 (def ^:static fresh-machine {:RAM           (concat interpreter-code
                                                     (repeat (- 0x1000 0x200) 0))
-                             :registers     (repeat 0xF 0)
+                             :registers     (vec (repeat 0xF 0))
                              :I             0
                              :PC            0
                              :stack         []
@@ -68,54 +68,57 @@
 (defn opcode->instruction
   "extract informations from opcode"
   [opcode]
-  (debug  "instr: "
-    (let [[w3 _ w0 :as w3-w1-w0] (debug "extract: " (w3-w1-w0 opcode))
-          w3-w0 [w3 w0]]
-      (map #(if (keyword? %) % (% opcode))
-           (debug "cond" (cond
-                           (= opcode 0) [:halt]             ;; this one, I made up for testing purpose
-                           (= opcode 0x00E0) [:clear-screen]
-                           (= opcode 0x00EE) [:return]
-                           (= 0 w3) [:sys address]
-                           (= 1 w3) [:jump address]
-                           (= 2 w3) [:call address]
-                           (= 3 w3) [:skip-if vx = nn]
-                           (= 4 w3) [:skip-if vx not= nn]
-                           (= [5 0] [w3 w0]) [:skip-if vx = vy]
-                           (= 6 w3) [:mov-value vx nn]
-                           (= 7 w3) [:add-value vx nn]
-                           (= [8 0] w3-w0) [:mov-register vx vy]
-                           (= [8 1] w3-w0) [:or vx vy]
-                           (= [8 2] w3-w0) [:and vx vy]
-                           (= [8 3] w3-w0) [:xor vx vy]
-                           (= [8 4] w3-w0) [:add-register vx vy]
-                           (= [8 5] w3-w0) [:sub-register vx vy]
-                           (= [8 6] w3-w0) [:shift-right vx]
-                           (= [8 7] w3-w0) [:sub-reverse-register vx vy]
-                           (= [8 0xE] w3-w0) [:shift-left vx]
-                           (= [9 0] w3-w0) [:skip-if vx not= vy]
-                           (= 0xA w3) [:mov-ip address]
-                           (= 0xB w3) [:jmp-add-v0 address]
-                           (= 0xC w3) [:random vx nn]
-                           (= 0xD w3) [:draw vx vy height]
-                           (= [0xE 9 0xE] w3-w1-w0) [:skip-if-key = vx]
-                           (= [0xE 0xA 1] w3-w1-w0) [:skip-if-key not= vx]
-                           (= [0xF 0 7] w3-w1-w0) [:mov-timer vx]
-                           (= [0xF 0 0xA] w3-w1-w0) [:mov-wait-key vx]
-                           (= [0xF 1 5] w3-w1-w0) [:set-delay-timer vx]
-                           (= [0xF 1 8] w3-w1-w0) [:set-sound-timer vx]
-                           (= [0xF 1 0xE] w3-w1-w0) [:add-ip vx]
-                           (= [0xF 2 9] w3-w1-w0) [:set-font-ip vx]
-                           (= [0xF 3 3] w3-w1-w0) [:set-ip-decimal vx]
-                           (= [0xF 5 5] w3-w1-w0) [:set-memory vx]
-                           (= [0xF 6 5] w3-w1-w0) [:set-registers vx]))))))
+  (let [[w3 _ w0 :as w3-w1-w0] (w3-w1-w0 opcode)
+        w3-w0 [w3 w0]]
+    (mapv #(if (fn? %) (% opcode) %)
+          (cond
+            (= opcode 0) [:halt]                            ;; this one, I made up for testing purpose
+            (= opcode 0x00E0) [:clear-screen]
+            (= opcode 0x00EE) [:return]
+            (= 0 w3) [:sys address]
+            (= 1 w3) [:jump address]
+            (= 2 w3) [:call address]
+            (= 3 w3) [:skip-if-value vx '= nn]
+            (= 4 w3) [:skip-if-value vx 'not= nn]
+            (= [5 0] [w3 w0]) [:skip-if vx '= vy]
+            (= 6 w3) [:mov-value vx nn]
+            (= 7 w3) [:add-value vx nn]
+            (= [8 0] w3-w0) [:mov-register vx vy]
+            (= [8 1] w3-w0) [:or vx vy]
+            (= [8 2] w3-w0) [:and vx vy]
+            (= [8 3] w3-w0) [:xor vx vy]
+            (= [8 4] w3-w0) [:add-register vx vy]
+            (= [8 5] w3-w0) [:sub-register vx vy]
+            (= [8 6] w3-w0) [:shift-right vx]
+            (= [8 7] w3-w0) [:sub-reverse-register vx vy]
+            (= [8 0xE] w3-w0) [:shift-left vx]
+            (= [9 0] w3-w0) [:skip-if vx 'not= vy]
+            (= 0xA w3) [:mov-i address]
+            (= 0xB w3) [:jmp-add-v0 address]
+            (= 0xC w3) [:random vx nn]
+            (= 0xD w3) [:draw vx vy height]
+            (= [0xE 9 0xE] w3-w1-w0) [:skip-if-key '= vx]
+            (= [0xE 0xA 1] w3-w1-w0) [:skip-if-key 'not= vx]
+            (= [0xF 0 7] w3-w1-w0) [:mov-timer vx]
+            (= [0xF 0 0xA] w3-w1-w0) [:mov-wait-key vx]
+            (= [0xF 1 5] w3-w1-w0) [:set-delay-timer vx]
+            (= [0xF 1 8] w3-w1-w0) [:set-sound-timer vx]
+            (= [0xF 1 0xE] w3-w1-w0) [:add-ip vx]
+            (= [0xF 2 9] w3-w1-w0) [:set-font-ip vx]
+            (= [0xF 3 3] w3-w1-w0) [:set-ip-decimal vx]
+            (= [0xF 5 5] w3-w1-w0) [:set-memory vx]
+            (= [0xF 6 5] w3-w1-w0) [:set-registers vx]))))
 
-(defn inc-pc [machine] (update machine :PC inc))
+(defn inc-pc [machine] (update machine :PC + 2))
 (defn set-pc [value-fn] (fn [machine] (assoc machine :PC (value-fn machine))))
 (defn set-pc-const [const] (set-pc (constantly const)))
 (defn reset-screen-memory [machine] (assoc machine :screen-memory 0))
-(defn push-stack [machine] (update machine :stack conj (:PC machine)))
+(defn push-stack [machine] (update machine :stack conj (+ 2 (:PC machine))))
 (defn pop-stack [machine] (update machine :stack pop))
+(defn set-i [const] (fn [machine] (assoc machine :I const)))
+(defn set-vx [vx const] (fn [machine] (update machine :registers assoc vx const)))
+
+(defn get-vx [machine vx] (get-in machine [:registers vx]))
 
 (defmulti command first)
 (defmethod command :halt [_] (constantly nil))
@@ -124,6 +127,13 @@
 (defmethod command :sys [_] inc-pc)
 (defmethod command :jump [[_ address]] (set-pc-const address))
 (defmethod command :call [[_ address]] (comp (set-pc-const address) push-stack))
+(defmethod command :mov-i [[_ address]] (comp inc-pc (set-i address)))
+(defmethod command :skip-if-value [[_ vx test-op const]]
+  (fn [machine]
+    (if ((resolve test-op) (get-vx machine vx) const)
+      (-> (inc-pc machine) inc-pc)
+      (inc-pc machine))))
+(defmethod command :mov-value [[_ vx nn]] (comp inc-pc (set-vx vx nn)))
 
 (defn load-program [machine program]
   (-> (assoc machine :RAM (concat interpreter-code program)) ;; TODO 0 padding ?
@@ -141,13 +151,12 @@
 (defn start-machine [program]
   (let [machine (load-program fresh-machine program)]
     (loop [machine machine]
-      (when machine
-        (print-screen! machine)
-        (let [opcode              (read-opcode machine)
-              instruction         (opcode->instruction opcode)
-              execute-instruction (command instruction)
-              new-machine         (debug "new-machine" (execute-instruction machine))]
-          (if new-machine (recur new-machine) machine)))))
-  )
+      (print-screen! machine)
+      (println "@" (:PC machine))
+      (let [opcode              (debug "opcode:" (read-opcode machine))
+            instruction         (debug "instruction:" (opcode->instruction opcode))
+            execute-instruction (command instruction)
+            new-machine         (execute-instruction machine)]
+        (if new-machine (recur new-machine) machine)))))
 
 #_(start-machine [0x00E0])
