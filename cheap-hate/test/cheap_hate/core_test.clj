@@ -35,7 +35,20 @@
                          (update :registers assoc 0 0xAB)
                          (assoc :PC 0x20A))
             actual   (start-machine program)]
-        (is (= actual expected)))))
+        (is (= actual expected))))
+    (testing "Conditional skip if register not equals value"
+          (let [program  [0x60 0xAA                             ;; 0x200: mov V0, 0xAA
+                          0x40 0xAB                             ;; 0x202: skne V0, 0xAB (skip)
+                          0x00 0x00                             ;; 0x204: halt (never reached)
+                          0x40 0xAA                             ;; 0x206: skne V0, 0xAA
+                          0x60 0xAB                             ;; 0x208: mov V0, 0xAB (reached)
+                          0x00 0x00                             ;; 0x20A: halt
+                          ]
+                expected (-> (load-program fresh-machine program)
+                             (update :registers assoc 0 0xAB)
+                             (assoc :PC 0x20A))
+                actual   (start-machine program)]
+            (is (= actual expected)))))
 
   (testing "I register"
     (testing "It can be set to address"
