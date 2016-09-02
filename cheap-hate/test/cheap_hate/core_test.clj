@@ -2,6 +2,12 @@
   (:require [clojure.test :refer :all]
             [cheap-hate.core :refer :all]))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+
+(testing "Call stack"
+  (let [program [0x22 0x04                                  ;; 0x200: call @0x204
+                 0x00 0x00                                  ;; 0x202: halt
+                 0x00 0xEE                                  ;; 0x204: ret
+                 ]
+        m0      (load-program fresh-machine program)
+        m1      (start-machine program)]
+    (is (= m0 m1))))
