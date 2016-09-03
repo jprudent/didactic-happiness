@@ -65,20 +65,20 @@
             actual   (start-machine program)]
         (is (= actual expected))))
     (testing "Conditional skip if register not equals another register"
-          (let [program  [0x60 0xAA                             ;; 0x200: mov V0, 0xAA
-                          0x6E 0xAA                             ;; 0x202: mov VE, 0xAA
-                          0x6D 0xDD                             ;; 0x204: mov VD, 0xDD
-                          0x9D 0x00                             ;; 0x206: skne VD, V0 (skip)
-                          0x00 0x00                             ;; 0x208: halt (never reached)
-                          0x90 0xE0                             ;; 0x20A: skne V0, VE
-                          0x60 0xAB                             ;; 0x20C: mov V0, 0xAB (reached)
-                          0x00 0x00                             ;; 0x20E: halt
-                          ]
-                expected (-> (load-program fresh-machine program)
-                             (update :registers assoc 0 0xAB 0xE 0xAA 0xD 0xDD)
-                             (assoc :PC 0x20E))
-                actual   (start-machine program)]
-            (is (= actual expected)))))
+      (let [program  [0x60 0xAA                             ;; 0x200: mov V0, 0xAA
+                      0x6E 0xAA                             ;; 0x202: mov VE, 0xAA
+                      0x6D 0xDD                             ;; 0x204: mov VD, 0xDD
+                      0x9D 0x00                             ;; 0x206: skne VD, V0 (skip)
+                      0x00 0x00                             ;; 0x208: halt (never reached)
+                      0x90 0xE0                             ;; 0x20A: skne V0, VE
+                      0x60 0xAB                             ;; 0x20C: mov V0, 0xAB (reached)
+                      0x00 0x00                             ;; 0x20E: halt
+                      ]
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0 0xAB 0xE 0xAA 0xD 0xDD)
+                         (assoc :PC 0x20E))
+            actual   (start-machine program)]
+        (is (= actual expected)))))
 
   (testing "I register"
     (testing "It can be set to address"
@@ -88,4 +88,23 @@
                          (assoc :I 0x42)
                          inc-pc)
             actual   (start-machine program)]
-        (is (= actual expected))))))
+        (is (= actual expected)))))
+  (testing "Arithmetic"
+    (testing "It should add a number to a register"
+      (let [program  [0x61 0x42                             ;; 0x200: mov V1, 0x42
+                      0x71 0x11                             ;; 0x202: add V1, 0x11
+                      0x00 0x00]                            ;; 0x204: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 1 0x53)
+                         (assoc :PC 0x204))
+            actual   (start-machine program)]
+        (is (= actual expected))))
+    (testing "It should overflow without affecting carry register"
+          (let [program  [0x61 0x42                             ;; 0x200: mov V1, 0x42
+                          0x71 0xBF                             ;; 0x202: add V1, 0xBE = 0x101
+                          0x00 0x00]                            ;; 0x204: halt
+                expected (-> (load-program fresh-machine program)
+                             (update :registers assoc 1 0x01)
+                             (assoc :PC 0x204))
+                actual   (start-machine program)]
+            (is (= actual expected))))))

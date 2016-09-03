@@ -61,6 +61,7 @@
 (def vy (partial nth-word 4 1))
 (def nn (partial nth-word 8 0))
 (def height (partial nth-word 4 0))
+(def byte-overflow (partial nth-word 8 0))
 
 (defn debug [msg arg]
   (println (if (integer? arg) (str msg (Integer/toHexString arg)) (str msg arg)))
@@ -111,36 +112,33 @@
             (= [0xF 6 5] w3-w1-w0) [:set-registers vx]))))
 
 (defn inc-pc [machine] (update machine :PC + 2))
-(defn set-pc [value-fn] (fn [machine] (assoc machine :PC (value-fn machine))))
-(defn set-pc-const [const] (set-pc (constantly const)))
+(defn set-pc [f] (fn [machine] (assoc machine :PC (f machine))))
 (defn reset-screen-memory [machine] (assoc machine :screen-memory 0))
 (defn push-stack [machine] (update machine :stack conj (+ 2 (:PC machine))))
 (defn pop-stack [machine] (update machine :stack pop))
 (defn set-i [const] (fn [machine] (assoc machine :I const)))
-(defn set-vx [vx const] (fn [machine] (update machine :registers assoc vx const)))
+(defn set-vx [vx f] (fn [machine] (update machine :registers update vx f)))
 
-(defn get-vx [machine vx] (get-in machine [:registers vx]))
+(defn get-vx [vx machine] (get-in machine [:registers vx]))
 
 (defmulti command first)
 (defmethod command :halt [_] (constantly nil))
 (defmethod command :clear-screen [_] (comp inc-pc reset-screen-memory))
 (defmethod command :return [_] (comp pop-stack (set-pc (fn [m] (peek (:stack m))))))
 (defmethod command :sys [_] inc-pc)
-(defmethod command :jump [[_ address]] (set-pc-const address))
-(defmethod command :call [[_ address]] (comp (set-pc-const address) push-stack))
+(defmethod command :jump [[_ address]] (set-pc (constantly address)))
+(defmethod command :call [[_ address]] (comp (set-pc (constantly address)) push-stack))
 (defmethod command :mov-i [[_ address]] (comp inc-pc (set-i address)))
+(defn skip-if [op fx fy]
+  (fn [machine]
+    (-> (if (op (fx machine) (fy machine)) (inc-pc machine) machine)
+        inc-pc)))
 (defmethod command :skip-if-value [[_ vx test-op const]]
-  (fn [machine]
-    (if ((resolve test-op) (get-vx machine vx) const)
-      (-> (inc-pc machine) inc-pc)
-      (inc-pc machine))))
+  (skip-if (resolve test-op) (partial get-vx vx) (constantly const)))
 (defmethod command :skip-if-register [[_ vx test-op vy]]
-  (fn [machine]
-    (if ((resolve test-op) (get-vx machine vx) (get-vx machine vy))
-      (-> (inc-pc machine) inc-pc)
-      (inc-pc machine))))
-(defmethod command :mov-value [[_ vx nn]] (comp inc-pc (set-vx vx nn)))
-
+  (skip-if (resolve test-op) (partial get-vx vx) (partial get-vx vy)))
+(defmethod command :mov-value [[_ vx nn]] (comp inc-pc (set-vx vx (constantly nn))))
+(defmethod command :add-value [[_ vx nn]] (comp inc-pc (set-vx vx (comp byte-overflow (partial + nn)))))
 (defn load-program [machine program]
   (-> (assoc machine :RAM (concat interpreter-code program)) ;; TODO 0 padding ?
       (assoc :PC 0x200)))
