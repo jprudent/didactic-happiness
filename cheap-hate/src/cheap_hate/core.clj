@@ -63,8 +63,9 @@
 (def height (partial nth-word 4 0))
 
 (defn debug [msg arg]
-  (println (str msg arg))
+  (println (if (integer? arg) (str msg (Integer/toHexString arg)) (str msg arg)))
   arg)
+
 (defn opcode->instruction
   "extract informations from opcode"
   [opcode]
@@ -80,7 +81,7 @@
             (= 2 w3) [:call address]
             (= 3 w3) [:skip-if-value vx '= nn]
             (= 4 w3) [:skip-if-value vx 'not= nn]
-            (= [5 0] [w3 w0]) [:skip-if vx '= vy]
+            (= [5 0] [w3 w0]) [:skip-if-register vx '= vy]
             (= 6 w3) [:mov-value vx nn]
             (= 7 w3) [:add-value vx nn]
             (= [8 0] w3-w0) [:mov-register vx vy]
@@ -92,7 +93,7 @@
             (= [8 6] w3-w0) [:shift-right vx]
             (= [8 7] w3-w0) [:sub-reverse-register vx vy]
             (= [8 0xE] w3-w0) [:shift-left vx]
-            (= [9 0] w3-w0) [:skip-if vx 'not= vy]
+            (= [9 0] w3-w0) [:skip-if-register vx 'not= vy]
             (= 0xA w3) [:mov-i address]
             (= 0xB w3) [:jmp-add-v0 address]
             (= 0xC w3) [:random vx nn]
@@ -133,18 +134,24 @@
     (if ((resolve test-op) (get-vx machine vx) const)
       (-> (inc-pc machine) inc-pc)
       (inc-pc machine))))
+(defmethod command :skip-if-register [[_ vx test-op vy]]
+  (fn [machine]
+    (if ((resolve test-op) (get-vx machine vx) (get-vx machine vy))
+      (-> (inc-pc machine) inc-pc)
+      (inc-pc machine))))
 (defmethod command :mov-value [[_ vx nn]] (comp inc-pc (set-vx vx nn)))
 
 (defn load-program [machine program]
   (-> (assoc machine :RAM (concat interpreter-code program)) ;; TODO 0 padding ?
       (assoc :PC 0x200)))
 
+(defn concat-bytes [b1 b2] (bit-or (bit-shift-left b1 8) b2))
+(defn byte-at-pc [machine pc-fn] (nth (:RAM machine) (pc-fn (:PC machine))))
 (defn read-opcode
   "returns a 2 bytes number at program counter"
   [machine]
-  (bit-or
-    (bit-shift-left (nth (:RAM machine) (:PC machine)) 8)
-    (nth (:RAM machine) (inc (:PC machine)))))
+  (concat-bytes
+    (byte-at-pc machine identity) (byte-at-pc machine inc)))
 
 (defn print-screen! [machine] (println "print screen"))
 
@@ -152,7 +159,7 @@
   (let [machine (load-program fresh-machine program)]
     (loop [machine machine]
       (print-screen! machine)
-      (println "@" (:PC machine))
+      (debug "@" (:PC machine))
       (let [opcode              (debug "opcode:" (read-opcode machine))
             instruction         (debug "instruction:" (opcode->instruction opcode))
             execute-instruction (command instruction)
