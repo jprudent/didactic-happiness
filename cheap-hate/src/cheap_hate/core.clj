@@ -160,6 +160,7 @@
         set-registers
         (fn [[machine [x _] [_ vy]]] [machine x vy])
         (get-registers vx vy)))
+(defmethod command :jmp-add-v0 [[_ addr]] (set-pc (fn [machine] (+ (get-register 0 machine) addr))))
 (defn- boolean-command [x y boolean-op]
   (comp
     inc-pc
