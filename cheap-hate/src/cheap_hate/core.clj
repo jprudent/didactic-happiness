@@ -154,6 +154,7 @@
         (get-registers x y)))
 (defmethod command :add-register [[_ x y]] (arithmetic x y + #(> % 0xFF)))
 (defmethod command :sub-register [[_ x y]] (arithmetic x y - pos?))
+(defmethod command :sub-reverse-register [[_ x y]] (arithmetic x y #(- %2 %1) pos?))
 (defmethod command :mov-register [[_ vx vy]]
   (comp inc-pc
         set-registers

@@ -139,8 +139,8 @@
                 actual   (start-machine program)]
             (is (= actual expected))))
     (testing "When substracting a register, it should overflow affecting carry register to 1 if no overflow"
-              (let [program  [0x61 0xBF                             ;; 0x200: mov V1, 0x42
-                              0x62 0x42                             ;; 0x202: mov V2, 0xBF
+              (let [program  [0x61 0xBF                             ;; 0x200: mov V1, 0xBF
+                              0x62 0x42                             ;; 0x202: mov V2, 0x42
                               0x81 0x25                             ;; 0x204: sub V1, V2 = 0x101
                               0x00 0x00]                            ;; 0x206: halt
                     expected (-> (load-program fresh-machine program)
@@ -148,6 +148,16 @@
                                  (assoc :PC 0x206))
                     actual   (start-machine program)]
                 (is (= actual expected))))
+    (testing "SUBN should Set Vx = Vy - Vx, set VF = NOT borrow"
+                  (let [program  [0x61 0x42                             ;; 0x200: mov V1, 0x42
+                                  0x62 0xBF                             ;; 0x202: mov V2, 0xBF
+                                  0x81 0x27                             ;; 0x204: sub V1, V2 = 0x101
+                                  0x00 0x00]                            ;; 0x206: halt
+                        expected (-> (load-program fresh-machine program)
+                                     (update :registers assoc 0x1 0x7D 0x2 0xBF, 0xF 0x1)
+                                     (assoc :PC 0x206))
+                        actual   (start-machine program)]
+                    (is (= actual expected))))
     (testing "register can be ORed against another register"
       (let [program  [0x61 0x0F                             ;; 0x200: mov V1, 0x0F
                       0x62 0xF0                             ;; 0x202: mov V2, 0xF0
