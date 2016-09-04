@@ -111,6 +111,14 @@
                          (assoc :PC 0x206))
             actual   (start-machine program)]
         (is (= actual expected))))
+    (testing "I can be set to font location"
+          (let [program  [0xFA 0x29                             ;; 0x200: ldf I, 0xA
+                          0x00 0x00]                            ;; 0x202: halt
+                expected (-> (load-program fresh-machine program)
+                             (assoc :I 0x32)
+                             (assoc :PC 0x202))
+                actual   (start-machine program)]
+            (is (= actual expected))))
     (testing "VX can be set to VY"
       (let [program  [0x66 0x42                             ;; 0x200: mov V6, 0x42
                       0x67 0xBF                             ;; 0x202: mov V7, 0xBF
