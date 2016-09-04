@@ -1,4 +1,5 @@
-(ns cheap-hate.core)
+(ns cheap-hate.core
+  (:import (java.util Random)))
 
 ;; This is the array of bitmap fonts
 ;; Each line represents a 8x5 pixels character
@@ -32,14 +33,11 @@
                              :stack         []
                              :screen-memory 0
                              :delay-timer   0
-                             :sound-timer   0})
+                             :sound-timer   0
+                             :prn           42})
 
-(defn power-of-2 [exp]
-  (bit-shift-left 1 exp))
-
-(defn mask-of-size [size]
-  (dec (power-of-2 size)))
-
+(defn power-of-2 [exp] (bit-shift-left 1 exp))
+(defn mask-of-size [size] (dec (power-of-2 size)))
 (defn nth-word
   "returns the nth word in x, 0 being the righmost position.
   The word size is specified in bits
@@ -124,8 +122,9 @@
 (defn get-register [x machine] (get-in machine [:registers x]))
 (defn get-registers [& registers] (apply juxt identity
                                          (map #(fn [machine] [%1 (get-register %1 machine)]) registers)))
-
-
+(defn next-int [old-seed] (lowest-byte (+ 3 old-seed)))      ;; TODO have a proper prng
+(defn update-prng [machine] (update machine :prn next-int))
+(defn get-prng [machine] (get machine :prn))
 
 (defmulti command first)
 (defmethod command :halt [_] (constantly nil))
@@ -172,12 +171,18 @@
 (defmethod command :xor [[_ x y]] (boolean-command x y bit-xor))
 (defn shift [x direction carry]
   (comp
-      inc-pc
-      set-registers
-      (fn [[machine [x vx]]] [machine, x (direction vx 1), 0xF (carry vx)])
-      (get-registers x)))
+    inc-pc
+    set-registers
+    (fn [[machine [x vx]]] [machine, x (direction vx 1), 0xF (carry vx)])
+    (get-registers x)))
 (defmethod command :shift-right [[_ x]] (shift x bit-shift-right lowest-bit))
 (defmethod command :shift-left [[_ x]] (shift x (comp lowest-byte bit-shift-left) highest-bit))
+(defmethod command :random ([[_ x nn]]
+                             (comp
+                               inc-pc
+                               set-registers
+                               (fn [machine] [machine x (bit-and nn (get-prng machine))])
+                               update-prng)))
 
 
 (defn load-program [machine program]

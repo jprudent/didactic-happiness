@@ -109,6 +109,16 @@
                          (update :registers assoc 0x6 0xBF 0x7 0xBF)
                          (assoc :PC 0x206))
             actual   (start-machine program)]
+        (is (= actual expected))))
+    (testing "RND Vx, nn should Set Vx = random byte AND kk."
+      (let [program  [0x66 0x42                             ;; 0x200: mov V6, 0x42
+                      0xC6 0xAA                             ;; 0x202: rnd V6, 0xAA
+                      0x00 0x00]                            ;; 0x204: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0x6 0x28)
+                         (assoc :prn 45)
+                         (assoc :PC 0x204))
+            actual   (start-machine program)]
         (is (= actual expected)))))
   (testing "Arithmetic"
     (testing "It should add a number to a register"
