@@ -119,6 +119,8 @@
 (defn set-i [const] (fn [machine] (assoc machine :I const)))
 (defn update-register [x update-vx] (fn [machine] (update machine :registers update x update-vx)))
 (defn set-registers [[machine x v & others]] (apply update machine :registers assoc x v others))
+(defn set-delay-timer [v machine] (assoc machine :delay-timer v))
+(defn set-sound-timer [v machine] (assoc machine :sound-timer v))
 (defn get-register [x machine] (get-in machine [:registers x]))
 (defn get-registers [& registers] (apply juxt identity
                                          (map #(fn [machine] [%1 (get-register %1 machine)]) registers)))
@@ -183,6 +185,16 @@
                                set-registers
                                (fn [machine] [machine x (bit-and nn (get-prng machine))])
                                update-prng)))
+(defmethod command :set-sound-timer [[_ x]]
+  (comp
+    inc-pc
+    (fn [[machine [_ x]]] (set-sound-timer x machine))
+    (get-registers x)))
+(defmethod command :set-delay-timer [[_ x]]
+  (comp
+      inc-pc
+      (fn [[machine [_ x]]] (set-delay-timer x machine))
+      (get-registers x)))
 
 
 (defn load-program [machine program]
@@ -209,5 +221,3 @@
             execute-instruction (command instruction)
             new-machine         (execute-instruction machine)]
         (if new-machine (recur new-machine) machine)))))
-
-#_(start-machine [0x00E0])

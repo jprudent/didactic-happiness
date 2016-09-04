@@ -226,4 +226,25 @@
                          (update :registers assoc 0x1 0xFE, 0xF 0x01)
                          (assoc :PC 0x204))
             actual   (start-machine program)]
-        (is (= actual expected))))))
+        (is (= actual expected)))))
+  (testing "Timers"
+    (testing "LD ST, V1 Should set the sound timer to Vx."
+      (let [program  [0x61 0x03                             ;; 0x200: mov V1, 0x03
+                      0xF1 0x18                             ;; 0x202: ld ST, V1
+                      0x00 0x00]                            ;; 0x204: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0x1 0x03)
+                         (assoc :sound-timer 0x03)
+                         (assoc :PC 0x204))
+            actual   (start-machine program)]
+        (is (= actual expected))))
+    (testing "LD DT, V should Set the delay timer to Vx."
+          (let [program  [0x61 0x03                             ;; 0x200: mov V1, 0x03
+                          0xF1 0x15                             ;; 0x202: ld DT, V1
+                          0x00 0x00]                            ;; 0x204: halt
+                expected (-> (load-program fresh-machine program)
+                             (update :registers assoc 0x1 0x03)
+                             (assoc :delay-timer 0x03)
+                             (assoc :PC 0x204))
+                actual   (start-machine program)]
+            (is (= actual expected))))))
