@@ -61,7 +61,7 @@
 (def vy (partial nth-word 4 1))
 (def nn (partial nth-word 8 0))
 (def height (partial nth-word 4 0))
-(def byte-overflow (partial nth-word 8 0))
+(def lower-byte (partial nth-word 8 0))
 
 (defn debug [msg arg]
   (println (if (integer? arg) (str msg (Integer/toHexString arg)) (str msg arg)))
@@ -117,11 +117,12 @@
 (defn push-stack [machine] (update machine :stack conj (+ 2 (:PC machine))))
 (defn pop-stack [machine] (update machine :stack pop))
 (defn set-i [const] (fn [machine] (assoc machine :I const)))
-(defn set-register
-  ([x update-vx] (fn [machine] (update machine :registers update x update-vx)))
-  ([[machine x v]] (update machine :registers assoc x v)))
+(defn update-register [x update-vx] (fn [machine] (update machine :registers update x update-vx)))
+(defn set-registers [[machine x v & others]] (apply update machine :registers assoc x v others))
 (defn get-register [x machine] (get-in machine [:registers x]))
 (defn get-x-vy [x y] (juxt identity (constantly x) (partial get-register y)))
+(defn get-registers [& registers] (apply juxt identity
+                                         (map #(fn [machine] [%1 (get-register %1 machine)]) registers)))
 
 
 
@@ -141,24 +142,29 @@
   (skip-if (resolve test-op) (partial get-register vx) (constantly const)))
 (defmethod command :skip-if-register [[_ vx test-op vy]]
   (skip-if (resolve test-op) (partial get-register vx) (partial get-register vy)))
-(defmethod command :mov-value [[_ vx nn]] (comp inc-pc (set-register vx (constantly nn))))
-(defmethod command :add-value [[_ vx nn]] (comp inc-pc (set-register vx (comp byte-overflow (partial + nn)))))
-(defmethod command :add-register [[_ vx vy]]
+(defmethod command :mov-value [[_ vx nn]] (comp inc-pc (update-register vx (constantly nn))))
+(defmethod command :add-value [[_ vx nn]] (comp inc-pc (update-register vx (comp lower-byte (partial + nn)))))
+(defmethod command :add-register [[_ x y]]
   (comp inc-pc
-        (fn [machine]
-          (let [r (+ (get-register vx machine) (get-register vy machine))]
-            (-> (update machine :registers assoc vx (byte-overflow r))
-                (update :registers assoc 0xF (if (> r 0xFF) 1 0)))))))
-(defmethod command :mov-register [[_ vx vy]] (comp inc-pc set-register (get-x-vy vx vy)))
-(defmethod command :or [[_ vx vy]] (comp inc-pc
-                                         (fn [machine]
-                                           (update machine :registers assoc vx (bit-or (get-register vx machine) (get-register vy machine))))))
-(defmethod command :and [[_ vx vy]] (comp inc-pc
-                                          (fn [machine]
-                                            (update machine :registers assoc vx (bit-and (get-register vx machine) (get-register vy machine))))))
-(defmethod command :xor [[_ vx vy]] (comp inc-pc
-                                          (fn [machine]
-                                            (update machine :registers assoc vx (bit-xor (get-register vx machine) (get-register vy machine))))))
+        set-registers
+        (fn [[machine [x vx] [_ vy]]]
+          (let [r (+ vx vy)]
+            [machine, x (lower-byte r), 0xF (if (> r 0xFF) 1 0)]))
+        (get-registers x y)))
+(defmethod command :mov-register [[_ vx vy]] (comp inc-pc
+                                                   set-registers
+                                                   (fn [[machine [x _] [_ vy]]] [machine x vy])
+                                                   (get-registers vx vy)))
+(defn- boolean-command [x y boolean-op]
+  (comp
+      inc-pc
+      set-registers
+      (fn [[machine [x vx] [_ vy]]] [machine, x (boolean-op vx vy)])
+      (get-registers x y)))
+(defmethod command :or [[_ x y]] (boolean-command x y bit-or))
+(defmethod command :and [[_ x y]] (boolean-command x y bit-and))
+(defmethod command :xor [[_ x y]] (boolean-command x y bit-xor))
+
 (defn load-program [machine program]
   (-> (assoc machine :RAM (concat interpreter-code program)) ;; TODO 0 padding ?
       (assoc :PC 0x200)))
