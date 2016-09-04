@@ -61,7 +61,9 @@
 (def vy (partial nth-word 4 1))
 (def nn (partial nth-word 8 0))
 (def height (partial nth-word 4 0))
-(def lower-byte (partial nth-word 8 0))
+(def lowest-byte (partial nth-word 8 0))
+(def lowest-bit (partial nth-word 1 0))
+(def highest-bit (partial nth-word 1 7))
 
 (defn debug [msg arg]
   (println (if (integer? arg) (str msg (Integer/toHexString arg)) (str msg arg)))
@@ -98,16 +100,16 @@
             (= 0xA w3) [:mov-i address]
             (= 0xB w3) [:jmp-add-v0 address]
             (= 0xC w3) [:random vx nn]
+            (= [0xF 1 8] w3-w1-w0) [:set-sound-timer vx]
+            (= [0xF 1 0xE] w3-w1-w0) [:add-ip vx]
+            (= [0xF 2 9] w3-w1-w0) [:set-font-ip vx]
+            (= [0xF 3 3] w3-w1-w0) [:set-ip-decimal vx]
             (= 0xD w3) [:draw vx vy height]
             (= [0xE 9 0xE] w3-w1-w0) [:skip-if-key '= vx]
             (= [0xE 0xA 1] w3-w1-w0) [:skip-if-key 'not= vx]
             (= [0xF 0 7] w3-w1-w0) [:mov-timer vx]
             (= [0xF 0 0xA] w3-w1-w0) [:mov-wait-key vx]
             (= [0xF 1 5] w3-w1-w0) [:set-delay-timer vx]
-            (= [0xF 1 8] w3-w1-w0) [:set-sound-timer vx]
-            (= [0xF 1 0xE] w3-w1-w0) [:add-ip vx]
-            (= [0xF 2 9] w3-w1-w0) [:set-font-ip vx]
-            (= [0xF 3 3] w3-w1-w0) [:set-ip-decimal vx]
             (= [0xF 5 5] w3-w1-w0) [:set-memory vx]
             (= [0xF 6 5] w3-w1-w0) [:set-registers vx]))))
 
@@ -120,7 +122,6 @@
 (defn update-register [x update-vx] (fn [machine] (update machine :registers update x update-vx)))
 (defn set-registers [[machine x v & others]] (apply update machine :registers assoc x v others))
 (defn get-register [x machine] (get-in machine [:registers x]))
-(defn get-x-vy [x y] (juxt identity (constantly x) (partial get-register y)))
 (defn get-registers [& registers] (apply juxt identity
                                          (map #(fn [machine] [%1 (get-register %1 machine)]) registers)))
 
@@ -143,27 +144,39 @@
 (defmethod command :skip-if-register [[_ vx test-op vy]]
   (skip-if (resolve test-op) (partial get-register vx) (partial get-register vy)))
 (defmethod command :mov-value [[_ vx nn]] (comp inc-pc (update-register vx (constantly nn))))
-(defmethod command :add-value [[_ vx nn]] (comp inc-pc (update-register vx (comp lower-byte (partial + nn)))))
-(defmethod command :add-register [[_ x y]]
+(defmethod command :add-value [[_ vx nn]] (comp inc-pc (update-register vx (comp lowest-byte (partial + nn)))))
+(defn arithmetic [x y op carry?]
   (comp inc-pc
         set-registers
         (fn [[machine [x vx] [_ vy]]]
-          (let [r (+ vx vy)]
-            [machine, x (lower-byte r), 0xF (if (> r 0xFF) 1 0)]))
+          (let [r (op vx vy)]
+            [machine, x (lowest-byte r), 0xF (if (carry? r) 1 0)]))
         (get-registers x y)))
-(defmethod command :mov-register [[_ vx vy]] (comp inc-pc
-                                                   set-registers
-                                                   (fn [[machine [x _] [_ vy]]] [machine x vy])
-                                                   (get-registers vx vy)))
+(defmethod command :add-register [[_ x y]] (arithmetic x y + #(> % 0xFF)))
+(defmethod command :sub-register [[_ x y]] (arithmetic x y - pos?))
+(defmethod command :mov-register [[_ vx vy]]
+  (comp inc-pc
+        set-registers
+        (fn [[machine [x _] [_ vy]]] [machine x vy])
+        (get-registers vx vy)))
 (defn- boolean-command [x y boolean-op]
   (comp
-      inc-pc
-      set-registers
-      (fn [[machine [x vx] [_ vy]]] [machine, x (boolean-op vx vy)])
-      (get-registers x y)))
+    inc-pc
+    set-registers
+    (fn [[machine [x vx] [_ vy]]] [machine, x (boolean-op vx vy)])
+    (get-registers x y)))
 (defmethod command :or [[_ x y]] (boolean-command x y bit-or))
 (defmethod command :and [[_ x y]] (boolean-command x y bit-and))
 (defmethod command :xor [[_ x y]] (boolean-command x y bit-xor))
+(defn shift [x direction carry]
+  (comp
+      inc-pc
+      set-registers
+      (fn [[machine [x vx]]] [machine, x (direction vx 1), 0xF (carry vx)])
+      (get-registers x)))
+(defmethod command :shift-right [[_ x]] (shift x bit-shift-right lowest-bit))
+(defmethod command :shift-left [[_ x]] (shift x (comp lowest-byte bit-shift-left) highest-bit))
+
 
 (defn load-program [machine program]
   (-> (assoc machine :RAM (concat interpreter-code program)) ;; TODO 0 padding ?

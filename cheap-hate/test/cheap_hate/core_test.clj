@@ -128,6 +128,26 @@
                          (assoc :PC 0x206))
             actual   (start-machine program)]
         (is (= actual expected))))
+    (testing "When substracting a register, it should overflow affecting carry register to 0 if overflow"
+          (let [program  [0x61 0x42                             ;; 0x200: mov V1, 0x42
+                          0x62 0xBF                             ;; 0x202: mov V2, 0xBF
+                          0x81 0x25                             ;; 0x204: sub V1, V2 = 0x101
+                          0x00 0x00]                            ;; 0x206: halt
+                expected (-> (load-program fresh-machine program)
+                             (update :registers assoc 0x1 0x83, 0x2 0xBF, 0xF 0x0)
+                             (assoc :PC 0x206))
+                actual   (start-machine program)]
+            (is (= actual expected))))
+    (testing "When substracting a register, it should overflow affecting carry register to 1 if no overflow"
+              (let [program  [0x61 0xBF                             ;; 0x200: mov V1, 0x42
+                              0x62 0x42                             ;; 0x202: mov V2, 0xBF
+                              0x81 0x25                             ;; 0x204: sub V1, V2 = 0x101
+                              0x00 0x00]                            ;; 0x206: halt
+                    expected (-> (load-program fresh-machine program)
+                                 (update :registers assoc 0x1 0x7D 0x2 0x42, 0xF 0x1)
+                                 (assoc :PC 0x206))
+                    actual   (start-machine program)]
+                (is (= actual expected))))
     (testing "register can be ORed against another register"
       (let [program  [0x61 0x0F                             ;; 0x200: mov V1, 0x0F
                       0x62 0xF0                             ;; 0x202: mov V2, 0xF0
@@ -151,10 +171,28 @@
     (testing "register can be XORed against another register"
           (let [program  [0x61 0xAB                             ;; 0x200: mov V1, 0xAB
                           0x62 0x55                             ;; 0x202: mov V2, 0x55
-                          0x81 0x23                             ;; 0x204: xor V1, V2 = 0x101
+                          0x81 0x23                             ;; 0x204: xor V1, V2
                           0x00 0x00]                            ;; 0x206: halt
                 expected (-> (load-program fresh-machine program)
                              (update :registers assoc 0x1 0xFE, 0x2 0x55)
                              (assoc :PC 0x206))
                 actual   (start-machine program)]
-            (is (= actual expected))))))
+            (is (= actual expected))))
+    (testing "shift right a register, overflowing in VF"
+              (let [program  [0x61 0x03                             ;; 0x200: mov V1, 0x03
+                              0x81 0xF6                             ;; 0x202: shr V1
+                              0x00 0x00]                            ;; 0x204: halt
+                    expected (-> (load-program fresh-machine program)
+                                 (update :registers assoc 0x1 0x01, 0xF 0x01)
+                                 (assoc :PC 0x204))
+                    actual   (start-machine program)]
+                (is (= actual expected))))
+    (testing "shift left a register, overflowing in VF"
+                  (let [program  [0x61 0xFF                             ;; 0x200: mov V1, 0xFF
+                                  0x81 0x0E                             ;; 0x202: shl V1
+                                  0x00 0x00]                            ;; 0x204: halt
+                        expected (-> (load-program fresh-machine program)
+                                     (update :registers assoc 0x1 0xFE, 0xF 0x01)
+                                     (assoc :PC 0x204))
+                        actual   (start-machine program)]
+                    (is (= actual expected))))))
