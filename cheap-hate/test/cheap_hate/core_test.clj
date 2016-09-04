@@ -100,6 +100,17 @@
                          inc-pc)
             actual   (start-machine program)]
         (is (= actual expected))))
+    (testing "I can added to a register without handling carry"
+      (let [program  [0x6B 0xFE                             ;; 0x200: mov VB, 0xFE
+                      0xA0 0x03                             ;; 0x202: mov I, 0x01
+                      0xFB 0x1E                             ;; 0x204: add I, VB
+                      0x00 0x00]                            ;; 0x206: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0xB 0xFE)
+                         (assoc :I 0x01)
+                         (assoc :PC 0x206))
+            actual   (start-machine program)]
+        (is (= actual expected))))
     (testing "VX can be set to VY"
       (let [program  [0x66 0x42                             ;; 0x200: mov V6, 0x42
                       0x67 0xBF                             ;; 0x202: mov V7, 0xBF
@@ -239,12 +250,12 @@
             actual   (start-machine program)]
         (is (= actual expected))))
     (testing "LD DT, V should Set the delay timer to Vx."
-          (let [program  [0x61 0x03                             ;; 0x200: mov V1, 0x03
-                          0xF1 0x15                             ;; 0x202: ld DT, V1
-                          0x00 0x00]                            ;; 0x204: halt
-                expected (-> (load-program fresh-machine program)
-                             (update :registers assoc 0x1 0x03)
-                             (assoc :delay-timer 0x03)
-                             (assoc :PC 0x204))
-                actual   (start-machine program)]
-            (is (= actual expected))))))
+      (let [program  [0x61 0x03                             ;; 0x200: mov V1, 0x03
+                      0xF1 0x15                             ;; 0x202: ld DT, V1
+                      0x00 0x00]                            ;; 0x204: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0x1 0x03)
+                         (assoc :delay-timer 0x03)
+                         (assoc :PC 0x204))
+            actual   (start-machine program)]
+        (is (= actual expected))))))

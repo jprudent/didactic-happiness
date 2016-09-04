@@ -99,7 +99,7 @@
             (= 0xB w3) [:jmp-add-v0 address]
             (= 0xC w3) [:random vx nn]
             (= [0xF 1 8] w3-w1-w0) [:set-sound-timer vx]
-            (= [0xF 1 0xE] w3-w1-w0) [:add-ip vx]
+            (= [0xF 1 0xE] w3-w1-w0) [:add-i vx]
             (= [0xF 2 9] w3-w1-w0) [:set-font-ip vx]
             (= [0xF 3 3] w3-w1-w0) [:set-ip-decimal vx]
             (= 0xD w3) [:draw vx vy height]
@@ -127,6 +127,7 @@
 (defn next-int [old-seed] (lowest-byte (+ 3 old-seed)))      ;; TODO have a proper prng
 (defn update-prng [machine] (update machine :prn next-int))
 (defn get-prng [machine] (get machine :prn))
+(defn get-i [machine] (get machine :I))
 
 (defmulti command first)
 (defmethod command :halt [_] (constantly nil))
@@ -195,6 +196,10 @@
       inc-pc
       (fn [[machine [_ x]]] (set-delay-timer x machine))
       (get-registers x)))
+(defmethod command :add-i [[_ x]]
+  (comp inc-pc
+        (fn [[machine [_ vx]]] ((set-i (lowest-byte (+ (get-i machine) vx))) machine))
+        (get-registers x)))
 
 
 (defn load-program [machine program]
