@@ -286,7 +286,17 @@
                          (assoc :delay-timer 0x03)
                          (assoc :PC 0x206))
             actual   (start-machine program)]
-        (is (= actual expected)))))
+        (is (= actual expected))))
+    (testing "Read registers V0 through Vx from memory starting at location I."
+          (let [program  [0xA2 0x00                             ;; 0x200: mov I, 0x200
+                          0xF4 0x65                             ;; 0x202: mov V4, [I]
+                          0x00 0x00]                            ;; 0x204: halt
+                expected (-> (load-program fresh-machine program)
+                             (update :registers assoc 0x0 0xA2, 0x01 00, 0x2 0xF4, 0x3 0x65)
+                             (assoc :I 0x200)
+                             (assoc :PC 0x204))
+                actual   (start-machine program)]
+            (is (= actual expected)))))
   (testing "Memory"
     (testing "Store BCD representation of Vx in memory locations I, I+1, and I+2."
       (let [program  [0xA2 0x50                             ;; 0x200: mov I, 0x250
@@ -346,5 +356,18 @@
                          (assoc :PC 0x20A)
                          (update :screen assoc 0x1F [0 0 0 0 0 0 0 0xF0]))
             actual   (start-machine program)]
-        (is (= actual expected)))))
+        (is (= actual expected))))
+    (testing "Should clear the screen but not VF"
+          (let [program  [0xA0 0x19                             ;; 0x200: mov I, 0x19 (sprite '5')
+                          0x6A 0x07                             ;; 0x202: mov VA, 0x07 (last column)
+                          0x6B 0x1F                             ;; 0x204: mov VB, 0x1F (last line)
+                          0xDA 0xB1                             ;; 0x206: draw VA, VB, 5 (draw at [7,31] the sprite of 1 byte at I)
+                          0x00 0xE0                             ;; 0x208: draw VA, VB, 5 (draw at [7,31] the sprite of 1 byte at I)
+                          0x00 0x00]                            ;; 0x20A: halt
+                expected (-> (load-program fresh-machine program)
+                             (update :registers assoc 0xA 0x07, 0xB 0x1F 0xF 1)
+                             (assoc :I 0x19)
+                             (assoc :PC 0x20A))
+                actual   (start-machine program)]
+            (is (= actual expected)))))
   )

@@ -116,12 +116,14 @@
 
 (defn inc-pc [machine] (update machine :PC + 2))
 (defn set-pc [f] (fn [machine] (assoc machine :PC (f machine))))
-(defn reset-screen-memory [machine] (assoc machine :screen-memory 0))
+(defn reset-screen-memory [machine] (assoc machine :screen empty-screen))
 (defn push-stack [machine] (update machine :stack conj (+ 2 (:PC machine))))
 (defn pop-stack [machine] (update machine :stack pop))
 (defn set-i [const] (fn [machine] (assoc machine :I const)))
 (defn update-register [x update-vx] (fn [machine] (update machine :registers update x update-vx)))
-(defn set-registers [[machine x v & others]] (apply update machine :registers assoc x v others))
+(defn set-registers
+  ([machine x v & others] (apply update machine :registers assoc x v others))
+  ([[machine & registers]] (apply set-registers machine registers)))
 (defn set-delay-timer [v machine] (assoc machine :delay-timer v))
 (defn set-sound-timer [v machine] (assoc machine :sound-timer v))
 (defn get-register [x machine] (get-in machine [:registers x]))
@@ -262,6 +264,12 @@
     (fn [[machine & registers]] (set-mem machine (get-i machine) (map second registers)))
     (apply get-registers (range 0 (inc x)))))
 
+(defmethod command :set-registers [[_ n]]
+  (comp
+    inc-pc
+    (fn [machine]
+      (apply set-registers machine
+             (interleave (range) (read-memory machine (get-i machine) n))))))
 (defn load-program [machine program]
   (let [used-mem (concat interpreter-code program)
         padding  (repeat (- 0x1000 (count used-mem)) 0)
