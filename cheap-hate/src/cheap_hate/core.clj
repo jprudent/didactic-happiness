@@ -37,6 +37,8 @@
                              :sound-timer 0
                              :prn         42})
 
+(def keyboard-device (atom nil))
+
 (defn power-of-2 [exp] (bit-shift-left 1 exp))
 (defn mask-of-size [size] (dec (power-of-2 size)))
 (defn nth-word
@@ -106,7 +108,7 @@
             (= 0xD w3) [:draw vx vy height]
             (= [0xE 9 0xE] w3-w1-w0) [:skip-if-key '= vx]
             (= [0xE 0xA 1] w3-w1-w0) [:skip-if-key 'not= vx]
-            (= [0xF 0 7] w3-w1-w0) [:mov-timer vx]
+            (= [0xF 0 7] w3-w1-w0) [:mov-delay-timer vx]
             (= [0xF 0 0xA] w3-w1-w0) [:mov-wait-key vx]
             (= [0xF 1 5] w3-w1-w0) [:set-delay-timer vx]
             (= [0xF 5 5] w3-w1-w0) [:set-memory vx]
@@ -239,10 +241,30 @@
       (print-sprite machine vx vy (read-memory machine (get-i machine) n)))
     (get-registers x y)))
 
+(defn get-delay-timer [machine]
+  (get machine :delay-timer))
+
+(defmethod command :mov-delay-timer [[_ x]]
+  (comp
+    inc-pc
+    (fn [machine] (set-registers [machine x (get-delay-timer machine)]))))
+
+(defn pressed-key [] @keyboard-device)
+
+(defmethod command :mov-wait-key [[_ x]]
+  (fn [machine]
+    (if-let [key (pressed-key)]
+      (inc-pc (set-registers [machine x key]))
+      machine)))
+(defmethod command :set-memory [[_ x]]
+  (comp
+    inc-pc
+    (fn [[machine & registers]] (set-mem machine (get-i machine) (map second registers)))
+    (apply get-registers (range 0 (inc x)))))
 
 (defn load-program [machine program]
   (let [used-mem (concat interpreter-code program)
-        padding  (range (- 0x1000 (count used-mem)))
+        padding  (repeat (- 0x1000 (count used-mem)) 0)
         mem      (vec (concat used-mem padding))]
     (-> (assoc machine :RAM mem)
         (assoc :PC 0x200))))

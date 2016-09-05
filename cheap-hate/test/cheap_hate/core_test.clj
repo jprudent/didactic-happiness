@@ -138,7 +138,16 @@
                          (assoc :prn 45)
                          (assoc :PC 0x204))
             actual   (start-machine program)]
-        (is (= actual expected)))))
+        (is (= actual expected))))
+    (testing "VX is waiting to be set to key pressed"
+      (let [program  [0xF8 0x0A                             ;; 0x200: mov V8, K
+                      0x00 0x00]                            ;; 0x202: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0x8 0xE)
+                         (assoc :PC 0x202))
+            actual   (future (start-machine program))]
+        (reset! keyboard-device 0xE)
+        (is (= @actual expected)))))
   (testing "Arithmetic"
     (testing "It should add a number to a register"
       (let [program  [0x61 0x42                             ;; 0x200: mov V1, 0x42
@@ -266,6 +275,17 @@
                          (assoc :delay-timer 0x03)
                          (assoc :PC 0x204))
             actual   (start-machine program)]
+        (is (= actual expected))))
+    (testing "VX is set to delay timer value"
+      (let [program  [0x61 0x03                             ;; 0x200: mov V1, 0x03
+                      0xF1 0x15                             ;; 0x202: ld DT, V1
+                      0xF2 0x07                             ;; 0x204: mov V2, DT
+                      0x00 0x00]                            ;; 0x204: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0x1 0x03, 0x02 03)
+                         (assoc :delay-timer 0x03)
+                         (assoc :PC 0x206))
+            actual   (start-machine program)]
         (is (= actual expected)))))
   (testing "Memory"
     (testing "Store BCD representation of Vx in memory locations I, I+1, and I+2."
@@ -279,7 +299,22 @@
                          (update :RAM assoc 0x250 2 0x251 5 0x252 5)
                          (assoc :PC 0x206))
             actual   (start-machine program)]
-        (is (= actual expected)))))
+        (is (= actual expected))))
+    (testing "Store registers V0 through Vx in memory starting at location I."
+          (let [program  [0xA2 0x50                             ;; 0x200: mov I, 0x250
+                          0x60 0x01                             ;; 0x202: mov V0, 0x01
+                          0x61 0x02                             ;; 0x204: mov V1, 0x02
+                          0x62 0x03                             ;; 0x206: mov V2, 0x03
+                          0x63 0x04                             ;; 0x208: mov V3, 0x04
+                          0xF4 0x55                             ;; 0x20A: mov [I], 4
+                          0x00 0x00]                            ;; 0x20C: halt
+                expected (-> (load-program fresh-machine program)
+                             (update :registers assoc 0x0 0x01, 0x1 0x02, 0x2 0x03, 0x3 0x04)
+                             (assoc :I 0x250)
+                             (update :RAM assoc 0x250 0x01, 0x251 0x02, 0x252 0x03, 0x253 0x04)
+                             (assoc :PC 0x20C))
+                actual   (start-machine program)]
+            (is (= actual expected)))))
   (testing "Drawing"
     (testing "Should draw sprite at (x,y) overflowing vertically and setting VF to 1 if any pixel is refreshed"
       (let [program  [0xA0 0x19                             ;; 0x200: mov I, 0x19 (sprite '5')
