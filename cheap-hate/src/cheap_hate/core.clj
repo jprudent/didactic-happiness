@@ -25,16 +25,17 @@
 (def ^:static interpreter-code (concat fonts (repeat (- 0x200 (count fonts)) 0)))
 
 ;; A fresh machine craving for a program to run
-(def ^:static fresh-machine {:RAM           (concat interpreter-code
-                                                    (repeat (- 0x1000 0x200) 0))
-                             :registers     (vec (repeat 0xF 0))
-                             :I             0
-                             :PC            0
-                             :stack         []
-                             :screen-memory 0
-                             :delay-timer   0
-                             :sound-timer   0
-                             :prn           42})
+(def ^:static empty-screen (vec (for [_ (range 32)] (vec (repeat 8 0)))))
+(def ^:static fresh-machine {:RAM         (vec (concat interpreter-code
+                                                       (repeat (- 0x1000 0x200) 0)))
+                             :registers   (vec (repeat 16 0))
+                             :I           0
+                             :PC          0
+                             :stack       []
+                             :screen      empty-screen
+                             :delay-timer 0
+                             :sound-timer 0
+                             :prn         42})
 
 (defn power-of-2 [exp] (bit-shift-left 1 exp))
 (defn mask-of-size [size] (dec (power-of-2 size)))
@@ -137,6 +138,8 @@
       (recur (update machine :RAM assoc address (first values))
              (inc address)
              (rest values)))))
+(defn read-memory [machine address n]
+  (subvec (:RAM machine) address (+ address n)))
 
 (defmulti command first)
 (defmethod command :halt [_] (constantly nil))
@@ -216,11 +219,31 @@
           (set-mem machine (get-i machine) (map #(Integer/valueOf (str %)) (str vx))))
         (get-registers x)))
 
+(defn refreshed? [machine [x y one-byte-sprite]]
+  (pos? (bit-xor (get-in machine [:screen y x]) one-byte-sprite)))
+
+(defn print-one-byte-sprite [machine [x y one-byte-sprite :as sprite-info]]
+  (-> (set-registers [machine 0xF (if (refreshed? machine sprite-info) 1 0)])
+      (update-in [:screen y] assoc x one-byte-sprite)))
+
+(defn print-sprite [machine x y sprite]
+  (reduce print-one-byte-sprite
+          (set-registers [machine 0xF 0])
+          (map #(vector %1 (mod (+ y %2) 32) %3)
+               (repeat (mod x 8)) (range) sprite)))
+
+(defmethod command :draw [[_ x y n]]
+  (comp
+    inc-pc
+    (fn [[machine [_ vx] [_ vy]]]
+      (print-sprite machine vx vy (read-memory machine (get-i machine) n)))
+    (get-registers x y)))
+
 
 (defn load-program [machine program]
   (let [used-mem (concat interpreter-code program)
-        padding (range (- 0x1000 (count used-mem)))
-        mem (vec (concat used-mem padding))]
+        padding  (range (- 0x1000 (count used-mem)))
+        mem      (vec (concat used-mem padding))]
     (-> (assoc machine :RAM mem)
         (assoc :PC 0x200))))
 

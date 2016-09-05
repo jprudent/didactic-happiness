@@ -279,4 +279,37 @@
                          (update :RAM assoc 0x250 2 0x251 5 0x252 5)
                          (assoc :PC 0x206))
             actual   (start-machine program)]
-        (is (= actual expected))))))
+        (is (= actual expected)))))
+  (testing "Drawing"
+    (testing "Should draw sprite at (x,y) overflowing vertically and setting VF to 1 if any pixel is refreshed"
+      (let [program  [0xA0 0x19                             ;; 0x200: mov I, 0x19 (sprite '5')
+                      0x6A 0x07                             ;; 0x202: mov VA, 0x07 (last column)
+                      0x6B 0x1F                             ;; 0x204: mov VB, 0x1F (last line)
+                      0xDA 0xB5                             ;; 0x206: draw VA, VB, 5 (draw at [7,31] the sprite of 5 bytes at I)
+                      0x00 0x00]                            ;; 0x208: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0xA 0x07 0xB 0x1F, 0xF 1)
+                         (assoc :I 0x19)
+                         (assoc :PC 0x208)
+                         (update :screen assoc 0x1F [0 0 0 0 0 0 0 0xF0])
+                         (update :screen assoc 0x00 [0 0 0 0 0 0 0 0x80])
+                         (update :screen assoc 0x01 [0 0 0 0 0 0 0 0xF0])
+                         (update :screen assoc 0x02 [0 0 0 0 0 0 0 0x10])
+                         (update :screen assoc 0x03 [0 0 0 0 0 0 0 0xF0]))
+            actual   (start-machine program)]
+        (is (= actual expected))))
+    (testing "Should draw sprite at (x,y) and detect no pixel have been refreshed"
+      (let [program  [0xA0 0x19                             ;; 0x200: mov I, 0x19 (sprite '5')
+                      0x6A 0x07                             ;; 0x202: mov VA, 0x07 (last column)
+                      0x6B 0x1F                             ;; 0x204: mov VB, 0x1F (last line)
+                      0xDA 0xB1                             ;; 0x206: draw VA, VB, 5 (draw at [7,31] the sprite of 1 byte at I)
+                      0xDA 0xB1                             ;; 0x208: draw VA, VB, 5 (draw at [7,31] the sprite of 1 byte at I)
+                      0x00 0x00]                            ;; 0x20A: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0xA 0x07, 0xB 0x1F)
+                         (assoc :I 0x19)
+                         (assoc :PC 0x20A)
+                         (update :screen assoc 0x1F [0 0 0 0 0 0 0 0xF0]))
+            actual   (start-machine program)]
+        (is (= actual expected)))))
+  )
