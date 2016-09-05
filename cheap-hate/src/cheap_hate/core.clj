@@ -128,6 +128,15 @@
 (defn update-prng [machine] (update machine :prn next-int))
 (defn get-prng [machine] (get machine :prn))
 (defn get-i [machine] (get machine :I))
+(defn set-mem [machine address values]
+  (loop [machine machine
+         address address
+         values  values]
+    (if (empty? values)
+      machine
+      (recur (update machine :RAM assoc address (first values))
+             (inc address)
+             (rest values)))))
 
 (defmulti command first)
 (defmethod command :halt [_] (constantly nil))
@@ -201,11 +210,19 @@
         (fn [[machine [_ vx]]] ((set-i (lowest-byte (+ (get-i machine) vx))) machine))
         (get-registers x)))
 (defmethod command :load-font [[_ sprite]] (comp inc-pc (set-i (* sprite 5))))
+(defmethod command :set-ip-decimal [[_ x]]
+  (comp inc-pc
+        (fn [[machine [_ vx]]]
+          (set-mem machine (get-i machine) (map #(Integer/valueOf (str %)) (str vx))))
+        (get-registers x)))
 
 
 (defn load-program [machine program]
-  (-> (assoc machine :RAM (concat interpreter-code program)) ;; TODO 0 padding ?
-      (assoc :PC 0x200)))
+  (let [used-mem (concat interpreter-code program)
+        padding (range (- 0x1000 (count used-mem)))
+        mem (vec (concat used-mem padding))]
+    (-> (assoc machine :RAM mem)
+        (assoc :PC 0x200))))
 
 (defn concat-bytes [b1 b2] (bit-or (bit-shift-left b1 8) b2))
 (defn byte-at-pc [machine pc-fn] (nth (:RAM machine) (pc-fn (:PC machine))))

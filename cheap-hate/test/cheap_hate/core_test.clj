@@ -112,13 +112,13 @@
             actual   (start-machine program)]
         (is (= actual expected))))
     (testing "I can be set to font location"
-          (let [program  [0xFA 0x29                             ;; 0x200: ldf I, 0xA
-                          0x00 0x00]                            ;; 0x202: halt
-                expected (-> (load-program fresh-machine program)
-                             (assoc :I 0x32)
-                             (assoc :PC 0x202))
-                actual   (start-machine program)]
-            (is (= actual expected))))
+      (let [program  [0xFA 0x29                             ;; 0x200: ldf I, 0xA
+                      0x00 0x00]                            ;; 0x202: halt
+            expected (-> (load-program fresh-machine program)
+                         (assoc :I 0x32)
+                         (assoc :PC 0x202))
+            actual   (start-machine program)]
+        (is (= actual expected))))
     (testing "VX can be set to VY"
       (let [program  [0x66 0x42                             ;; 0x200: mov V6, 0x42
                       0x67 0xBF                             ;; 0x202: mov V7, 0xBF
@@ -265,5 +265,18 @@
                          (update :registers assoc 0x1 0x03)
                          (assoc :delay-timer 0x03)
                          (assoc :PC 0x204))
+            actual   (start-machine program)]
+        (is (= actual expected)))))
+  (testing "Memory"
+    (testing "Store BCD representation of Vx in memory locations I, I+1, and I+2."
+      (let [program  [0xA2 0x50                             ;; 0x200: mov I, 0x250
+                      0x61 0xFF                             ;; 0x202: mov V1, 0xFF
+                      0xF1 0x33                             ;; 0x204 bcd V1
+                      0x00 0x00]                            ;; 0x206: halt
+            expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0x1 0xFF)
+                         (assoc :I 0x250)
+                         (update :RAM assoc 0x250 2 0x251 5 0x252 5)
+                         (assoc :PC 0x206))
             actual   (start-machine program)]
         (is (= actual expected))))))
