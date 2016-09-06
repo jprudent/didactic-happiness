@@ -71,7 +71,7 @@
   arg)
 
 (defn opcode->instruction
-  "extract informations from opcode"
+  "extract informations from a 16 bits big-endian opcode."
   [opcode]
   (let [[w3 _ w0 :as w3-w1-w0] (w3-w1-w0 opcode)
         w3-w0 [w3 w0]]

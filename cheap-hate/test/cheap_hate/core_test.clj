@@ -1,6 +1,7 @@
 (ns cheap-hate.core-test
   (:require [clojure.test :refer :all]
-            [cheap-hate.core :refer :all]))
+            [cheap-hate.core :refer :all]
+            [cheap-hate.romloader :refer :all]))
 
 
 (deftest cheap-hate-test
@@ -369,5 +370,10 @@
                              (assoc :I 0x19)
                              (assoc :PC 0x20A))
                 actual   (start-machine program)]
-            (is (= actual expected)))))
-  )
+            (is (= actual expected))))))
+
+(deftest pong
+  (testing "PONG is running 5 seconds without crashing"
+    (let [pong (load-rom "roms/PONG")
+          machine (future (start-machine pong))]
+      (deref machine 5000 -1))))
