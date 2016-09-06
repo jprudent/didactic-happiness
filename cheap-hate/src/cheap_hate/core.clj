@@ -25,7 +25,7 @@
 (def ^:static interpreter-code (concat fonts (repeat (- 0x200 (count fonts)) 0)))
 
 ;; A fresh machine craving for a program to run
-(def ^:static empty-screen (vec (for [_ (range 32)] (vec (repeat 8 0)))))
+(def ^:static empty-screen (vec (for [_ (range 32)] (vec (repeat 64 0)))))
 (def ^:static fresh-machine {:RAM         (vec (concat interpreter-code
                                                        (repeat (- 0x1000 0x200) 0)))
                              :registers   (vec (repeat 16 0))
@@ -145,6 +145,8 @@
              (rest values)))))
 (defn read-memory [machine address n]
   (subvec (:RAM machine) address (+ address n)))
+(defn get-pixel [machine x y]
+  (get-in machine [:screen y x]))
 
 (defmulti command first)
 (defmethod command :halt [_] (constantly nil))
@@ -224,18 +226,31 @@
           (set-mem machine (get-i machine) (map #(Integer/valueOf (str %)) (str vx))))
         (get-registers x)))
 
-(defn refreshed? [machine [x y one-byte-sprite]]
-  (pos? (bit-xor (get-in machine [:screen y x]) one-byte-sprite)))
+(defn one-byte-sprite-bits [one-byte-sprite]
+  (map (fn [bit-num] (bit-at bit-num one-byte-sprite)) (range 8)))
 
-(defn print-one-byte-sprite [machine [x y one-byte-sprite :as sprite-info]]
-  (-> (set-registers [machine 0xF (if (refreshed? machine sprite-info) 1 0)])
-      (update-in [:screen y] assoc x one-byte-sprite)))
+(defn print-pixel [machine x y pixel]
+  (let [real-x       (mod x 64)
+        real-y       (mod y 32)
+        actual-pixel (get-pixel machine real-x real-y)]
+    #_(println real-x real-y actual-pixel pixel)
+    (if (= actual-pixel pixel)
+      machine
+      (-> (update machine :registers assoc 0xF 1)
+          (assoc-in [:screen real-y real-x] pixel)))))
 
-(defn print-sprite [machine x y sprite]
-  (reduce print-one-byte-sprite
+(defn print-1-byte-sprite [machine [x y one-byte-sprite]]
+  (reduce (fn [machine [bit-num pixel]] #_(println "printing" (+ x bit-num) y pixel) (print-pixel machine (+ x bit-num) y pixel))
+          machine
+          (map vector (range) (one-byte-sprite-bits one-byte-sprite))))
+
+(defn print-sprite
+  "Print a top right corner of sprite at pixel (x,y) A sprite is a seq of 8bits numbers."
+  [machine x y sprite]
+  (reduce print-1-byte-sprite
           (set-registers [machine 0xF 0])
-          (map #(vector %1 (mod (+ y %2) 32) %3)
-               (repeat (mod x 8)) (range) sprite)))
+          (map #(vector %1 (+ y %2) %3)
+               (repeat x) (range) sprite)))
 
 (defmethod command :draw [[_ x y n]]
   (comp
@@ -287,13 +302,10 @@
     (byte-at-pc machine identity) (byte-at-pc machine inc)))
 
 (defn print! [x y c]
-  (print (str (curse/locate x y) c)))
+  (print (str (curse/locate (inc x) (inc y)) c)))            ;; todo why (0,0) doesn't work?
 
 (defn draw-pixel! [x y pixel]
   ((partial print! x y) (if (pos? pixel) \* \.)))
-
-(defn get-pixel [machine x y]
-  (bit-at (mod x 8) (get-in machine [:screen y (quot x 8)])))
 
 (defn print-screen! [machine]
   (dotimes [x 64]
