@@ -1,5 +1,5 @@
 (ns cheap-hate.core
-  (:import (java.util Random)))
+  (:require [cheap-hate.cursor :as curse]))
 
 ;; This is the array of bitmap fonts
 ;; Each line represents a 8x5 pixels character
@@ -65,9 +65,10 @@
 (def lowest-byte (partial nth-word 8 0))
 (def lowest-bit (partial nth-word 1 0))
 (def highest-bit (partial nth-word 1 7))
+(defn bit-at [bit-num byte] (nth-word 1 (- 7 bit-num) byte))
 
 (defn debug [msg arg]
-  (println (if (integer? arg) (str msg (Integer/toHexString arg)) (str msg arg)))
+  #_(println (if (integer? arg) (str msg (Integer/toHexString arg)) (str msg arg)))
   arg)
 
 (defn opcode->instruction
@@ -285,7 +286,19 @@
   (concat-bytes
     (byte-at-pc machine identity) (byte-at-pc machine inc)))
 
-(defn print-screen! [machine] (println "print screen"))
+(defn print! [x y c]
+  (print (str (curse/locate x y) c)))
+
+(defn draw-pixel! [x y pixel]
+  ((partial print! x y) (if (pos? pixel) \* \.)))
+
+(defn get-pixel [machine x y]
+  (bit-at (mod x 8) (get-in machine [:screen y (quot x 8)])))
+
+(defn print-screen! [machine]
+  (dotimes [x 64]
+    (dotimes [y 32]
+      (do (draw-pixel! x y (get-pixel machine x y))))))
 
 (defn start-machine [program]
   (let [machine (load-program fresh-machine program)]
