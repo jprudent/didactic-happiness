@@ -127,7 +127,7 @@
 (defn get-registers [machine & registers]
   (apply vector machine
          (map (juxt identity (partial get-register machine)) registers)))
-(defn next-int [old-seed] (lowest-byte (+ 3 old-seed)))                         ;; TODO have a proper prng
+(defn next-int [old-seed] (lowest-byte (+ 3 old-seed)))                         ;; This is the worst prng you could imagine
 (defn update-prng [machine] (update machine :prn next-int))
 (defn get-prng [machine] (get machine :prn))
 (defn get-i [machine] (get machine :I))
@@ -208,7 +208,10 @@
     (skip-if machine (resolve test-op) (get-register machine x) nn))
 
   (defmethod execute :skip-if-register [machine [_ x test-op y]]
-    (skip-if machine (resolve test-op) (get-register machine x) (get-register machine y))))
+    (skip-if machine (resolve test-op) (get-register machine x) (get-register machine y)))
+
+  (defmethod execute :skip-if-key [machine [_ test-op x]]
+    (skip-if machine (resolve test-op) (get-register machine x) (pressed-key))))
 
 (defmethod execute :jmp-add-pc-v0 [machine [_ addr]]
   (set-pc machine (+ (get-register machine 0) addr)))
@@ -216,7 +219,7 @@
 ;; Instructions that change registers
 
 (defmethod execute :mov-register-value [machine [_ x nn]]
-  (-> (set-registers machine x nn)
+  (-> (set-registers [machine x nn])
       inc-pc))
 
 (defmethod execute :mov-register-register [machine [_ x y]]
@@ -248,7 +251,7 @@
 
 (defmethod execute :mov-registers-memory [machine [_ n]]
   (-> (apply set-registers machine
-             (interleave (range) (read-memory machine (get-i machine) n)))
+             (interleave (range) (read-memory machine (get-i machine) (inc n))))
       inc-pc))
 
 (letfn [(arithmetic [apply-op machine x y]
