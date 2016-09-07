@@ -10,3 +10,5 @@
   "set cursor at (x,y)"
   [x y]
   (str esc y sep x "H"))
+
+(def clear-screen (str esc "2J"))

@@ -200,7 +200,7 @@
 (defmethod execute :mov-i-decimal [machine [_ x]]
   (letfn [(call-set-mem [[machine [_ vx]]]
             (set-mem machine (get-i machine)
-                     (map #(Integer/valueOf (str %)) (str vx))))]
+                     (map #(Integer/valueOf (str %)) (format "%03d" vx))))]
     (-> (get-registers machine x)
         call-set-mem
         inc-pc)))
@@ -330,7 +330,7 @@
 ;; Instructions that change timers
 
 (letfn [(set-timer [machine x set-x-timer]
-          (letfn [(call-set-timer [[machine [_ x]]] (set-x-timer x machine))]
+          (letfn [(call-set-timer [[machine [_ vx]]] (set-x-timer vx machine))]
             (-> (get-registers machine x)
                 call-set-timer
                 inc-pc)))]
