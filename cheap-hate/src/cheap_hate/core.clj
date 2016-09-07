@@ -110,8 +110,30 @@
             (= [0xF 5 5] w3-w1-w0) [:set-memory vx]
             (= [0xF 6 5] w3-w1-w0) [:mov-registers-memory vx]))))
 
+#_(defprotocol UpdatableMachine
+  "A machine that components can be updated"
+  (inc-pc [machine]
+    "Increment the program counter.")
+  (assoc-pc [machine address]
+    "Associate the program counter to an arbitrary address.
+    0 <= Address < 0x1000")
+  (push-stack [machine]
+    "Save the current value of program counter in the stack frame.")
+  (pop-stack [machine]
+    "Pop the stack frame")
+  (assoc-i [machine nnn]
+    "Associate an arbitrary value to register I")
+  (update-i [machine f]
+    "Update the current value of register I with the result of f applied to
+    the current value of register I")
+  (update-register [machine x f]
+    "Update the current value of regixter Vx with the result of f applied to
+    the current value of register Vx")
+  (assoc-registers [machine [registers]]
+    ""))
+
 (defn inc-pc [machine] (update machine :PC + 2))
-(defn set-pc [machine address] (assoc machine :PC address))
+(defn assoc-pc [machine address] (assoc machine :PC address))
 (defn reset-screen-memory [machine] (assoc machine :screen empty-screen))
 (defn push-stack [machine] (update machine :stack conj (+ 2 (:PC machine))))
 (defn pop-stack [machine] (update machine :stack pop))
@@ -191,14 +213,14 @@
 
 (defmethod execute :call [machine [_ address]]
   (-> (push-stack machine)
-      (set-pc address)))
+      (assoc-pc address)))
 
 (defmethod execute :return [machine _]
-  (-> (set-pc machine (peek-stack machine))
+  (-> (assoc-pc machine (peek-stack machine))
       pop-stack))
 
 (defmethod execute :jump [machine [_ address]]
-  (set-pc machine address))
+  (assoc-pc machine address))
 
 (letfn [(skip-if [machine op x y]
           (-> (if (op x y) (inc-pc machine) machine)
@@ -214,7 +236,7 @@
     (skip-if machine (resolve test-op) (get-register machine x) (pressed-key))))
 
 (defmethod execute :jmp-add-pc-v0 [machine [_ addr]]
-  (set-pc machine (+ (get-register machine 0) addr)))
+  (assoc-pc machine (+ (get-register machine 0) addr)))
 
 ;; Instructions that change registers
 

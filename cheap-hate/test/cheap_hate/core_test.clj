@@ -1,7 +1,8 @@
 (ns cheap-hate.core-test
   (:require [clojure.test :refer :all]
             [cheap-hate.core :refer :all]
-            [cheap-hate.romloader :refer :all]))
+            [cheap-hate.romloader :refer :all])
+  (:import (java.io File)))
 
 (defrecord MuteScreen []
   Screen
@@ -450,6 +451,22 @@
                          (assoc :PC 0x20A))
             actual   (launch program)]
         (is (= actual expected))))))
+
+#_(deftest any-program-works
+  (testing "any known program to me will run 1 second without crashing"
+    (println "coucou")
+    (let [rom-files (map (partial str "roms/") (vec (.list (File. "roms/"))))
+          machines  (map (juxt identity #(future (launch (load-rom %)))) rom-files)
+          _         (println (count machines))]
+      (println "couc" (count machines))
+      (for [[rom-file machine] machines]
+        (let [ended-machine (deref machine 1000 :still-running)]
+          (cond
+            (= :still-running ended-machine)
+            (println rom-file "is still running")
+            :default
+            (println rom-file "has ended"))
+          (is (not= nil ended-machine)))))))
 
 (deftest pong
   #_(testing "PONG is running 1 second without crashing"
