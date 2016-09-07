@@ -1,16 +1,15 @@
 (ns cheap-hate.console-screen
   (:require [cheap-hate.cursor :as curse]
-            [cheap-hate.core :as c8])
-  (:import (cheap_hate.core Screen)))
+            [cheap-hate.core :as c8]))
 
 (defn print! [x y c]
   (print (str (curse/locate (inc x) (inc y)) c))) ;; todo why (0,0) doesn't work?
 
 (defn draw-pixel! [x y pixel]
-  ((partial print! x y) (if (pos? pixel) \* \.)))
+  ((partial print! x y) (if (pos? pixel) \u2588 \space)))
 
 (defrecord ConsoleScreen []
-  Screen
+  c8/Screen
   (print-screen [_ machine]
     (dotimes [x 64]
       (dotimes [y 32]

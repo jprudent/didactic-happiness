@@ -162,8 +162,9 @@
       (recur (update machine :RAM assoc address (first values))
              (inc address)
              (rest values)))))
-(defn read-memory [machine address n]
-  (subvec (:RAM machine) address (+ address n)))
+(defn read-memory [machine address size]
+  (subvec (:RAM machine) address (+ address size)))
+(defn get-pc [machine] (:PC machine))
 (defn get-pixel [machine x y]
   (get-in machine [:screen y x]))
 (defn get-delay-timer [machine]
@@ -399,12 +400,11 @@
         (assoc :PC 0x200))))
 
 (defn concat-bytes [b1 b2] (bit-or (bit-shift-left b1 8) b2))
-(defn byte-at-pc [machine pc-fn] (nth (:RAM machine) (pc-fn (:PC machine))))
 (defn read-opcode
   "returns a 2 bytes number at program counter"
   [machine]
-  (concat-bytes
-    (byte-at-pc machine identity) (byte-at-pc machine inc)))
+  (let [[b1 b2] (read-memory machine (get-pc machine) 2)]
+    (concat-bytes b1 b2)))
 
 (defprotocol Screen
   (print-screen [this machine]))
@@ -413,6 +413,7 @@
   (let [machine (load-program fresh-machine program)]
     (loop [machine machine]
       (print-screen screen machine)
+      (Thread/sleep 1000/60)
       (let [opcode      (read-opcode machine)
             instruction (opcode->instruction opcode)
             new-machine (execute machine instruction)]
