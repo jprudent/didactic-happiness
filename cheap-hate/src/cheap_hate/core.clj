@@ -406,6 +406,11 @@
   (let [[b1 b2] (read-memory machine (get-pc machine) 2)]
     (concat-bytes b1 b2)))
 
+(letfn [(dectimer [v] (max 0 (dec v)))]
+  (defn update-timers [machine]
+    (-> (update machine :delay-timer dectimer)
+        (update machine :sound-timer dectimer))))
+
 (defprotocol Screen
   (print-screen [this machine]))
 
@@ -417,4 +422,4 @@
       (let [opcode      (read-opcode machine)
             instruction (opcode->instruction opcode)
             new-machine (execute machine instruction)]
-        (if new-machine (recur new-machine) machine)))))                        ;; new-machine is nil when opcode = 0 (see :halt)
+        (if new-machine (recur (update-timers new-machine)) machine)))))                        ;; new-machine is nil when opcode = 0 (see :halt)

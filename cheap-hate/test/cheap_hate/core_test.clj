@@ -1,8 +1,7 @@
 (ns cheap-hate.core-test
   (:require [clojure.test :refer :all]
             [cheap-hate.core :refer :all]
-            [cheap-hate.romloader :refer :all])
-  (:import (java.io File)))
+            [cheap-hate.romloader :refer :all]))
 
 (defrecord MuteScreen []
   Screen
