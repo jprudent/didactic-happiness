@@ -127,11 +127,13 @@
             actual   (launch program)]
         (is (= actual expected))))
     (testing "I can be set to font location"
-      (let [program  [0xFA 0x29                                                 ;; 0x200: ldf I, 0xA
-                      0x00 0x00]                                                ;; 0x202: halt
+      (let [program  [0x61 0x0A                                                 ;; 0x200: mov V1, 0xA
+                      0xF1 0x29                                                 ;; 0x202: ldf I, V1 (load the font for 'A' which is pointed by V1)
+                      0x00 0x00]                                                ;; 0x204: halt
             expected (-> (load-program fresh-machine program)
+                         (update :registers assoc 0x1 0xA)
                          (assoc :I 0x32)
-                         (assoc :PC 0x202))
+                         (assoc :PC 0x204))
             actual   (launch program)]
         (is (= actual expected))))
     (testing "VX can be set to VY"
@@ -342,15 +344,16 @@
         (is (= actual expected)))))
   (testing "Drawing"
     (testing "Should draw sprite at (x,y) overflowing vertically and horizontally setting VF to 1 if any pixel is refreshed"
-      (let [program  [0xF8 0x29                                                 ;; 0x200: mov I, SPRITE 8
-                      0x6A 0x3E                                                 ;; 0x202: mov VA, 0x3E (penultimate column)
-                      0x6B 0x1E                                                 ;; 0x204: mov VB, 0x1E (penultimate line)
-                      0xDA 0xB5                                                 ;; 0x206: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
-                      0x00 0x00]                                                ;; 0x208: halt
+      (let [program  [0x67 0x08                                                 ;; 0x200: mov V7, 8
+                      0xF7 0x29                                                 ;; 0x202: mov I, sprite[V7]
+                      0x6A 0x3E                                                 ;; 0x204: mov VA, 0x3E (penultimate column)
+                      0x6B 0x1E                                                 ;; 0x206: mov VB, 0x1E (penultimate line)
+                      0xDA 0xB5                                                 ;; 0x208: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
+                      0x00 0x00]                                                ;; 0x20A: halt
             expected (-> (load-program fresh-machine program)
-                         (update :registers assoc 0xA 0x3E 0xB 0x1E, 0xF 1)
+                         (update :registers assoc 0x7 0x08, 0xA 0x3E, 0xB 0x1E, 0xF 1)
                          (assoc :I 0x28)
-                         (assoc :PC 0x208)
+                         (assoc :PC 0x20A)
                          (assoc :screen
                                 (to-bit-array
                                   [
@@ -390,16 +393,17 @@
             actual   (launch program)]
         (is (= actual expected))))
     (testing "Should draw sprite at (x,y) and detect no pixel have been refreshed (VF = 0)"
-      (let [program  [0xF8 0x29                                                 ;; 0x200: mov I, SPRITE 8
-                      0x6A 0x3E                                                 ;; 0x202: mov VA, 0x3E (penultimate column)
-                      0x6B 0x1E                                                 ;; 0x204: mov VB, 0x1E (penultimate line)
-                      0xDA 0xB5                                                 ;; 0x206: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
-                      0xDA 0xB5                                                 ;; 0x206: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
-                      0x00 0x00]                                                ;; 0x20A: halt
+      (let [program  [0x67 0x08                                                 ;; 0x200: mov V7, 8
+                      0xF7 0x29                                                 ;; 0x202: mov I, sprite[V7]
+                      0x6A 0x3E                                                 ;; 0x204: mov VA, 0x3E (penultimate column)
+                      0x6B 0x1E                                                 ;; 0x206: mov VB, 0x1E (penultimate line)
+                      0xDA 0xB5                                                 ;; 0x208: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
+                      0xDA 0xB5                                                 ;; 0x20A: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
+                      0x00 0x00]                                                ;; 0x20C: halt
             expected (-> (load-program fresh-machine program)
-                         (update :registers assoc 0xA 0x3E, 0xB 0x1E)
+                         (update :registers assoc 0x7 0x08, 0xA 0x3E, 0xB 0x1E)
                          (assoc :I 0x28)
-                         (assoc :PC 0x20A)
+                         (assoc :PC 0x20C)
                          (assoc :screen
                                 (to-bit-array
                                   [
@@ -453,27 +457,27 @@
         (is (= actual expected))))))
 
 #_(deftest any-program-works
-  (testing "any known program to me will run 1 second without crashing"
-    (println "coucou")
-    (let [rom-files (map (partial str "roms/") (vec (.list (File. "roms/"))))
-          machines  (map (juxt identity #(future (launch (load-rom %)))) rom-files)
-          _         (println (count machines))]
-      (println "couc" (count machines))
-      (for [[rom-file machine] machines]
-        (let [ended-machine (deref machine 1000 :still-running)]
-          (cond
-            (= :still-running ended-machine)
-            (println rom-file "is still running")
-            :default
-            (println rom-file "has ended"))
-          (is (not= nil ended-machine)))))))
+    (testing "any known program to me will run 1 second without crashing"
+      (println "coucou")
+      (let [rom-files (map (partial str "roms/") (vec (.list (File. "roms/"))))
+            machines  (map (juxt identity #(future (launch (load-rom %)))) rom-files)
+            _         (println (count machines))]
+        (println "couc" (count machines))
+        (for [[rom-file machine] machines]
+          (let [ended-machine (deref machine 1000 :still-running)]
+            (cond
+              (= :still-running ended-machine)
+              (println rom-file "is still running")
+              :default
+              (println rom-file "has ended"))
+            (is (not= nil ended-machine)))))))
 
-(deftest pong
-  #_(testing "PONG is running 1 second without crashing"
-      (let [pong    (load-rom "roms/PONG")
+#_(deftest pong
+    #_(testing "PONG is running 1 second without crashing"
+        (let [pong    (load-rom "roms/PONG")
+              machine (future (launch pong))]
+          (deref machine 1000 -1)))
+    (testing "15PUZZLE is running 1 second without crashing"
+      (let [pong    (load-rom "roms/15PUZZLE")
             machine (future (launch pong))]
-        (deref machine 1000 -1)))
-  (testing "15PUZZLE is running 1 second without crashing"
-    (let [pong    (load-rom "roms/15PUZZLE")
-          machine (future (launch pong))]
-      (deref machine 1000 -1))))
+        (deref machine 1000 -1))))

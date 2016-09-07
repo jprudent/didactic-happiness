@@ -205,8 +205,8 @@
         call-set-mem
         inc-pc)))
 
-(defmethod execute :mov-i-font [machine [_ sprite]]
-  (-> (assoc-i machine (* sprite 5))
+(defmethod execute :mov-i-font [machine [_ x]]
+  (-> (assoc-i machine (* (get-register machine x) 5))
       inc-pc))
 
 
