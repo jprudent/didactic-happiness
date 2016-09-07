@@ -278,7 +278,7 @@
                       0x00 0x00]                                                ;; 0x204: halt
             expected (-> (load-program fresh-machine program)
                          (update :registers assoc 0x1 0x03)
-                         (assoc :sound-timer 0x03)
+                         (assoc :sound-timer (dec 0x03))                        ;; the timer value is decremented because its value is decremented at each clock cycle
                          (assoc :PC 0x204))
             actual   (launch program)]
         (is (= actual expected))))
@@ -287,8 +287,8 @@
                       0xF1 0x15                                                 ;; 0x202: ld DT, V1
                       0x00 0x00]                                                ;; 0x204: halt
             expected (-> (load-program fresh-machine program)
-                         (update :registers assoc 0x1 0x03)
-                         (assoc :delay-timer 0x03)
+                         (update :registers assoc 0x1 0x03)                     ;; the timer value is decremented because its value is decremented at each clock cycle
+                         (assoc :delay-timer (dec 0x03))
                          (assoc :PC 0x204))
             actual   (launch program)]
         (is (= actual expected))))
@@ -298,8 +298,8 @@
                       0xF2 0x07                                                 ;; 0x204: mov V2, DT
                       0x00 0x00]                                                ;; 0x204: halt
             expected (-> (load-program fresh-machine program)
-                         (update :registers assoc 0x1 0x03, 0x02 03)
-                         (assoc :delay-timer 0x03)
+                         (update :registers assoc 0x1 0x03, 0x02 (dec 0x03))
+                         (assoc :delay-timer (dec (dec 0x03)))                  ;; the timer value is decremented because its value is decremented at each clock cycle
                          (assoc :PC 0x206))
             actual   (launch program)]
         (is (= actual expected))))
@@ -308,7 +308,8 @@
                       0xF4 0x65                                                 ;; 0x202: mov V4, [I]
                       0x00 0x00]                                                ;; 0x204: halt
             expected (-> (load-program fresh-machine program)
-                         (update :registers assoc 0x0 0xA2, 0x01 00, 0x2 0xF4, 0x3 0x65)
+                         (update :registers assoc
+                                 0x0 0xA2, 0x01 00, 0x2 0xF4, 0x3 0x65)
                          (assoc :I 0x200)
                          (assoc :PC 0x204))
             actual   (launch program)]
@@ -342,7 +343,8 @@
             actual   (launch program)]
         (is (= actual expected)))))
   (testing "Drawing"
-    (testing "Should draw sprite at (x,y) overflowing vertically and horizontally setting VF to 1 if any pixel is refreshed"
+    (testing "Should draw sprite at (x,y) overflowing vertically and
+    horizontally setting VF to 0 because no pixel is unset"
       (let [program  [0x67 0x08                                                 ;; 0x200: mov V7, 8
                       0xF7 0x29                                                 ;; 0x202: mov I, sprite[V7]
                       0x6A 0x3E                                                 ;; 0x204: mov VA, 0x3E (penultimate column)
@@ -350,7 +352,7 @@
                       0xDA 0xB5                                                 ;; 0x208: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
                       0x00 0x00]                                                ;; 0x20A: halt
             expected (-> (load-program fresh-machine program)
-                         (update :registers assoc 0x7 0x08, 0xA 0x3E, 0xB 0x1E, 0xF 1)
+                         (update :registers assoc 0x7 0x08, 0xA 0x3E, 0xB 0x1E, 0xF 0)
                          (assoc :I 0x28)
                          (assoc :PC 0x20A)
                          (assoc :screen
@@ -391,7 +393,9 @@
                                 ))
             actual   (launch program)]
         (is (= actual expected))))
-    (testing "Should draw sprite at (x,y) and detect no pixel have been refreshed (VF = 0)"
+    (testing
+      "Printing the same sprite twice result in a blank screen and
+  VF is set to 1 because some pixels are unset"
       (let [program  [0x67 0x08                                                 ;; 0x200: mov V7, 8
                       0xF7 0x29                                                 ;; 0x202: mov I, sprite[V7]
                       0x6A 0x3E                                                 ;; 0x204: mov VA, 0x3E (penultimate column)
@@ -400,58 +404,26 @@
                       0xDA 0xB5                                                 ;; 0x20A: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
                       0x00 0x00]                                                ;; 0x20C: halt
             expected (-> (load-program fresh-machine program)
-                         (update :registers assoc 0x7 0x08, 0xA 0x3E, 0xB 0x1E)
+                         (update :registers assoc
+                                 0x7 0x08, 0xA 0x3E, 0xB 0x1E, 0xF 1)
                          (assoc :I 0x28)
-                         (assoc :PC 0x20C)
-                         (assoc :screen
-                                (to-bit-array
-                                  [
-                                   "1100000000000000000000000000000000000000000000000000000000000011"
-                                   "0100000000000000000000000000000000000000000000000000000000000010"
-                                   "1100000000000000000000000000000000000000000000000000000000000011"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "0000000000000000000000000000000000000000000000000000000000000000"
-                                   "1100000000000000000000000000000000000000000000000000000000000011"
-                                   "0100000000000000000000000000000000000000000000000000000000000010"])
-                                ))
+                         (assoc :PC 0x20C))
             actual   (launch program)]
         (is (= actual expected))))
     (testing "Should clear the screen but not VF"
-      (let [program  [0xA0 0x19                                                 ;; 0x200: mov I, 0x19 (sprite '5')
-                      0x6A 0x07                                                 ;; 0x202: mov VA, 0x07 (last column)
-                      0x6B 0x1F                                                 ;; 0x204: mov VB, 0x1F (last line)
-                      0xDA 0xB1                                                 ;; 0x206: draw VA, VB, 5 (draw at [7,31] the sprite of 1 byte at I)
-                      0x00 0xE0                                                 ;; 0x208: clear the screen
+      (let [program  [0x67 0x08                                                 ;; 0x200: mov V7, 8
+                      0xF7 0x29                                                 ;; 0x202: mov I, sprite[V7]
+                      0x6A 0x3E                                                 ;; 0x204: mov VA, 0x3E (penultimate column)
+                      0x6B 0x1E                                                 ;; 0x206: mov VB, 0x1E (penultimate line)
+                      0xDA 0xB5                                                 ;; 0x208: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
+                      0xDA 0xB5                                                 ;; 0x20A: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
+                      0x00 0xE0                                                 ;; 0x20C: draw VA, VB, 5 (draw at [62, 30] the sprite of 5 bytes at I)
                       0x00 0x00]                                                ;; 0x20A: halt
             expected (-> (load-program fresh-machine program)
-                         (update :registers assoc 0xA 0x07, 0xB 0x1F 0xF 1)
-                         (assoc :I 0x19)
-                         (assoc :PC 0x20A))
+                         (update :registers assoc
+                                 0x7 0x08, 0xA 0x3E, 0xB 0x1E, 0xF 0x01)
+                         (assoc :I 0x28)
+                         (assoc :PC 0x20E))
             actual   (launch program)]
         (is (= actual expected))))))
 
@@ -472,10 +444,10 @@
             (is (not= nil ended-machine)))))))
 
 #_(deftest pong
-    #_(testing "PONG is running 1 second without crashing"
-        (let [pong    (load-rom "roms/PONG")
-              machine (future (launch pong))]
-          (deref machine 1000 -1)))
+    (testing "PONG is running 1 second without crashing"
+      (let [pong    (load-rom "roms/PONG")
+            machine (future (launch pong))]
+        (deref machine 1000 -1)))
     (testing "15PUZZLE is running 1 second without crashing"
       (let [pong    (load-rom "roms/15PUZZLE")
             machine (future (launch pong))]

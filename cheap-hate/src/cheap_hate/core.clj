@@ -111,26 +111,26 @@
             (= [0xF 6 5] w3-w1-w0) [:mov-registers-memory vx]))))
 
 #_(defprotocol UpdatableMachine
-  "A machine that components can be updated"
-  (inc-pc [machine]
-    "Increment the program counter.")
-  (assoc-pc [machine address]
-    "Associate the program counter to an arbitrary address.
-    0 <= Address < 0x1000")
-  (push-stack [machine]
-    "Save the current value of program counter in the stack frame.")
-  (pop-stack [machine]
-    "Pop the stack frame")
-  (assoc-i [machine nnn]
-    "Associate an arbitrary value to register I")
-  (update-i [machine f]
-    "Update the current value of register I with the result of f applied to
-    the current value of register I")
-  (update-register [machine x f]
-    "Update the current value of regixter Vx with the result of f applied to
-    the current value of register Vx")
-  (assoc-registers [machine [registers]]
-    ""))
+    "A machine that components can be updated"
+    (inc-pc [machine]
+      "Increment the program counter.")
+    (assoc-pc [machine address]
+      "Associate the program counter to an arbitrary address.
+      0 <= Address < 0x1000")
+    (push-stack [machine]
+      "Save the current value of program counter in the stack frame.")
+    (pop-stack [machine]
+      "Pop the stack frame")
+    (assoc-i [machine nnn]
+      "Associate an arbitrary value to register I")
+    (update-i [machine f]
+      "Update the current value of register I with the result of f applied to
+      the current value of register I")
+    (update-register [machine x f]
+      "Update the current value of regixter Vx with the result of f applied to
+      the current value of register Vx")
+    (assoc-registers [machine [registers]]
+      ""))
 
 (defn inc-pc [machine] (update machine :PC + 2))
 (defn assoc-pc [machine address] (assoc machine :PC address))
@@ -352,13 +352,15 @@
           (map (fn [bit-num] (bit-at bit-num one-byte-sprite)) (range 8)))
 
         (print-pixel [machine x y pixel]
-          (let [real-x       (mod x 64)
-                real-y       (mod y 32)
-                actual-pixel (get-pixel machine real-x real-y)]
-            (if (= actual-pixel pixel)
-              machine
-              (-> (update machine :registers assoc 0xF 1)
-                  (assoc-in [:screen real-y real-x] pixel)))))
+          (if (pos? pixel)
+            (let [real-x       (mod x 64)
+                  real-y       (mod y 32)
+                  actual-pixel (get-pixel machine real-x real-y)]
+              (if (= actual-pixel pixel)
+                (-> (update machine :registers assoc 0xF 1)
+                    (assoc-in [:screen real-y real-x] 0))
+                (-> (assoc-in machine [:screen real-y real-x] 1))))
+            machine))
 
         (print-1-byte-sprite [machine [x y one-byte-sprite]]
           (reduce (fn [machine [bit-num pixel]] (print-pixel machine (+ x bit-num) y pixel))
@@ -409,7 +411,7 @@
 (letfn [(dectimer [v] (max 0 (dec v)))]
   (defn update-timers [machine]
     (-> (update machine :delay-timer dectimer)
-        (update machine :sound-timer dectimer))))
+        (update :sound-timer dectimer))))
 
 (defprotocol Screen
   (print-screen [this machine]))
@@ -418,8 +420,7 @@
   (let [machine (load-program fresh-machine program)]
     (loop [machine machine]
       (print-screen screen machine)
-      (Thread/sleep 1000/60)
       (let [opcode      (read-opcode machine)
             instruction (opcode->instruction opcode)
             new-machine (execute machine instruction)]
-        (if new-machine (recur (update-timers new-machine)) machine)))))                        ;; new-machine is nil when opcode = 0 (see :halt)
+        (if new-machine (recur (update-timers new-machine)) machine)))))        ;; new-machine is nil when opcode = 0 (see :halt)

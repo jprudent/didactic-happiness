@@ -3,4 +3,4 @@
             [cheap-hate.console-screen :refer :all]
             [cheap-hate.romloader :as rom]))
 
-(c8/start-machine (->ConsoleScreen) (rom/load-rom "roms/15PUZZLE"))
+(c8/start-machine (->ConsoleScreen) (rom/load-rom "roms/BRIX"))

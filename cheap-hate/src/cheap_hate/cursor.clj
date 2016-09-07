@@ -10,9 +10,3 @@
   "set cursor at (x,y)"
   [x y]
   (str esc y sep x "H"))
-
-(def home (partial locate 0 0))
-
-(def x (atom 0))
-(def y (atom 0))
-(def v (atom 0))
