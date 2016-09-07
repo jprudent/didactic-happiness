@@ -1,25 +1,24 @@
-(ns cheap-hate.core
-  (:require [cheap-hate.cursor :as curse]))
+(ns cheap-hate.core)
 
 ;; This is the array of bitmap fonts
 ;; Each line represents a 8x5 pixels character
 (def ^:static fonts
-  [0xF0 0x90 0x90 0x90 0xF0                                 ;; 0
-   0x20 0x60 0x20 0x20 0x70                                 ;; 1
-   0xF0 0x10 0xF0 0x80 0xF0                                 ;; 2
-   0xF0 0x10 0xF0 0x10 0xF0                                 ;; 3
-   0x90 0x90 0xF0 0x10 0x10                                 ;; 4
-   0xF0 0x80 0xF0 0x10 0xF0                                 ;; 5
-   0xF0 0x80 0xF0 0x90 0xF0                                 ;; 6
-   0xF0 0x10 0x20 0x40 0x40                                 ;; 7
-   0xF0 0x90 0xF0 0x90 0xF0                                 ;; 8
-   0xF0 0x90 0xF0 0x10 0xF0                                 ;; 9
-   0xF0 0x90 0xF0 0x90 0x90                                 ;; A
-   0xE0 0x90 0xE0 0x90 0xE0                                 ;; B
-   0xF0 0x80 0x80 0x80 0xF0                                 ;; C
-   0xE0 0x90 0x90 0x90 0xE0                                 ;; D
-   0xF0 0x80 0xF0 0x80 0xF0                                 ;; E
-   0xF0 0x80 0xF0 0x80 0x80                                 ;; F
+  [0xF0 0x90 0x90 0x90 0xF0                                                     ;; 0
+   0x20 0x60 0x20 0x20 0x70                                                     ;; 1
+   0xF0 0x10 0xF0 0x80 0xF0                                                     ;; 2
+   0xF0 0x10 0xF0 0x10 0xF0                                                     ;; 3
+   0x90 0x90 0xF0 0x10 0x10                                                     ;; 4
+   0xF0 0x80 0xF0 0x10 0xF0                                                     ;; 5
+   0xF0 0x80 0xF0 0x90 0xF0                                                     ;; 6
+   0xF0 0x10 0x20 0x40 0x40                                                     ;; 7
+   0xF0 0x90 0xF0 0x90 0xF0                                                     ;; 8
+   0xF0 0x90 0xF0 0x10 0xF0                                                     ;; 9
+   0xF0 0x90 0xF0 0x90 0x90                                                     ;; A
+   0xE0 0x90 0xE0 0x90 0xE0                                                     ;; B
+   0xF0 0x80 0x80 0x80 0xF0                                                     ;; C
+   0xE0 0x90 0x90 0x90 0xE0                                                     ;; D
+   0xF0 0x80 0xF0 0x80 0xF0                                                     ;; E
+   0xF0 0x80 0xF0 0x80 0x80                                                     ;; F
    ])
 
 (def ^:static interpreter-code (concat fonts (repeat (- 0x200 (count fonts)) 0)))
@@ -67,10 +66,6 @@
 (def highest-bit (partial nth-word 1 7))
 (defn bit-at [bit-num byte] (nth-word 1 (- 7 bit-num) byte))
 
-(defn debug [msg arg]
-  #_(println (if (integer? arg) (str msg (Integer/toHexString arg)) (str msg arg)))
-  arg)
-
 (defn opcode->instruction
   "extract informations from a 16 bits big-endian opcode."
   [opcode]
@@ -78,7 +73,7 @@
         w3-w0 [w3 w0]]
     (mapv #(if (fn? %) (% opcode) %)
           (cond
-            (= opcode 0) [:halt]                            ;; this one, I made up for testing purpose
+            (= opcode 0) [:halt]                                                ;; this one, I made up for testing purpose
             (= opcode 0x00E0) [:clear-screen]
             (= opcode 0x00EE) [:return]
             (= 0 w3) [:sys address]
@@ -87,50 +82,52 @@
             (= 3 w3) [:skip-if-value vx '= nn]
             (= 4 w3) [:skip-if-value vx 'not= nn]
             (= [5 0] [w3 w0]) [:skip-if-register vx '= vy]
-            (= 6 w3) [:mov-value vx nn]
-            (= 7 w3) [:add-value vx nn]
-            (= [8 0] w3-w0) [:mov-register vx vy]
-            (= [8 1] w3-w0) [:or vx vy]
-            (= [8 2] w3-w0) [:and vx vy]
-            (= [8 3] w3-w0) [:xor vx vy]
-            (= [8 4] w3-w0) [:add-register vx vy]
-            (= [8 5] w3-w0) [:sub-register vx vy]
-            (= [8 6] w3-w0) [:shift-right vx]
-            (= [8 7] w3-w0) [:sub-reverse-register vx vy]
-            (= [8 0xE] w3-w0) [:shift-left vx]
+            (= 6 w3) [:mov-register-value vx nn]
+            (= 7 w3) [:add-register-value vx nn]
+            (= [8 0] w3-w0) [:mov-register-register vx vy]
+            (= [8 1] w3-w0) [:or-register-register vx vy]
+            (= [8 2] w3-w0) [:and-register-register vx vy]
+            (= [8 3] w3-w0) [:xor-register-register vx vy]
+            (= [8 4] w3-w0) [:add-register-register vx vy]
+            (= [8 5] w3-w0) [:sub-register-register vx vy]
+            (= [8 6] w3-w0) [:shift-right-register vx]
+            (= [8 7] w3-w0) [:sub-reverse-register-register vx vy]
+            (= [8 0xE] w3-w0) [:shift-left-register vx]
             (= [9 0] w3-w0) [:skip-if-register vx 'not= vy]
             (= 0xA w3) [:mov-i address]
-            (= 0xB w3) [:jmp-add-v0 address]
-            (= 0xC w3) [:random vx nn]
-            (= [0xF 1 8] w3-w1-w0) [:set-sound-timer vx]
+            (= 0xB w3) [:jmp-add-pc-v0 address]
+            (= 0xC w3) [:mov-register-random vx nn]
+            (= [0xF 1 8] w3-w1-w0) [:mov-sound-timer vx]
             (= [0xF 1 0xE] w3-w1-w0) [:add-i vx]
-            (= [0xF 2 9] w3-w1-w0) [:load-font vx]
-            (= [0xF 3 3] w3-w1-w0) [:set-ip-decimal vx]
+            (= [0xF 2 9] w3-w1-w0) [:mov-i-font vx]
+            (= [0xF 3 3] w3-w1-w0) [:mov-i-decimal vx]
             (= 0xD w3) [:draw vx vy height]
             (= [0xE 9 0xE] w3-w1-w0) [:skip-if-key '= vx]
             (= [0xE 0xA 1] w3-w1-w0) [:skip-if-key 'not= vx]
-            (= [0xF 0 7] w3-w1-w0) [:mov-delay-timer vx]
-            (= [0xF 0 0xA] w3-w1-w0) [:mov-wait-key vx]
-            (= [0xF 1 5] w3-w1-w0) [:set-delay-timer vx]
+            (= [0xF 0 7] w3-w1-w0) [:mov-register-delay-timer vx]
+            (= [0xF 0 0xA] w3-w1-w0) [:mov-register-key vx]
+            (= [0xF 1 5] w3-w1-w0) [:mov-delay-timer vx]
             (= [0xF 5 5] w3-w1-w0) [:set-memory vx]
-            (= [0xF 6 5] w3-w1-w0) [:set-registers vx]))))
+            (= [0xF 6 5] w3-w1-w0) [:mov-registers-memory vx]))))
 
 (defn inc-pc [machine] (update machine :PC + 2))
-(defn set-pc [f] (fn [machine] (assoc machine :PC (f machine))))
+(defn set-pc [machine address] (assoc machine :PC address))
 (defn reset-screen-memory [machine] (assoc machine :screen empty-screen))
 (defn push-stack [machine] (update machine :stack conj (+ 2 (:PC machine))))
 (defn pop-stack [machine] (update machine :stack pop))
-(defn set-i [const] (fn [machine] (assoc machine :I const)))
-(defn update-register [x update-vx] (fn [machine] (update machine :registers update x update-vx)))
+(defn assoc-i [machine nnn] (assoc machine :I nnn))
+(defn update-i [machine f] (update machine :I f))
+(defn update-register [machine x update-vx] (update machine :registers update x update-vx))
 (defn set-registers
   ([machine x v & others] (apply update machine :registers assoc x v others))
   ([[machine & registers]] (apply set-registers machine registers)))
 (defn set-delay-timer [v machine] (assoc machine :delay-timer v))
 (defn set-sound-timer [v machine] (assoc machine :sound-timer v))
-(defn get-register [x machine] (get-in machine [:registers x]))
-(defn get-registers [& registers] (apply juxt identity
-                                         (map #(fn [machine] [%1 (get-register %1 machine)]) registers)))
-(defn next-int [old-seed] (lowest-byte (+ 3 old-seed)))     ;; TODO have a proper prng
+(defn get-register [machine x] (get-in machine [:registers x]))
+(defn get-registers [machine & registers]
+  (apply vector machine
+         (map (juxt identity (partial get-register machine)) registers)))
+(defn next-int [old-seed] (lowest-byte (+ 3 old-seed)))                         ;; TODO have a proper prng
 (defn update-prng [machine] (update machine :prn next-int))
 (defn get-prng [machine] (get machine :prn))
 (defn get-i [machine] (get machine :I))
@@ -147,148 +144,231 @@
   (subvec (:RAM machine) address (+ address n)))
 (defn get-pixel [machine x y]
   (get-in machine [:screen y x]))
-
-(defmulti command first)
-(defmethod command :halt [_] (constantly nil))
-(defmethod command :clear-screen [_] (comp inc-pc reset-screen-memory))
-(defmethod command :return [_] (comp pop-stack (set-pc (fn [m] (peek (:stack m))))))
-(defmethod command :sys [_] inc-pc)
-(defmethod command :jump [[_ address]] (set-pc (constantly address)))
-(defmethod command :call [[_ address]] (comp (set-pc (constantly address)) push-stack))
-(defmethod command :mov-i [[_ address]] (comp inc-pc (set-i address)))
-(defn skip-if [op fx fy]
-  (fn [machine]
-    (-> (if (op (fx machine) (fy machine)) (inc-pc machine) machine)
-        inc-pc)))
-(defmethod command :skip-if-value [[_ vx test-op const]]
-  (skip-if (resolve test-op) (partial get-register vx) (constantly const)))
-(defmethod command :skip-if-register [[_ vx test-op vy]]
-  (skip-if (resolve test-op) (partial get-register vx) (partial get-register vy)))
-(defmethod command :mov-value [[_ vx nn]] (comp inc-pc (update-register vx (constantly nn))))
-(defmethod command :add-value [[_ vx nn]] (comp inc-pc (update-register vx (comp lowest-byte (partial + nn)))))
-(defn arithmetic [x y op carry?]
-  (comp inc-pc
-        set-registers
-        (fn [[machine [x vx] [_ vy]]]
-          (let [r (op vx vy)]
-            [machine, x (lowest-byte r), 0xF (if (carry? r) 1 0)]))
-        (get-registers x y)))
-(defmethod command :add-register [[_ x y]] (arithmetic x y + #(> % 0xFF)))
-(defmethod command :sub-register [[_ x y]] (arithmetic x y - pos?))
-(defmethod command :sub-reverse-register [[_ x y]] (arithmetic x y #(- %2 %1) pos?))
-(defmethod command :mov-register [[_ vx vy]]
-  (comp inc-pc
-        set-registers
-        (fn [[machine [x _] [_ vy]]] [machine x vy])
-        (get-registers vx vy)))
-(defmethod command :jmp-add-v0 [[_ addr]] (set-pc (fn [machine] (+ (get-register 0 machine) addr))))
-(defn- boolean-command [x y boolean-op]
-  (comp
-    inc-pc
-    set-registers
-    (fn [[machine [x vx] [_ vy]]] [machine, x (boolean-op vx vy)])
-    (get-registers x y)))
-(defmethod command :or [[_ x y]] (boolean-command x y bit-or))
-(defmethod command :and [[_ x y]] (boolean-command x y bit-and))
-(defmethod command :xor [[_ x y]] (boolean-command x y bit-xor))
-(defn shift [x direction carry]
-  (comp
-    inc-pc
-    set-registers
-    (fn [[machine [x vx]]] [machine, x (direction vx 1), 0xF (carry vx)])
-    (get-registers x)))
-(defmethod command :shift-right [[_ x]] (shift x bit-shift-right lowest-bit))
-(defmethod command :shift-left [[_ x]] (shift x (comp lowest-byte bit-shift-left) highest-bit))
-(defmethod command :random ([[_ x nn]]
-                             (comp
-                               inc-pc
-                               set-registers
-                               (fn [machine] [machine x (bit-and nn (get-prng machine))])
-                               update-prng)))
-(defmethod command :set-sound-timer [[_ x]]
-  (comp
-    inc-pc
-    (fn [[machine [_ x]]] (set-sound-timer x machine))
-    (get-registers x)))
-(defmethod command :set-delay-timer [[_ x]]
-  (comp
-    inc-pc
-    (fn [[machine [_ x]]] (set-delay-timer x machine))
-    (get-registers x)))
-(defmethod command :add-i [[_ x]]
-  (comp inc-pc
-        (fn [[machine [_ vx]]] ((set-i (lowest-byte (+ (get-i machine) vx))) machine))
-        (get-registers x)))
-(defmethod command :load-font [[_ sprite]] (comp inc-pc (set-i (* sprite 5))))
-(defmethod command :set-ip-decimal [[_ x]]
-  (comp inc-pc
-        (fn [[machine [_ vx]]]
-          (set-mem machine (get-i machine) (map #(Integer/valueOf (str %)) (str vx))))
-        (get-registers x)))
-
-(defn one-byte-sprite-bits [one-byte-sprite]
-  (map (fn [bit-num] (bit-at bit-num one-byte-sprite)) (range 8)))
-
-(defn print-pixel [machine x y pixel]
-  (let [real-x       (mod x 64)
-        real-y       (mod y 32)
-        actual-pixel (get-pixel machine real-x real-y)]
-    #_(println real-x real-y actual-pixel pixel)
-    (if (= actual-pixel pixel)
-      machine
-      (-> (update machine :registers assoc 0xF 1)
-          (assoc-in [:screen real-y real-x] pixel)))))
-
-(defn print-1-byte-sprite [machine [x y one-byte-sprite]]
-  (reduce (fn [machine [bit-num pixel]] #_(println "printing" (+ x bit-num) y pixel) (print-pixel machine (+ x bit-num) y pixel))
-          machine
-          (map vector (range) (one-byte-sprite-bits one-byte-sprite))))
-
-(defn print-sprite
-  "Print a top right corner of sprite at pixel (x,y) A sprite is a seq of 8bits numbers."
-  [machine x y sprite]
-  (reduce print-1-byte-sprite
-          (set-registers [machine 0xF 0])
-          (map #(vector %1 (+ y %2) %3)
-               (repeat x) (range) sprite)))
-
-(defmethod command :draw [[_ x y n]]
-  (comp
-    inc-pc
-    (fn [[machine [_ vx] [_ vy]]]
-      (print-sprite machine vx vy (read-memory machine (get-i machine) n)))
-    (get-registers x y)))
-
 (defn get-delay-timer [machine]
   (get machine :delay-timer))
-
-(defmethod command :mov-delay-timer [[_ x]]
-  (comp
-    inc-pc
-    (fn [machine] (set-registers [machine x (get-delay-timer machine)]))))
-
+(defn peek-stack [machine]
+  (peek (:stack machine)))
 (defn pressed-key [] @keyboard-device)
 
-(defmethod command :mov-wait-key [[_ x]]
-  (fn [machine]
-    (if-let [key (pressed-key)]
-      (inc-pc (set-registers [machine x key]))
-      machine)))
-(defmethod command :set-memory [[_ x]]
-  (comp
-    inc-pc
-    (fn [[machine & registers]] (set-mem machine (get-i machine) (map second registers)))
-    (apply get-registers (range 0 (inc x)))))
+(defmulti execute (fn [_ instruction] (first instruction)))
 
-(defmethod command :set-registers [[_ n]]
-  (comp
-    inc-pc
-    (fn [machine]
-      (apply set-registers machine
-             (interleave (range) (read-memory machine (get-i machine) n))))))
+;; Misc instructions
+
+(defmethod execute :halt [_ _] nil)
+
+(defmethod execute :sys [machine _]
+  (inc-pc machine))
+
+
+;; Instructions that change the I register
+
+(defmethod execute :mov-i [machine [_ address]]
+  (-> (assoc-i machine address)
+      inc-pc))
+
+(defn add [nn] (comp lowest-byte (partial + nn)))
+
+(defmethod execute :add-i [machine [_ x]]
+  (letfn [(call-update-i [[machine [_ vx]]] (update-i machine (add vx)))]
+    (-> (get-registers machine x)
+        call-update-i
+        inc-pc)))
+
+(defmethod execute :mov-i-decimal [machine [_ x]]
+  (letfn [(call-set-mem [[machine [_ vx]]]
+            (set-mem machine (get-i machine)
+                     (map #(Integer/valueOf (str %)) (str vx))))]
+    (-> (get-registers machine x)
+        call-set-mem
+        inc-pc)))
+
+(defmethod execute :mov-i-font [machine [_ sprite]]
+  (-> (assoc-i machine (* sprite 5))
+      inc-pc))
+
+
+;; Jump instructions
+
+(defmethod execute :call [machine [_ address]]
+  (-> (push-stack machine)
+      (set-pc address)))
+
+(defmethod execute :return [machine _]
+  (-> (set-pc machine (peek-stack machine))
+      pop-stack))
+
+(defmethod execute :jump [machine [_ address]]
+  (set-pc machine address))
+
+(letfn [(skip-if [machine op x y]
+          (-> (if (op x y) (inc-pc machine) machine)
+              inc-pc))]
+
+  (defmethod execute :skip-if-value [machine [_ x test-op nn]]
+    (skip-if machine (resolve test-op) (get-register machine x) nn))
+
+  (defmethod execute :skip-if-register [machine [_ x test-op y]]
+    (skip-if machine (resolve test-op) (get-register machine x) (get-register machine y))))
+
+(defmethod execute :jmp-add-pc-v0 [machine [_ addr]]
+  (set-pc machine (+ (get-register machine 0) addr)))
+
+;; Instructions that change registers
+
+(defmethod execute :mov-register-value [machine [_ x nn]]
+  (-> (set-registers machine x nn)
+      inc-pc))
+
+(defmethod execute :mov-register-register [machine [_ x y]]
+  (letfn [(switch-vals [[machine [x _] [_ vy]]] [machine x vy])]
+    (-> (get-registers machine x y)
+        switch-vals
+        set-registers
+        inc-pc)))
+
+(defmethod execute :add-register-value [machine [_ x nn]]
+  (-> (update-register machine x (add nn))
+      inc-pc))
+
+(defmethod execute :mov-register-delay-timer [machine [_ x]]
+  (-> (set-registers [machine x (get-delay-timer machine)])
+      inc-pc))
+
+(defmethod execute :mov-register-random [machine [_ x nn]]
+  (letfn [(random [machine] [machine x (bit-and nn (get-prng machine))])]
+    (-> (update-prng machine)
+        random
+        set-registers
+        inc-pc)))
+
+(defmethod execute :mov-register-key [machine [_ x]]                            ;; This implementation will loop like hell til no key is pressed
+  (if-let [key (pressed-key)]
+    (inc-pc (set-registers [machine x key]))
+    machine))
+
+(defmethod execute :mov-registers-memory [machine [_ n]]
+  (-> (apply set-registers machine
+             (interleave (range) (read-memory machine (get-i machine) n)))
+      inc-pc))
+
+(letfn [(arithmetic [apply-op machine x y]
+          (-> (get-registers machine x y)
+              apply-op
+              set-registers
+              inc-pc))]
+
+  (letfn [(arithmetic-with-carry [machine x y op carry?]
+            (letfn [(apply-op [[machine [x vx] [_ vy]]]
+                      (let [r (op vx vy)]
+                        [machine, x (lowest-byte r), 0xF (if (carry? r) 1 0)]))]
+              (arithmetic apply-op machine x y)))]
+
+    (defmethod execute :add-register-register [machine [_ x y]]
+      (arithmetic-with-carry machine x y + #(> % 0xFF)))
+
+    (defmethod execute :sub-register-register [machine [_ x y]]
+      (arithmetic-with-carry machine x y - pos?))
+
+    (defmethod execute :sub-reverse-register-register [machine [_ x y]]
+      (arithmetic-with-carry machine x y #(- %2 %1) pos?)))
+
+  (letfn [(arithmetic-without-carry [machine x y boolean-op]
+            (letfn [(apply-op [[machine [x vx] [_ vy]]]
+                      [machine, x (boolean-op vx vy)])]
+              (arithmetic apply-op machine x y)))]
+
+    (defmethod execute :or-register-register [machine [_ x y]]
+      (arithmetic-without-carry machine x y bit-or))
+
+    (defmethod execute :and-register-register [machine [_ x y]]
+      (arithmetic-without-carry machine x y bit-and))
+
+    (defmethod execute :xor-register-register [machine [_ x y]]
+      (arithmetic-without-carry machine x y bit-xor))))
+
+(letfn [(shift [machine x shift-direction carry]
+          (letfn [(shift [[machine [x vx]]]
+                    [machine, x (shift-direction vx 1), 0xF (carry vx)])]
+            (-> (get-registers machine x)
+                shift
+                set-registers
+                inc-pc)))]
+
+  (defmethod execute :shift-right-register [machine [_ x]]
+    (shift machine x bit-shift-right lowest-bit))
+
+  (defmethod execute :shift-left-register [machine [_ x]]
+    (shift machine x (comp lowest-byte bit-shift-left) highest-bit)))
+
+
+;; Instructions that change timers
+
+(letfn [(set-timer [machine x set-x-timer]
+          (letfn [(call-set-timer [[machine [_ x]]] (set-x-timer x machine))]
+            (-> (get-registers machine x)
+                call-set-timer
+                inc-pc)))]
+
+  (defmethod execute :mov-sound-timer [machine [_ x]]
+    (set-timer machine x set-sound-timer))
+
+  (defmethod execute :mov-delay-timer [machine [_ x]]
+    (set-timer machine x set-delay-timer)))
+
+
+;; Instructions that update the screen memory
+
+(defmethod execute :clear-screen [machine _]
+  (-> (reset-screen-memory machine)
+      inc-pc))
+
+(letfn [(one-byte-sprite-bits [one-byte-sprite]
+          (map (fn [bit-num] (bit-at bit-num one-byte-sprite)) (range 8)))
+
+        (print-pixel [machine x y pixel]
+          (let [real-x       (mod x 64)
+                real-y       (mod y 32)
+                actual-pixel (get-pixel machine real-x real-y)]
+            (if (= actual-pixel pixel)
+              machine
+              (-> (update machine :registers assoc 0xF 1)
+                  (assoc-in [:screen real-y real-x] pixel)))))
+
+        (print-1-byte-sprite [machine [x y one-byte-sprite]]
+          (reduce (fn [machine [bit-num pixel]] (print-pixel machine (+ x bit-num) y pixel))
+                  machine
+                  (map vector (range) (one-byte-sprite-bits one-byte-sprite))))
+
+        (print-sprite
+          [machine x y sprite]
+          (reduce print-1-byte-sprite
+                  (set-registers [machine 0xF 0])
+                  (map #(vector %1 (+ y %2) %3)
+                       (repeat x) (range) sprite)))]
+
+  (defmethod execute :draw [machine [_ x y size]]
+    (letfn [(draw [[machine [_ vx] [_ vy]]]
+              (let [sprite (read-memory machine (get-i machine) size)]
+                (print-sprite machine vx vy sprite)))]
+      (-> (get-registers machine x y)
+          draw
+          inc-pc))))
+
+
+;; Instructions that change memory
+
+(letfn [(call-set-mem [[machine & registers]]
+          (set-mem machine (get-i machine) (map second registers)))]
+
+  (defmethod execute :set-memory [machine [_ x]]
+    (-> (apply get-registers machine (range 0 (inc x)))
+        call-set-mem
+        inc-pc)))
+
+
 (defn load-program [machine program]
   (let [used-mem (concat interpreter-code program)
-        padding  (repeat (- 0x1000 (count used-mem)) 0)
+        padding  (repeat (- 0x1000 (count used-mem)) 0)                         ;; The uppermost region of memory is padded with 0
         mem      (vec (concat used-mem padding))]
     (-> (assoc machine :RAM mem)
         (assoc :PC 0x200))))
@@ -301,24 +381,14 @@
   (concat-bytes
     (byte-at-pc machine identity) (byte-at-pc machine inc)))
 
-(defn print! [x y c]
-  (print (str (curse/locate (inc x) (inc y)) c)))            ;; todo why (0,0) doesn't work?
+(defprotocol Screen
+  (print-screen [this machine]))
 
-(defn draw-pixel! [x y pixel]
-  ((partial print! x y) (if (pos? pixel) \* \.)))
-
-(defn print-screen! [machine]
-  (dotimes [x 64]
-    (dotimes [y 32]
-      (do (draw-pixel! x y (get-pixel machine x y))))))
-
-(defn start-machine [program]
+(defn start-machine [screen program]
   (let [machine (load-program fresh-machine program)]
     (loop [machine machine]
-      (print-screen! machine)
-      (debug "@" (:PC machine))
-      (let [opcode              (debug "opcode:" (read-opcode machine))
-            instruction         (debug "instruction:" (opcode->instruction opcode))
-            execute-instruction (command instruction)
-            new-machine         (execute-instruction machine)]
-        (if new-machine (recur new-machine) machine)))))
+      (print-screen screen machine)
+      (let [opcode      (read-opcode machine)
+            instruction (opcode->instruction opcode)
+            new-machine (execute machine instruction)]
+        (if new-machine (recur new-machine) machine)))))                        ;; new-machine is nil when opcode = 0 (see :halt)
