@@ -5,7 +5,7 @@
 
 (defrecord MuteScreen []
   Screen
-  (print-screen [_ _]))
+  (print-screen [_ _ _]))
 
 (defn str->bits [s]
   (map (fn [bit-as-string] (Integer/parseInt (str bit-as-string))) s))
@@ -114,14 +114,14 @@
                          inc-pc)
             actual   (launch program)]
         (is (= actual expected))))
-    (testing "I can added to a register without handling carry"
-      (let [program  [0x6B 0xFE                                                 ;; 0x200: mov VB, 0xFE
-                      0xA0 0x03                                                 ;; 0x202: mov I, 0x01
+    (testing "I can added to a register without handling carry (I is a 16 bits register)"
+      (let [program  [0x6B 0xFF                                                 ;; 0x200: mov VB, 0xFF
+                      0xA1 0xFF                                                 ;; 0x202: mov I, 0xFF
                       0xFB 0x1E                                                 ;; 0x204: add I, VB
                       0x00 0x00]                                                ;; 0x206: halt
             expected (-> (load-program fresh-machine program)
-                         (update :registers assoc 0xB 0xFE)
-                         (assoc :I 0x01)
+                         (update :registers assoc 0xB 0xFF)
+                         (assoc :I 0x2FE)
                          (assoc :PC 0x206))
             actual   (launch program)]
         (is (= actual expected))))

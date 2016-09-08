@@ -62,6 +62,7 @@
 (def nn (partial nth-word 8 0))
 (def height (partial nth-word 4 0))
 (def lowest-byte (partial nth-word 8 0))
+(def two-lowest-bytes (partial nth-word 16 0))
 (def lowest-bit (partial nth-word 1 0))
 (def highest-bit (partial nth-word 1 7))
 (defn bit-at [bit-num byte] (nth-word 1 (- 7 bit-num) byte))
@@ -149,7 +150,7 @@
 (defn get-registers [machine & registers]
   (apply vector machine
          (map (juxt identity (partial get-register machine)) registers)))
-(defn next-int [old-seed] (lowest-byte (+ 3 old-seed)))                         ;; This is the worst prng you could imagine
+(defn next-int [old-seed] (two-lowest-bytes (+ 3 old-seed)))                         ;; This is the worst prng you could imagine
 (defn update-prng [machine] (update machine :prn next-int))
 (defn get-prng [machine] (get machine :prn))
 (defn get-i [machine] (get machine :I))
@@ -189,10 +190,11 @@
   (-> (assoc-i machine address)
       inc-pc))
 
-(defn add [nn] (comp lowest-byte (partial + nn)))
+(defn add-8bits [nn] (comp lowest-byte (partial + nn)))
+(defn add-16bits [nn] (comp two-lowest-bytes (partial + nn)))
 
 (defmethod execute :add-i [machine [_ x]]
-  (letfn [(call-update-i [[machine [_ vx]]] (update-i machine (add vx)))]
+  (letfn [(call-update-i [[machine [_ vx]]] (update-i machine (add-16bits vx)))]
     (-> (get-registers machine x)
         call-update-i
         inc-pc)))
@@ -253,7 +255,7 @@
         inc-pc)))
 
 (defmethod execute :add-register-value [machine [_ x nn]]
-  (-> (update-register machine x (add nn))
+  (-> (update-register machine x (add-8bits nn))
       inc-pc))
 
 (defmethod execute :mov-register-delay-timer [machine [_ x]]
@@ -414,13 +416,44 @@
         (update :sound-timer dectimer))))
 
 (defprotocol Screen
-  (print-screen [this machine]))
+  (print-screen [this machine last-instruction]
+    "Given a machine, print the corresponding screen.
+    last-instruction is given as a hint for optimization."))
+
+(defprotocol FlightRecorder
+  (record [this machine opcode]
+    "Record the execution of opcode that resulted in machine"))
+(defn hex4 [n] (format "0x%04X", n))
+(defn hex2 [n] (format "0x%02X", n))
+(defn hex1 [n] (format "0x%1X", n))
+
+
+(defn hex-i [part]
+  (if (number? part)
+    (symbol (hex2 part))
+    part))
+
+(defrecord FileLogger []
+  FlightRecorder
+  (record [_ machine opcode]
+    (spit "/tmp/cheap-hate.log"
+          (-> (map #(vector (symbol (hex1 %)) (symbol (hex4 (get-register machine %)))) (range 16))
+              (conj (map hex-i ["I" (get-i machine)]))
+              (conj (map hex-i ["PC" (get-pc machine)]))
+              (conj [(hex4 opcode)
+                     (map hex-i (opcode->instruction opcode))]))
+          :append true)
+    (spit "/tmp/cheap-hate.log" "\n"
+          :append true)))
 
 (defn start-machine [screen program]
-  (let [machine (load-program fresh-machine program)]
+  (let [machine (load-program fresh-machine program)
+        logger  (->FileLogger)]
     (loop [machine machine]
-      (print-screen screen machine)
+      #_(Thread/sleep 50)
       (let [opcode      (read-opcode machine)
             instruction (opcode->instruction opcode)
             new-machine (execute machine instruction)]
+        (print-screen screen machine instruction)
+        (record logger new-machine opcode)
         (if new-machine (recur (update-timers new-machine)) machine)))))        ;; new-machine is nil when opcode = 0 (see :halt)
