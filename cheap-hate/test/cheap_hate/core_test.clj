@@ -1,21 +1,36 @@
 (ns cheap-hate.core-test
   (:require [clojure.test :refer :all]
             [cheap-hate.core :refer :all]
-            [cheap-hate.romloader :refer :all]))
+            [cheap-hate.romloader :refer :all]
+            [cheap-hate.instructions :refer :all]
+            [cheap-hate.simple-machine :refer :all]))
 
 (defrecord MuteScreen []
   Screen
   (print-screen [_ _ _]))
 
+(defrecord AtomKeyboard [a-val]
+  Keyboard
+  (pressed-key [_] @a-val))
+
+(defrecord MuteFlightRecorder []
+  FlightRecorder
+  (record [_ _ _]))
+
+(def current-key (atom nil))
+
 (defn str->bits [s]
   (map (fn [bit-as-string] (Integer/parseInt (str bit-as-string))) s))
 
 (defn to-bit-array [a]
-  (vec (map
-         (comp vec str->bits)
-         a)))
+  (vec (map (comp vec str->bits) a)))
 
-(def launch (partial start-machine (->MuteScreen)))
+(defn launch [program] (start-machine
+                         {:fresh-machine   fresh-machine
+                          :screen          (->MuteScreen)
+                          :flight-recorder (->MuteFlightRecorder)
+                          :keyboard        (->AtomKeyboard current-key)
+                          :program         program}))
 
 (deftest cheap-hate-test
   (testing "Call stack"
@@ -160,10 +175,12 @@
                       0x00 0x00]                                                ;; 0x202: halt
             expected (-> (load-program fresh-machine program)
                          (update :registers assoc 0x8 0xE)
-                         (assoc :PC 0x202))
+                         (assoc :PC 0x202)
+                         (assoc :keyboard 0xE))
             actual   (future (launch program))]
-        (reset! keyboard-device 0xE)
-        (is (= @actual expected)))))
+        (reset! current-key 0xE)
+        (is (= @actual expected))
+        (reset! current-key nil))))
   (testing "Arithmetic"
     (testing "It should add a number to a register"
       (let [program  [0x61 0x42                                                 ;; 0x200: mov V1, 0x42

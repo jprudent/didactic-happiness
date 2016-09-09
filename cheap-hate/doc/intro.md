@@ -25,3 +25,8 @@ Sound timer: This timer is used for sound effects. When its value is nonzero, a 
 
 
 http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
+
+http://www.linusakesson.net/programming/tty/
+
+
+No cycle of dependencies (NS)
