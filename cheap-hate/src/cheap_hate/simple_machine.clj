@@ -66,7 +66,6 @@
   (set-pixel [this x y] (assoc-in this [:screen y x] 1))
   (unset-pixel [this x y] (assoc-in this [:screen y x] 0))
   (assoc-keyboard [this key] (assoc this :keyboard key))
-  (dissoc-keyboard [this] (assoc this :keyboard nil))
 
   InspectableMachine
   (get-register [machine x] (get-in machine [:registers x]))

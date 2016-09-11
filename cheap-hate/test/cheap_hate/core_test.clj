@@ -11,6 +11,7 @@
 
 (defrecord AtomKeyboard [a-val]
   Keyboard
+  (read-device [this] this)
   (pressed-key [_] @a-val))
 
 (defrecord MuteFlightRecorder []

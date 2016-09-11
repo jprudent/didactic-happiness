@@ -62,10 +62,7 @@
     "When a key is physically pressed on keyboard, the main loop should update
     the keyboard register with the pressed key.
     Assoc key to the keyboard register.
-    0 <= key <= 15 or key = nil")
-  (dissoc-keyboard [machine]
-    "When no key is pressed, the main loop should dissoc the keyboard register
-    of its value"))
+    0 <= key <= 15 or key = nil"))
 
 (defprotocol InspectableMachine
   "A machine that exposes its state"
@@ -108,5 +105,8 @@
 
 (defprotocol Keyboard
   "Read the keyboard"
+  (read-device [this]
+    "update the keyboard against physical state.
+    returns an updated keyboard")
   (pressed-key [this]
     "returns the key currently pressed"))
