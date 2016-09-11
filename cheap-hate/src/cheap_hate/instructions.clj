@@ -248,6 +248,7 @@
 (defn start-machine [{:keys [fresh-machine screen flight-recorder keyboard program]}]
   (let [machine (load-program fresh-machine program)]
     (loop [machine machine]
+      (Thread/sleep 1)
       (let [opcode      (read-opcode machine)
             instruction (parser/opcode->instruction opcode)
             new-machine (execute machine instruction)]

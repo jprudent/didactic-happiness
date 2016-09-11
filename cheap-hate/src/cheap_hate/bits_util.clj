@@ -1,7 +1,7 @@
 (ns cheap-hate.bits-util)
 
-(defn power-of-2 [exp] (bit-shift-left 1 exp))
-(defn mask-of-size [size] (dec (power-of-2 size)))
+(defn- power-of-2 [exp] (bit-shift-left 1 exp))
+(defn- mask-of-size [size] (dec (power-of-2 size)))
 (defn nth-word
   "returns the nth word in x, 0 being the righmost position.
   The word size is specified in bits

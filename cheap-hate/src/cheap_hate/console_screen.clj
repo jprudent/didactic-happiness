@@ -8,13 +8,12 @@
 (defn draw-pixel! [x y pixel]
   ((partial print! x y) (if (pos? pixel) \u2588 \space)))
 
-(def hex #(Integer/toHexString %))
+(def hex #(format "%03X" (or % 0xFF)))
 
 (defn print-reg [r v x y]
-  (print (str (curse/locate x y)
-              (if (number? r) (hex r) r)))
+  (print (str (curse/locate x y) r))
   (print (str (curse/locate x (inc y))
-                    (hex v))))
+              (hex v))))
 (defrecord ConsoleScreen []
   c8/Screen
   (print-screen [_ machine last-instruction]
@@ -26,7 +25,8 @@
 
     (dotimes [x 12] (print-reg x (c8/get-register machine x) (* 3 (inc x)) 33))
     (print-reg "PC" (c8/get-pc machine) (* 3 13) 33)
-    (print-reg "I" (c8/get-i machine) (* 3 14) 33)))
+    (print-reg "I" (c8/get-i machine) (* 3 14) 33)
+    (print-reg "K" (c8/get-keyboard machine) (* 3 15) 33)))
 
 
 
