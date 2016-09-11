@@ -247,13 +247,15 @@
 
 (defn start-machine [{:keys [fresh-machine screen flight-recorder keyboard program]}]
   (let [machine (load-program fresh-machine program)]
-    (loop [machine machine]
-      (Thread/sleep 1)
+    (loop [machine machine
+           screen screen]
+      #_(Thread/sleep 1)
       (let [opcode      (read-opcode machine)
             instruction (parser/opcode->instruction opcode)
-            new-machine (execute machine instruction)]
-        (print-screen screen machine instruction)
+            new-machine (execute machine instruction)
+            new-screen (print-screen screen new-machine instruction)]
         (record flight-recorder new-machine opcode)
         (if new-machine                                                         ;; new-machine is nil when opcode = 0 (see :halt)
-          (recur (assoc-keyboard (update-timers new-machine) (pressed-key keyboard)))
+          (recur (assoc-keyboard (update-timers new-machine) (pressed-key keyboard))
+                 new-screen)
           machine)))))

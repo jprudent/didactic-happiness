@@ -8,7 +8,7 @@
 
 (instructions/start-machine
   {:fresh-machine   machine/fresh-machine
-   :screen          #_(reify core/Screen (print-screen [_ _ _])) (->ConsoleScreen)
+   :screen          #_(reify core/Screen (print-screen [_ _ _])) (->ConsoleScreen machine/fresh-machine)
    :program         (rom/load-rom "roms/BRIX")
    :keyboard        (->ConsoleKeyboard)
    :flight-recorder (reify core/FlightRecorder (record [_ _ _]))})

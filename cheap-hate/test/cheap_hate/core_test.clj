@@ -7,7 +7,7 @@
 
 (defrecord MuteScreen []
   Screen
-  (print-screen [_ _ _]))
+  (print-screen [this _ _] this))
 
 (defrecord AtomKeyboard [a-val]
   Keyboard
@@ -32,8 +32,8 @@
                           :keyboard        (->AtomKeyboard current-key)
                           :program         program}))
 
-(deftest cheap-hate-test
-  (testing "Call stack"
+(deftest cheap-hate-test  (testing "Call stack"
+
     (testing "Calling and returning"
       (let [program  [0x22 0x04                                                 ;; 0x200: call @0x204
                       0x00 0x00                                                 ;; 0x202: halt
@@ -443,29 +443,3 @@
                          (assoc :PC 0x20E))
             actual   (launch program)]
         (is (= actual expected))))))
-
-#_(deftest any-program-works
-    (testing "any known program to me will run 1 second without crashing"
-      (println "coucou")
-      (let [rom-files (map (partial str "roms/") (vec (.list (File. "roms/"))))
-            machines  (map (juxt identity #(future (launch (load-rom %)))) rom-files)
-            _         (println (count machines))]
-        (println "couc" (count machines))
-        (for [[rom-file machine] machines]
-          (let [ended-machine (deref machine 1000 :still-running)]
-            (cond
-              (= :still-running ended-machine)
-              (println rom-file "is still running")
-              :default
-              (println rom-file "has ended"))
-            (is (not= nil ended-machine)))))))
-
-#_(deftest pong
-    (testing "PONG is running 1 second without crashing"
-      (let [pong    (load-rom "roms/PONG")
-            machine (future (launch pong))]
-        (deref machine 1000 -1)))
-    (testing "15PUZZLE is running 1 second without crashing"
-      (let [pong    (load-rom "roms/15PUZZLE")
-            machine (future (launch pong))]
-        (deref machine 1000 -1))))
