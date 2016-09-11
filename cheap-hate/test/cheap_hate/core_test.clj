@@ -18,6 +18,10 @@
   FlightRecorder
   (record [_ _ _]))
 
+(defrecord TheFastestQuartz []
+  Quartz
+  (throttle [this] this))
+
 (def current-key (atom nil))
 
 (defn str->bits [s]
@@ -27,13 +31,15 @@
   (vec (map (comp vec str->bits) a)))
 
 (defn launch [program] (start-machine
-                         {:fresh-machine   fresh-machine
-                          :screen          (->MuteScreen)
+                         fresh-machine
+                         {:screen          (->MuteScreen)
                           :flight-recorder (->MuteFlightRecorder)
                           :keyboard        (->AtomKeyboard current-key)
-                          :program         program}))
+                          :program         program
+                          :quartz          (->TheFastestQuartz)}))
 
-(deftest cheap-hate-test  (testing "Call stack"
+(deftest simple-machine-test
+  (testing "Call stack"
 
     (testing "Calling and returning"
       (let [program  [0x22 0x04                                                 ;; 0x200: call @0x204

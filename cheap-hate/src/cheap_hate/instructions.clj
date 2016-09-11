@@ -1,7 +1,8 @@
 (ns cheap-hate.instructions
+  "This namespace contains all the logic of execution any instructions,
+  independently of the underlying machine implementation."
   (:require [cheap-hate.core :refer :all]
-            [cheap-hate.bits-util :as bits]
-            [cheap-hate.parser :as parser]))
+            [cheap-hate.bits-util :as bits]))
 
 (defn set-registers [[machine & registers]]
   (assoc-registers machine registers))
@@ -232,34 +233,3 @@
     (-> (get-registers machine (range 0 (inc x)))
         call-set-mem
         inc-pc)))
-
-
-(defn read-opcode
-  "returns a 2 bytes number at program counter"
-  [machine]
-  (let [[b1 b2] (read-memory machine (get-pc machine) 2)]
-    (bits/concat-bytes b1 b2)))
-
-(letfn [(dectimer [v] (max 0 (dec v)))]
-  (defn update-timers [machine]
-    (-> (update-sound-timer machine dectimer)
-        (update-delay-timer dectimer))))
-
-(defn start-machine [{:keys [fresh-machine screen flight-recorder keyboard program]}]
-  (let [machine (load-program fresh-machine program)]
-    (loop [machine  machine
-           screen   screen
-           keyboard keyboard]
-      (Thread/sleep 1)
-      (let [opcode       (read-opcode machine)
-            instruction  (parser/opcode->instruction opcode)
-            new-machine  (execute machine instruction)
-            new-screen   (print-screen screen new-machine instruction)
-            new-keyboard (read-device keyboard)]
-        (record flight-recorder new-machine opcode)
-        (if new-machine                                                         ;; new-machine is nil when opcode = 0 (see :halt)
-          (recur (-> (update-timers new-machine)
-                     (assoc-keyboard (pressed-key new-keyboard)))
-                 new-screen
-                 new-keyboard)
-          machine)))))

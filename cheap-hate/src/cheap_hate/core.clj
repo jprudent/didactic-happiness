@@ -92,16 +92,23 @@
     "Get the 4 bits number in the keyboard register.
     Can be nil if no key is pressed."))
 
+(defprotocol RunnableMachine
+  "A machine that can run programs."
+  (start-machine [machine opts]
+    "This function will loop forever until the machine halts."))
+
 
 (defprotocol Screen
   (print-screen [this machine last-instruction]
     "Given a machine, print the corresponding screen.
     last-instruction is given as a hint for optimization."))
 
+
 (defprotocol FlightRecorder
   "Log the state of a machine"
   (record [this machine opcode]
     "Record the execution of opcode that resulted in machine"))
+
 
 (defprotocol Keyboard
   "Read the keyboard"
@@ -110,3 +117,10 @@
     returns an updated keyboard")
   (pressed-key [this]
     "returns the key currently pressed"))
+
+
+(defprotocol Quartz
+  "The quartz is used to adjust the speed of the machine"
+  (throttle [this]
+    "Calling this function will block until the desired delay has been reached.
+    Returns an updated version of this."))

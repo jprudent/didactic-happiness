@@ -1,6 +1,9 @@
 (ns cheap-hate.simple-machine
-  (:require [cheap-hate.core :refer [UpdatableMachine InspectableMachine]]
-            [cheap-hate.bits-util :refer [two-lowest-bytes]]))
+  (:require [cheap-hate.core :as core]
+            [cheap-hate.bits-util :refer [two-lowest-bytes]]
+            [cheap-hate.bits-util :as bits]
+            [cheap-hate.parser :as parser]
+            [cheap-hate.instructions :as instructions]))
 
 (def ^:static empty-screen (vec (for [_ (range 32)] (vec (repeat 64 0)))))
 
@@ -30,10 +33,15 @@
 
 (def ^:static interpreter-code (zeroes-padding fonts 0x200))
 
+(letfn [(dectimer [v] (max 0 (dec v)))]
+  (defn- update-timers [machine]
+    (-> (core/update-sound-timer machine dectimer)
+        (core/update-delay-timer dectimer))))
+
 (defrecord SimpleMachine
   [RAM registers I PC keyboard stack screen delay-timer sound-timer prn]
 
-  UpdatableMachine
+  core/UpdatableMachine
   (load-program [machine program]
     (let [used-mem (concat interpreter-code program)
           mem      (vec (zeroes-padding used-mem 0x1000))]
@@ -67,7 +75,7 @@
   (unset-pixel [this x y] (assoc-in this [:screen y x] 0))
   (assoc-keyboard [this key] (assoc this :keyboard key))
 
-  InspectableMachine
+  core/InspectableMachine
   (get-register [machine x] (get-in machine [:registers x]))
   (get-prn [machine] (get machine :prn))
   (get-i [machine] (get machine :I))
@@ -76,7 +84,30 @@
   (get-pixel [machine x y] (get-in machine [:screen y x]))
   (get-delay-timer [machine] (get machine :delay-timer))
   (peek-stack [machine] (peek (:stack machine)))
-  (get-keyboard [machine] (:keyboard machine)))
+  (get-keyboard [machine] (:keyboard machine))
+
+  core/RunnableMachine
+  (start-machine [fresh-machine
+                  {:keys [screen flight-recorder keyboard program quartz]}]
+    (let [machine (core/load-program fresh-machine program)]
+      (loop [machine  machine
+             screen   screen
+             keyboard keyboard
+             quartz   quartz]
+        (let [[b1 b2] (core/read-memory machine (core/get-pc machine) 2)
+              opcode       (bits/concat-bytes b1 b2)
+              instruction  (parser/opcode->instruction opcode)
+              new-machine  (instructions/execute machine instruction)
+              new-screen   (core/print-screen screen new-machine instruction)
+              new-keyboard (core/read-device keyboard)]
+          (core/record flight-recorder new-machine opcode)
+          (if new-machine                                                       ;; new-machine is nil when opcode = 0 (see :halt)
+            (recur (-> (update-timers new-machine)
+                       (core/assoc-keyboard (core/pressed-key new-keyboard)))
+                   new-screen
+                   new-keyboard
+                   (core/throttle quartz))
+            machine))))))
 
 
 ;; A fresh machine craving for a program to run
