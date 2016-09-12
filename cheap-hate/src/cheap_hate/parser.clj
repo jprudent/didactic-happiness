@@ -2,15 +2,15 @@
   (:require [cheap-hate.bits-util
              :refer [nth-word lowest-bit highest-bit lowest-byte two-lowest-bytes bit-at]]))
 
-(def w0 (partial nth-word 4 0))
-(def w3 (partial nth-word 4 3))
-(def w1 (partial nth-word 4 1))
-(defn w3-w1-w0 [opcode] [(w3 opcode) (w1 opcode) (w0 opcode)])
-(def address (partial nth-word 12 0))
-(def vx (partial nth-word 4 2))
-(def vy (partial nth-word 4 1))
-(def nn (partial nth-word 8 0))
-(def height (partial nth-word 4 0))
+(def w0 ^:private (partial nth-word 4 0))
+(def w3 ^:private (partial nth-word 4 3))
+(def w1 ^:private (partial nth-word 4 1))
+(defn w3-w1-w0 ^:private [opcode] [(w3 opcode) (w1 opcode) (w0 opcode)])
+(def address ^:private (partial nth-word 12 0))
+(def vx ^:private (partial nth-word 4 2))
+(def vy ^:private (partial nth-word 4 1))
+(def nn ^:private (partial nth-word 8 0))
+(def height ^:private (partial nth-word 4 0))
 
 
 (defn opcode->instruction

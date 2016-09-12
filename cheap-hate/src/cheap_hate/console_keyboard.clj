@@ -1,11 +1,10 @@
 (ns cheap-hate.console-keyboard
   "An implementation of keyboard for the console.
-  The console should have a qwerty keymap (setxkbmap us)
-  and tty should not buffer input (stty -icanon)"
+  It requires the tty to not buffer input (stty -icanon)"
   (:require [cheap-hate.core :as c8]))
 
 
-(def r (.reader (System/console)))
+(def ^:private r (.reader (System/console)))
 
 (def us-layout {(int \1) 0x1, (int \2) 0x2, (int \3) 0x3, (int \4) 0xC
                 (int \q) 0x4, (int \w) 0x5, (int \e) 0x6, (int \r) 0xD
@@ -19,7 +18,7 @@
 
 (def no-key {:key nil :validity 0})
 
-(defn now [] (System/currentTimeMillis))
+(defn- now [] (System/currentTimeMillis))
 
 (defn- old-buffer? [keyboard]
   (> (- (now) (get (:buffered-key keyboard) :validity 0))

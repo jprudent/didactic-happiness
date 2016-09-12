@@ -4,10 +4,10 @@
   (:require [cheap-hate.core :refer :all]
             [cheap-hate.bits-util :as bits]))
 
-(defn set-registers [[machine & registers]]
+(defn- set-registers [[machine & registers]]
   (assoc-registers machine registers))
 
-(defn get-registers [machine registers]
+(defn- get-registers [machine registers]
   (apply vector machine
          (map (juxt identity (partial get-register machine)) registers)))
 
@@ -34,12 +34,12 @@
         call-update-i
         inc-pc)))
 
-(defmethod execute :mov-i-decimal [machine [_ x]]
-  (letfn [(call-set-mem [[machine [_ vx]]]
-            (assoc-mem machine (get-i machine)
-                       (map #(Integer/valueOf (str %)) (format "%03d" vx))))]
+(letfn [(bdc [n] (map #(Integer/valueOf (str %)) (format "%03d" n)))
+        (assoc-mem-bdc [[machine [_ vx]]]
+          (assoc-mem machine (get-i machine) (bdc vx)))]
+  (defmethod execute :mov-i-decimal [machine [_ x]]
     (-> (get-registers machine [x])
-        call-set-mem
+        assoc-mem-bdc
         inc-pc)))
 
 
@@ -112,8 +112,9 @@
     machine))
 
 (defmethod execute :mov-registers-memory [machine [_ n]]
-  (-> (assoc-registers machine
-                       (interleave (range) (read-memory machine (get-i machine) (inc n))))
+  (-> (assoc-registers
+        machine
+        (interleave (range) (read-memory machine (get-i machine) (inc n))))
       inc-pc))
 
 (letfn [(arithmetic [apply-op machine x y]

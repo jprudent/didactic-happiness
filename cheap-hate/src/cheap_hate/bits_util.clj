@@ -1,4 +1,5 @@
-(ns cheap-hate.bits-util)
+(ns cheap-hate.bits-util
+  "This namspace contains utilities for bitwise manipulations.")
 
 (defn- power-of-2 [exp] (bit-shift-left 1 exp))
 (defn- mask-of-size [size] (dec (power-of-2 size)))

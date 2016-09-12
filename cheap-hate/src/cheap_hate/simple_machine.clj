@@ -5,11 +5,14 @@
             [cheap-hate.parser :as parser]
             [cheap-hate.instructions :as instructions]))
 
-(def ^:static empty-screen (vec (for [_ (range 32)] (vec (repeat 64 0)))))
+(def ^:static ^:private screen-nb-lines 32)
+(def ^:static ^:private screen-nb-columns 64)
+(def ^:static ^:private empty-screen
+  (vec (for [_ (range screen-nb-lines)] (vec (repeat screen-nb-columns 0)))))
 
 ;; This is the array of bitmap fonts
 ;; Each line represents a 8x5 pixels character
-(def ^:static fonts
+(def ^:static ^:private fonts
   [0xF0 0x90 0x90 0x90 0xF0                                                     ;; 0
    0x20 0x60 0x20 0x20 0x70                                                     ;; 1
    0xF0 0x10 0xF0 0x80 0xF0                                                     ;; 2
@@ -28,10 +31,13 @@
    0xF0 0x80 0xF0 0x80 0x80                                                     ;; F
    ])
 
-(defn zeroes-padding [bytes final-size]
+(defn- zeroes-padding [bytes final-size]
   (concat bytes (repeat (- final-size (count bytes)) 0)))
 
-(def ^:static interpreter-code (zeroes-padding fonts 0x200))
+(def ^:static ^:private first-program-address 0x200)
+(def ^:static ^:private interpreter-code (zeroes-padding fonts first-program-address))
+
+(def ^:static ^:private ram-size 0x1000)
 
 (letfn [(dectimer [v] (max 0 (dec v)))]
   (defn- update-timers [machine]
@@ -44,9 +50,9 @@
   core/UpdatableMachine
   (load-program [machine program]
     (let [used-mem (concat interpreter-code program)
-          mem      (vec (zeroes-padding used-mem 0x1000))]
+          mem      (vec (zeroes-padding used-mem ram-size))]
       (-> (assoc machine :RAM mem)
-          (assoc :PC 0x200))))
+          (assoc :PC first-program-address))))
   (inc-pc [this] (update this :PC + 2))
   (assoc-pc [this address] (assoc this :PC address))
   (push-stack [this] (update this :stack conj (+ 2 (:PC this))))
@@ -62,14 +68,10 @@
   (update-delay-timer [this f] (update this :delay-timer f))
   (update-prng [this] (update this :prn (comp two-lowest-bytes (partial + 3)))) ;; This is the worst prng you could imagine
   (assoc-mem [this address values]
-    (loop [this    this
-           address address
-           values  values]
-      (if (empty? values)
-        this
-        (recur (update this :RAM assoc address (first values))
-               (inc address)
-               (rest values)))))
+    (let [ram      (:RAM this)
+          ram-head (subvec ram 0 address)
+          ram-tail (subvec ram (+ address (count values)))]
+      (assoc this :RAM (into (into ram-head values) ram-tail))))
   (reset-screen-memory [this] (assoc this :screen empty-screen))
   (set-pixel [this x y] (assoc-in this [:screen y x] 1))
   (unset-pixel [this x y] (assoc-in this [:screen y x] 0))
@@ -88,12 +90,12 @@
 
   core/RunnableMachine
   (start-machine [fresh-machine
-                  {:keys [screen flight-recorder keyboard program quartz]}]
+                  {:keys [screen flight-recorder keyboard program clock]}]
     (let [machine (core/load-program fresh-machine program)]
       (loop [machine  machine
              screen   screen
              keyboard keyboard
-             quartz   quartz]
+             clock   clock]
         (let [[b1 b2] (core/read-memory machine (core/get-pc machine) 2)
               opcode       (bits/concat-bytes b1 b2)
               instruction  (parser/opcode->instruction opcode)
@@ -106,14 +108,13 @@
                        (core/assoc-keyboard (core/pressed-key new-keyboard)))
                    new-screen
                    new-keyboard
-                   (core/throttle quartz))
+                   (core/throttle clock))
             machine))))))
 
 
 ;; A fresh machine craving for a program to run
 (def ^:static fresh-machine
-  (map->SimpleMachine {:RAM         (vec (concat interpreter-code
-                                                 (repeat (- 0x1000 0x200) 0)))
+  (map->SimpleMachine {:RAM         (zeroes-padding interpreter-code ram-size)
                        :registers   (vec (repeat 16 0))
                        :I           0
                        :PC          0

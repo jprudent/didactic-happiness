@@ -18,8 +18,8 @@
   FlightRecorder
   (record [_ _ _]))
 
-(defrecord TheFastestQuartz []
-  Quartz
+(defrecord TheFastestClock []
+  Clock
   (throttle [this] this))
 
 (def current-key (atom nil))
@@ -36,7 +36,7 @@
                           :flight-recorder (->MuteFlightRecorder)
                           :keyboard        (->AtomKeyboard current-key)
                           :program         program
-                          :quartz          (->TheFastestQuartz)}))
+                          :clock           (->TheFastestClock)}))
 
 (deftest simple-machine-test
   (testing "Call stack"

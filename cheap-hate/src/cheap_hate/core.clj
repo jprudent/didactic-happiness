@@ -6,7 +6,7 @@
     "Load the program in memory. Machine is ready to run the program.
     The program counter should be set to the address of the first instruction.")
   (inc-pc [machine]
-    "Increment the program counter.")
+    "Increment the program counter to the next instruction.")
   (assoc-pc [machine address]
     "Associate the program counter to an arbitrary address.
     0 <= Address < 0x1000")
@@ -15,9 +15,8 @@
   (pop-stack [machine]
     "Pop the stack frame")
   (assoc-i [machine nnn]
-    "Associate an arbitrary value to register I.
-    0 <= nnn <= 0xFFF
-    I is truncated to 16 bits")
+    "Associate an arbitrary 16 bits number to register I.
+    0 <= nnn <= 0xFFF")
   (update-i [machine f]
     "Update the current value of register I with the result of f applied to
     the current value of register I.
@@ -92,6 +91,7 @@
     "Get the 4 bits number in the keyboard register.
     Can be nil if no key is pressed."))
 
+
 (defprotocol RunnableMachine
   "A machine that can run programs."
   (start-machine [machine opts]
@@ -119,8 +119,8 @@
     "returns the key currently pressed"))
 
 
-(defprotocol Quartz
-  "The quartz is used to adjust the speed of the machine"
+(defprotocol Clock
+  "The clock is used to adjust the speed of the machine."
   (throttle [this]
     "Calling this function will block until the desired delay has been reached.
     Returns an updated version of this."))

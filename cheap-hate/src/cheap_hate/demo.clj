@@ -2,7 +2,7 @@
   (:require [cheap-hate.simple-machine :as machine]
             [cheap-hate.console-screen :refer [->ConsoleScreen]]
             [cheap-hate.console-keyboard :refer :all]
-            [cheap-hate.looping-quartz :refer [->LoopingQuartz]]
+            [cheap-hate.looping-clock :refer [->LoopingClock]]
             [cheap-hate.romloader :as rom]
             [cheap-hate.core :as core]))
 
@@ -12,4 +12,4 @@
    :program         (rom/load-rom "roms/BRIX")
    :keyboard        (->ConsoleKeyboard fr-layout no-key)
    :flight-recorder (reify core/FlightRecorder (record [_ _ _]))
-   :quartz          (->LoopingQuartz 600 0)})
+   :clock           (->LoopingClock 600 0)})
