@@ -42,3 +42,12 @@
     (-> (ascii-string->bytes text)
         (xor repeat-key)
         bytes->hexstring)))
+
+(defn count-bits [n]
+  (loop [acc 0, n n]
+    (if (zero? n)
+      acc
+      (recur (+ (bit-and 2r1 n) acc) (bit-shift-right n 1)))))
+
+(defn hamming-distance [bytes1 bytes2]
+  (reduce + 0 (map (comp count-bits bit-xor) bytes1 bytes2)))
