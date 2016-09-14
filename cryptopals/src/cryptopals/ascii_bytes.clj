@@ -33,6 +33,7 @@
    15 \P, 31 \f, 47 \v, 63 \/})
 
 (defn bytes->base64
+  "Encode bytes to a base64 string"
   [bytes]
   (->> (map
          (fn [[b0 b1 b2]]
@@ -45,3 +46,13 @@
          (partition 3 bytes))
        (mapcat #(map base64-index-table %))
        (apply str)))
+
+(defn bytes->ascii-string
+  "Convert bytes to ASCII string"
+  [bytes]
+  (apply str (map char bytes)))
+
+(defn string->bytes
+  "Convert an ASCII string to bytes"
+  [s]
+  (map byte s))
