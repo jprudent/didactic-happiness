@@ -19,7 +19,7 @@
 
 (defn weight
   "found-most-freq is a seq of byte ordered by popularity decreasing
-  reference-most-freq is the same type"
+  reference-most-freq has the same type"
   [found-most-freq reference-most-freq]
   (count
     (clojure.set/intersection
@@ -30,9 +30,15 @@
   (let [most-frequent-byte (ffirst (mean-frequencies xored-bytes))]
     (sort by-second-descending
           (for [letter most-frequent-english-letters
-                :let [probable-key (bit-xor most-frequent-byte letter)
-                      deciphered (xor (repeat probable-key) xored-bytes)
-                      frequency-deciphered (mean-frequencies deciphered)
+                :let [probable-key             (bit-xor most-frequent-byte letter)
+                      deciphered               (xor (repeat probable-key) xored-bytes)
+                      frequency-deciphered     (mean-frequencies deciphered)
                       most-frequent-deciphered (map first frequency-deciphered)
-                      deciphered-weight (weight most-frequent-deciphered most-frequent-english-letters)]]
-            [(bytes->ascii-string deciphered) deciphered-weight probable-key ]))))
+                      deciphered-weight        (weight most-frequent-deciphered most-frequent-english-letters)]]
+            [(bytes->ascii-string deciphered) deciphered-weight probable-key]))))
+
+(defn xor-text [text key]
+  (let [repeat-key (cycle (ascii-string->bytes key))]
+    (-> (ascii-string->bytes text)
+        (xor repeat-key)
+        bytes->hexstring)))

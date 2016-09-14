@@ -52,7 +52,12 @@
   [bytes]
   (apply str (map char bytes)))
 
-(defn string->bytes
+(defn bytes->hexstring
+  "Convert bytes to hex string"
+   [bytes]
+  (apply str (map #(format "%02x" %) bytes)))
+
+(defn ascii-string->bytes
   "Convert an ASCII string to bytes"
   [s]
   (map byte s))
