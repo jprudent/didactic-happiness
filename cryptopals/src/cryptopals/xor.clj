@@ -35,4 +35,4 @@
                       frequency-deciphered (mean-frequencies deciphered)
                       most-frequent-deciphered (map first frequency-deciphered)
                       deciphered-weight (weight most-frequent-deciphered most-frequent-english-letters)]]
-            [(bytes->ascii-string deciphered) probable-key deciphered-weight]))))
+            [(bytes->ascii-string deciphered) deciphered-weight probable-key ]))))
