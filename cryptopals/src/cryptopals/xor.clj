@@ -51,3 +51,9 @@
 
 (defn hamming-distance [bytes1 bytes2]
   (reduce + 0 (map (comp count-bits bit-xor) bytes1 bytes2)))
+
+(defn crack-repeating-xor-key [xored-bytes]
+  (for [keysize (range 2 40)
+        :let [[segment1 segment2 & _] (partition keysize xored-bytes)
+              distance (/ (hamming-distance segment1 segment2) keysize)]]
+    [keysize distance]))

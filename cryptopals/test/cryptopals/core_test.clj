@@ -5,9 +5,16 @@
             [cryptopals.xor :refer :all]))
 
 (deftest set_1_1
-  (testing "Base 64"
+  (testing "Encode to Base 64"
     (is (= "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
-           (bytes->base64 (hexstring->bytes "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d"))))))
+           (bytes->base64 (hexstring->bytes "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d"))))
+    (is (= "" (bytes->base64 [])))
+    (is (= "Zg==" (bytes->base64 (ascii-string->bytes "f"))))
+    (is (= "Zm8=" (bytes->base64 (ascii-string->bytes "fo")))))
+  (testing "Decode Base 64"
+    (is (= "" (bytes->ascii-string (base64->bytes ""))))
+    (is (= "f" (bytes->ascii-string (base64->bytes "Zg=="))))
+    (is (= "fo" (bytes->ascii-string (base64->bytes "Zm8="))))))
 
 (deftest set_1_2
   (testing "Xor"

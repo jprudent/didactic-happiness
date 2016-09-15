@@ -32,6 +32,14 @@
    14 \O, 30 \e, 46 \u, 62 \+
    15 \P, 31 \f, 47 \v, 63 \/})
 
+(defn replace-padding [string]
+  (cond
+    (clojure.string/ends-with? string "AA")
+    (str (subs string 0 (- (count string) 2)) "==")
+    (clojure.string/ends-with? string "A")
+    (str (subs string 0 (dec (count string))) "=")
+    :else string))
+
 (defn bytes->base64
   "Encode bytes to a base64 string"
   [bytes]
@@ -43,9 +51,10 @@
             (bit-or (bit-shift-left (bit-and 2r00001111 b1) 2)
                     (bit-shift-right (bit-and 2r11000000 b2) 6))
             (bit-and 2r00111111 b2)])
-         (partition 3 bytes))
+         (partition 3 3 [0 0] bytes))
        (mapcat #(map base64-index-table %))
-       (apply str)))
+       (apply str)
+       (replace-padding)))
 
 (defn bytes->ascii-string
   "Convert bytes to ASCII string"
@@ -54,10 +63,26 @@
 
 (defn bytes->hexstring
   "Convert bytes to hex string"
-   [bytes]
+  [bytes]
   (apply str (map #(format "%02x" %) bytes)))
 
 (defn ascii-string->bytes
   "Convert an ASCII string to bytes"
   [s]
   (map byte s))
+
+
+(def ^:static base64-reversed-index-map
+  (clojure.set/map-invert base64-index-table))
+
+(defn base64-chunk->bytes [[a b c d]]
+  (filter (comp not nil?)
+          [(bit-or (bit-shift-left a 2) (bit-shift-right (bit-and 2r110000 b) 4))
+           (when c
+             (bit-or (bit-shift-left (bit-and 2r001111 b) 4) (bit-shift-right (bit-and 2r111100 c) 2)))
+           (when d
+             (bit-or (bit-shift-left (bit-and 2r000011 c) 6) d))]))
+
+(defn base64->bytes [b64]
+  (mapcat base64-chunk->bytes
+          (partition 4 (map base64-reversed-index-map b64))))
