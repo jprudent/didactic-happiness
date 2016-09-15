@@ -6,6 +6,7 @@
   (map bit-xor bytes1 bytes2))
 
 (defn by-second-descending [[_ v1] [_ v2]] (> v1 v2))
+(defn by-third-descending [[_ _ v1] [_ _ v2]] (> v1 v2))
 
 (defn- mean-frequencies
   "Return the frequency (between 0 and 1) of each byte"
@@ -26,7 +27,11 @@
       (set reference-most-freq)
       (set (take (count reference-most-freq) found-most-freq)))))
 
-(defn crack-single-byte-xor-key [xored-bytes]
+(defn crack-single-byte-xor-key
+  "Returns 5 solutions. Each solution is [deciphered-bytes key weight]
+  The higher the weight, the higher is the probability of the deciphered-bytes
+   being english."
+  [xored-bytes]
   (let [most-frequent-byte (ffirst (mean-frequencies xored-bytes))]
     (sort by-second-descending
           (for [letter most-frequent-english-letters
@@ -35,7 +40,7 @@
                       frequency-deciphered     (mean-frequencies deciphered)
                       most-frequent-deciphered (map first frequency-deciphered)
                       deciphered-weight        (weight most-frequent-deciphered most-frequent-english-letters)]]
-            [(bytes->ascii-string deciphered) deciphered-weight probable-key]))))
+            [deciphered deciphered-weight probable-key]))))
 
 (defn xor-text [text key]
   (let [repeat-key (cycle (ascii-string->bytes key))]
@@ -52,8 +57,39 @@
 (defn hamming-distance [bytes1 bytes2]
   (reduce + 0 (map (comp count-bits bit-xor) bytes1 bytes2)))
 
-(defn crack-repeating-xor-key [xored-bytes]
-  (for [keysize (range 2 40)
-        :let [[segment1 segment2 & _] (partition keysize xored-bytes)
-              distance (/ (hamming-distance segment1 segment2) keysize)]]
-    [keysize distance]))
+(defn normalized-hamming-distance
+  [bytes1 bytes2 keysize]
+  (/ (hamming-distance bytes1 bytes2) keysize))
+
+(defn mean [numbers]
+  (/ (reduce + 0 numbers) (count numbers)))
+
+(defn mean-distance [xored-bytes keysize]
+  (let [partitions           (partition keysize xored-bytes)
+        segment-pairs        (partition 2 partitions)
+        normalized-distances (map (fn [[s1 s2]] (normalized-hamming-distance s1 s2 keysize)) segment-pairs)]
+    (mean normalized-distances)))
+
+(defn best-keysize [xored-bytes max-size]
+  (->> (for [keysize (range 2 max-size)] [keysize (mean-distance xored-bytes keysize)])
+       (sort by-second-descending)
+       (take-last 5)
+       (map first)))
+
+(defn transpose [coll-of-coll]
+  (apply map vector coll-of-coll))
+
+(defn crack-repeating-xor-key
+  "Returns 5 solutions. Each solution is [key-size deciphered-bytes key]"
+  [xored-bytes]
+  (map (fn [[keysize val]] [keysize
+                            (->> (map second val)
+                                 transpose
+                                 (apply concat))
+                            (->> (map #(nth % 2) val)
+                                 (take keysize))])
+       (group-by first
+                 (for [key-size       (best-keysize xored-bytes 100)
+                       vertical-chunk (transpose (partition key-size xored-bytes))
+                       :let [cracked-vertical-chunk (first (crack-single-byte-xor-key vertical-chunk))]]
+                   [key-size (first cracked-vertical-chunk) (nth cracked-vertical-chunk 2)]))))

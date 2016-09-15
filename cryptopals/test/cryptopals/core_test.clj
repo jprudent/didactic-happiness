@@ -24,7 +24,10 @@
 (deftest set_1_3
   (testing "single byte xor"
     (is (= "Cooking MC's like a pound of bacon"
-           (ffirst (crack-single-byte-xor-key (hexstring->bytes "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736")))))))
+           (-> (hexstring->bytes "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736")
+               (crack-single-byte-xor-key)
+               (ffirst)
+               (bytes->ascii-string))))))
 
 (deftest set_1_4
   (testing "find the ciphered block"
@@ -33,7 +36,8 @@
                 (clojure.string/split-lines)
                 (mapcat (comp crack-single-byte-xor-key hexstring->bytes))
                 (sort by-second-descending)
-                (ffirst))))))
+                (ffirst)
+                (bytes->ascii-string))))))
 
 (deftest set_1_5
   (testing "implementing repeating XOR"
@@ -45,4 +49,11 @@
   (testing "Hamming distance"
     (is (= 37
            (hamming-distance (ascii-string->bytes "this is a test")
-                             (ascii-string->bytes "wokka wokka!!!"))))))
+                             (ascii-string->bytes "wokka wokka!!!")))))
+  (testing "Cracking repeated xor key"
+    (is (some (fn [s] (clojure.string/includes? s "Vanilla Ice is sellin' and you people are buyin'"))
+              (->> (clojure.string/replace (slurp "https://cryptopals.com/static/challenge-data/6.txt") "\n" "")
+                   (base64->bytes)
+                   (crack-repeating-xor-key)
+                   (map second)
+                   (map bytes->ascii-string))))))
