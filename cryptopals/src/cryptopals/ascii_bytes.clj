@@ -83,6 +83,8 @@
            (when d
              (bit-or (bit-shift-left (bit-and 2r000011 c) 6) d))]))
 
-(defn base64->bytes [b64]
+(defn base64->bytes
+  "Take a base 64 ascii string and returns a coll of bytes"
+  [b64]
   (mapcat base64-chunk->bytes
           (partition 4 (map base64-reversed-index-map b64))))

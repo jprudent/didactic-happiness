@@ -1,3 +1,6 @@
 # Introduction to cryptopals
 
-TODO: write [great documentation](http://jacobian.org/writing/what-to-write/)
+## AES
+
+http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf
+
