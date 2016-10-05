@@ -1,49 +1,6 @@
 (ns cryptopals.aes)
 
-(def gf+ bit-xor)
-(def gf- bit-xor)
-
-(defn gf* [a b]
-  (loop [a a b b p 0]
-    (if (pos? b)
-      (recur (gf+ (bit-shift-left a 1)
-                  (if (pos? (bit-and 128 a)) 0x11B 0))
-             (bit-shift-right b 1)
-             (gf+ p (if (odd? b) a 0)))
-      p)))
-
-
-(def gf*inverse
-  (memoize
-    (fn [a]
-      (if (zero? a)
-        0
-        (some #(when (= 1 (gf* a %)) %) (range 256))))))                        ; brute force
-
-(defn byte-rotate-right [byte]
-  (bit-or
-    (bit-shift-right byte 1)
-    (if (bit-test byte 0) 128 0)))
-
-(defn bit-at [x n]
-  (if (bit-test x n) 1 0))
-
-(defn s-box [byte]
-  (let [*-inverse (gf*inverse byte)
-        c         0x63
-        xor-at    (fn [bit n] (bit-xor bit (bit-at *-inverse (mod n 8))))
-        sub-bit   (fn [i] (-> (xor-at 0 i)
-                              (xor-at (+ i 4))
-                              (xor-at (+ i 5))
-                              (xor-at (+ i 6))
-                              (xor-at (+ i 7))
-                              (bit-xor (bit-at c i))))]
-    (loop [i 0 result 0]
-      (if (< i 8)
-        (recur (inc i) (bit-or result (bit-shift-left (sub-bit i) i)))
-        result))))
-
-(def sub-word (partial map s-box))
+;; some cool debugging utils
 
 (defn print-word [word]
   (print "|")
@@ -55,17 +12,82 @@
     (do (print-word word)
         (println ""))))
 
-(defn sub-bytes [state]
-  (println "  - sub bytes")
-  (println "    - IN : ")
-  (print-block state)
-  (map sub-word state))
+
+;; Some Galois field arithmetic
+
+(def gf+ bit-xor)
+
+(defn gf* [a b]
+  (loop [a a b b p 0]
+    (if (pos? b)
+      (recur (gf+ (bit-shift-left a 1)
+                  (if (pos? (bit-and 128 a)) 0x11B 0))
+             (bit-shift-right b 1)
+             (gf+ p (if (odd? b) a 0)))
+      p)))
+
+(def gf*inverse
+  (memoize
+    (fn [a]
+      (if (zero? a)
+        0
+        (some #(when (= 1 (gf* a %)) %) (range 256))))))                        ; brute force
+
+
+;; bits, bytes and words utilities
+
+(defn byte-rotate-right [byte]
+  (bit-or
+    (bit-shift-right byte 1)
+    (if (bit-test byte 0) 128 0)))
+
+(defn bit-at [x n]
+  (if (bit-test x n) 1 0))
 
 (defn rot-word
   ([word] (rot-word word 1))
   ([word shift] (->> (cycle word)
                      (drop shift)
                      (take (count word)))))
+
+(defn reverse-matrix [matrix]
+  (apply map vector matrix))
+
+;; SubBytes and InvSubBytes operations
+
+(defn affine-transformation
+  [byte mask c]
+  (let [xor-at  (fn [bit n] (bit-xor bit (bit-at byte (mod n 8))))
+        sub-bit (fn [i] (-> (reduce #(xor-at %1 (+ i %2)) 0 mask)
+                            (bit-xor (bit-at c i))))]
+    (reduce #(bit-or %1 (bit-shift-left (sub-bit %2) %2))
+            0 (range 8))))
+
+(def s-box
+  (memoize (fn [byte]
+             (affine-transformation (gf*inverse byte) [0 4 5 6 7] 0x63))))
+
+(def inv-s-box
+  (memoize (fn [byte]
+             (gf*inverse (affine-transformation byte [2 5 7] 2r101)))))
+
+(defn -sub-bytes [state box]
+  (map #(map box %) state))
+
+(defn sub-bytes [state]
+  (println "  - sub bytes")
+  (println "    - IN : ")
+  (print-block state)
+  (-sub-bytes state s-box))
+
+(defn inv-sub-bytes [state]
+  (println "  - inv sub bytes")
+  (println "    - IN : ")
+  (print-block state)
+  (-sub-bytes state inv-s-box))
+
+
+;; ShiftRows and InvShiftRows operations
 
 (defn shift-rows [state]
   (println "  - shift rows")
@@ -74,19 +96,33 @@
   (map (partial rot-word)
        state (range)))
 
-(defn mix-column [column]
-  (let [ax (take (count column) (iterate #(rot-word % (dec (count %))) [0x02 0x03 0x01 0x01]))]
+(defn inv-shift-row [state]
+  (println "  - inv shift rows")
+  (println "    - IN : ")
+  (print-block state)
+  (map (fn [row shift] (rot-word row (- (count row) shift)))
+       state (range)))
+
+;; MixColumns and InvMixColumns operations
+
+(defn mix-column [column polynomial]
+  (let [ax (take (count column) (iterate #(rot-word % (dec (count %))) polynomial))]
     (for [i (range (count column))]
       (reduce #(bit-xor %1 %2) 0 (map gf* (nth ax i) column)))))
-
-(defn reverse-matrix [matrix]
-  (apply map vector matrix))
 
 (defn mix-columns [state]
   (println "  - mix columns")
   (println "    - IN : ")
   (print-block state)
-  (reverse-matrix (map mix-column (reverse-matrix state))))
+  (reverse-matrix (map #(mix-column % [0x02 0x03 0x01 0x01]) (reverse-matrix state))))
+
+(defn inv-mix-columns [state]
+  (println "  - mix columns")
+  (println "    - IN : ")
+  (print-block state)
+  (reverse-matrix (map #(mix-column % [0x0E 0x0B 0x0D 0x09]) (reverse-matrix state))))
+
+;; AddRoundKey operation
 
 (defn xor-words [xs ys]
   (map bit-xor xs ys))
@@ -99,12 +135,11 @@
   (print-block key)
   (map xor-words state key))
 
-;; key expansion
+
+;; Key expansion
 
 (def rcon                                                                       ;; rcon[i] = (nth rcon i)
   (map #(vector % 0 0 0) (concat [nil 1] (take 254 (iterate #(gf* 2 %) 2)))))   ;; rcon[0] is never used
-
-
 
 (def key-size 4)
 (def block-size 4)
@@ -117,9 +152,9 @@
     (xor-words
       key-size-earlier
       (if (= 0 (mod cpt-words key-size))
-        (-> (rot-word temp)                                                     ;; TODO implement AES 256 bits
-            (sub-word)
-            (xor-words (nth rcon (/ cpt-words key-size))))
+        (->> (rot-word temp)                                                    ;; TODO implement AES 256 bits
+             (map s-box)
+             (xor-words (nth rcon (/ cpt-words key-size))))
         temp))))
 
 (defn key-expansion
@@ -135,6 +170,8 @@
       (recur (conj expanded-key (next-word expanded-key cpt-words))
              (inc cpt-words))
       expanded-key)))
+
+;; Cipher and Decipher a block
 
 (defn cipher-block
   "cipher block against key
@@ -160,3 +197,28 @@
         (-> (sub-bytes state)
             (shift-rows)
             (add-round-key (reverse-matrix (take block-size key))))))))
+
+(defn decipher-block
+  "cipher block against key
+  block is a matrix of 4*Nb as described in section 3.4 of FIPS 197
+  key is a sequence of bytes (that will be expanded in the implementation)
+  returns the output in the same format as block"
+  [block key]
+  (let [expanded-key (partition block-size (key-expansion key))
+        first-state  (add-round-key block
+                                    (reverse-matrix (last expanded-key)))]
+    (loop [key   (drop-last expanded-key)
+           state first-state
+           round 1]
+      (println "--" "round" round "--")
+      (print-block state)
+      (if (< round nb-round)
+        (recur (drop-last key)
+               (-> (inv-shift-row state)
+                   (inv-sub-bytes)
+                   (add-round-key (reverse-matrix (last key)))
+                   (inv-mix-columns))
+               (inc round))
+        (-> (inv-shift-row state)
+            (inv-sub-bytes)
+            (add-round-key (reverse-matrix (last key))))))))
