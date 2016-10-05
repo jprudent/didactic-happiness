@@ -104,3 +104,25 @@
               (blocks->bytes)
               (bytes->ascii-string))
           "The girlies sa y they love me and that is ok"))))
+
+(deftest set_1_11
+  (testing "Detecting ECB or CBC"
+    (let [
+          rand-byte         (fn [] (rand-int 256))
+          random-bytes      (fn [n] (repeatedly n rand-byte))
+          random-key        (partial random-bytes (* block-size word-size))
+          random-iv         random-key
+          encryption-oracle (fn [plain-bytes]
+                              (let [my-bytes (random-bytes (+ 5 (rand-int 6)))
+                                    key      (random-key)
+                                    cipher   (if (even? (rand-int 7))
+                                               #(cipher-ecb % key)
+                                               #(cipher-cbc % key (random-iv)))]
+                                (-> (concat my-bytes plain-bytes my-bytes)
+                                    (pkcs7-padding (* block-size word-size))
+                                    cipher
+                                    (blocks->bytes))))]
+      (with-redefs [rand-int (constantly 0)]
+        (is (ecb-mode? (encryption-oracle (repeat 333 0xAA)))))
+      (with-redefs [rand-int (constantly 1)]
+        (is (not (ecb-mode? (encryption-oracle (repeat 333 0xAA)))))))))

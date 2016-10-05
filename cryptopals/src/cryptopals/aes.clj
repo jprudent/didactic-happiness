@@ -241,7 +241,7 @@
   [ciphered-bytes key iv]
   {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}          ;; padding is not supported
   (let [ciphered-blocks (bytes->blocks ciphered-bytes)
-        iv-block        (first (bytes->blocks (pkcs7-padding iv 16)))]
+        iv-block        (first (bytes->blocks (pkcs7-padding iv (* block-size word-size))))]
     (reduce (fn [result [previous-block block]]
               (conj result
                     (xor-blocks (decipher-block block key)
