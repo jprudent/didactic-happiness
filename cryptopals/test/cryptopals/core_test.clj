@@ -3,7 +3,8 @@
             [cryptopals.core :refer :all]
             [cryptopals.ascii-bytes :refer :all]
             [cryptopals.xor :refer :all]
-            [cryptopals.aes :refer :all]))
+            [cryptopals.aes :refer :all]
+            [cryptopals.aes-detect :refer :all]))
 
 (deftest set_1_1
   (testing "Encode to Base 64"
@@ -63,9 +64,20 @@
   (testing "Decipher an AES 128 in ECB mode"
     (is (clojure.string/includes?
           (-> (slurp "http://www.cryptopals.com/static/challenge-data/7.txt")
-                  (clojure.string/replace "\n" "")
-                  (base64->bytes)
-                  (decipher-ecb (ascii-string->bytes "YELLOW SUBMARINE"))
-                  (blocks->bytes)
-                  (bytes->ascii-string))
+              (clojure.string/replace "\n" "")
+              (base64->bytes)
+              (decipher-ecb (ascii-string->bytes "YELLOW SUBMARINE"))
+              (blocks->bytes)
+              (bytes->ascii-string))
           "Supercalafragilisticexpialidocious"))))
+
+(deftest set_1_8
+  (testing "Detect AES in ECB mode"
+    (is (clojure.string/starts-with?
+          (->> (slurp "http://www.cryptopals.com/static/challenge-data/8.txt")
+               (clojure.string/split-lines)
+               (map cryptopals.ascii-bytes/hexstring->bytes)
+               (detect-aes-ecb)
+               first
+               bytes->hexstring)
+          "d88061"))))
