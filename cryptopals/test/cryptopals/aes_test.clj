@@ -94,11 +94,9 @@
                  (hexstring->bytes "e353779c1079aeb82708942dbe77181a")
                  (hexstring->bytes "06a9214036b8a15b512e03d534120006")
                  (hexstring->bytes "3dafba429d9eb430b422da802c9fac41"))
-               (blocks->bytes)
                (bytes->ascii-string))))
     (is (= (hexstring->bytes "e353779c1079aeb82708942dbe77181a")
            (-> (cipher-cbc
                  (ascii-string->bytes "Single block msg")
                  (hexstring->bytes "06a9214036b8a15b512e03d534120006")
-                 (hexstring->bytes "3dafba429d9eb430b422da802c9fac41"))
-               (blocks->bytes))))))
+                 (hexstring->bytes "3dafba429d9eb430b422da802c9fac41")))))))

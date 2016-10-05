@@ -67,7 +67,6 @@
               (clojure.string/replace "\n" "")
               (base64->bytes)
               (decipher-ecb (ascii-string->bytes "YELLOW SUBMARINE"))
-              (blocks->bytes)
               (bytes->ascii-string))
           "Supercalafragilisticexpialidocious"))))
 
@@ -101,7 +100,6 @@
               (clojure.string/replace "\n" "")
               (cryptopals.ascii-bytes/base64->bytes)
               (decipher-cbc (ascii-string->bytes "YELLOW SUBMARINE") (repeat 16 0))
-              (blocks->bytes)
               (bytes->ascii-string))
           "The girlies sa y they love me and that is ok"))))
 
@@ -120,8 +118,7 @@
                                                #(cipher-cbc % key (random-iv)))]
                                 (-> (concat my-bytes plain-bytes my-bytes)
                                     (pkcs7-padding (* block-size word-size))
-                                    cipher
-                                    (blocks->bytes))))]
+                                    cipher)))]
       (with-redefs [rand-int (constantly 0)]
         (is (ecb-mode? (encryption-oracle (repeat 333 0xAA)))))
       (with-redefs [rand-int (constantly 1)]

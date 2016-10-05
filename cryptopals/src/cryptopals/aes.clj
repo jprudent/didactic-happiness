@@ -212,12 +212,12 @@
 (defn cipher-ecb
   [plain-bytes key]
   {:pre [(= 0 (mod (count plain-bytes) (* block-size word-size)))]}             ;; padding is not supported
-  (map #(cipher-block %1 key) (bytes->blocks plain-bytes)))
+  (blocks->bytes (map #(cipher-block %1 key) (bytes->blocks plain-bytes))))
 
 (defn decipher-ecb
   [ciphered-bytes key]
-  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}          ;; padding is not supported
-  (map #(decipher-block %1 key) (bytes->blocks ciphered-bytes)))
+  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}
+  (blocks->bytes (map #(decipher-block %1 key) (bytes->blocks ciphered-bytes))))
 
 (defn pkcs7-padding
   [bytes block-size]
@@ -229,26 +229,30 @@
 (defn cipher-cbc
   [plain-bytes key iv]
   {:pre [(= 0 (mod (count plain-bytes) (* block-size word-size)))]}             ;; padding is not supported
-  (let [iv-block (first (bytes->blocks iv))]
-    (reduce (fn [result block]
-              (conj result
-                    (cipher-block (xor-blocks block (or (last result) iv-block))
-                                  key)))
-            []
-            (bytes->blocks plain-bytes))))
+  (blocks->bytes
+    (let [iv-block (first (bytes->blocks iv))]
+      (reduce (fn [result block]
+                (conj result
+                      (cipher-block (xor-blocks block (or (last result) iv-block))
+                                    key)))
+              []
+              (bytes->blocks plain-bytes)))))
 
 (defn decipher-cbc
   [ciphered-bytes key iv]
-  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}          ;; padding is not supported
-  (let [ciphered-blocks (bytes->blocks ciphered-bytes)
-        iv-block        (first (bytes->blocks (pkcs7-padding iv (* block-size word-size))))]
-    (reduce (fn [result [previous-block block]]
-              (conj result
-                    (xor-blocks (decipher-block block key)
-                                previous-block)))
-            []
-            (map vector
-                 (concat [iv-block] ciphered-blocks)
-                 ciphered-blocks))))
+  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}
+  (blocks->bytes
+    (let [ciphered-blocks  (bytes->blocks ciphered-bytes)
+          iv-block         (-> (pkcs7-padding iv (* block-size word-size))
+                               bytes->blocks
+                               first)]
+      (reduce (fn [result [previous-block block]]
+                (conj result
+                      (xor-blocks (decipher-block block key)
+                                  previous-block)))
+              []
+              (map vector
+                   (concat [iv-block] ciphered-blocks)
+                   ciphered-blocks)))))
 
 
