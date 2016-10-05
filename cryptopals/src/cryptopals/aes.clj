@@ -1,6 +1,6 @@
 (ns cryptopals.aes)
 
-;; some cool debugging utils
+;; some cool debugging utils ^^
 
 (defn print-word [word]
   (print "|")
@@ -75,31 +75,19 @@
   (map #(map box %) state))
 
 (defn sub-bytes [state]
-  (println "  - sub bytes")
-  (println "    - IN : ")
-  (print-block state)
   (-sub-bytes state s-box))
 
 (defn inv-sub-bytes [state]
-  (println "  - inv sub bytes")
-  (println "    - IN : ")
-  (print-block state)
   (-sub-bytes state inv-s-box))
 
 
 ;; ShiftRows and InvShiftRows operations
 
 (defn shift-rows [state]
-  (println "  - shift rows")
-  (println "    - IN : ")
-  (print-block state)
   (map (partial rot-word)
        state (range)))
 
 (defn inv-shift-row [state]
-  (println "  - inv shift rows")
-  (println "    - IN : ")
-  (print-block state)
   (map (fn [row shift] (rot-word row (- (count row) shift)))
        state (range)))
 
@@ -111,15 +99,9 @@
       (reduce #(bit-xor %1 %2) 0 (map gf* (nth ax i) column)))))
 
 (defn mix-columns [state]
-  (println "  - mix columns")
-  (println "    - IN : ")
-  (print-block state)
   (reverse-matrix (map #(mix-column % [0x02 0x03 0x01 0x01]) (reverse-matrix state))))
 
 (defn inv-mix-columns [state]
-  (println "  - mix columns")
-  (println "    - IN : ")
-  (print-block state)
   (reverse-matrix (map #(mix-column % [0x0E 0x0B 0x0D 0x09]) (reverse-matrix state))))
 
 ;; AddRoundKey operation
@@ -128,11 +110,6 @@
   (map bit-xor xs ys))
 
 (defn add-round-key [state key]
-  (println "  - Add round key")
-  (println "    - IN : ")
-  (print-block state)
-  (println "    - KEY : ")
-  (print-block key)
   (map xor-words state key))
 
 
@@ -185,8 +162,6 @@
     (loop [key   (drop block-size expanded-key)
            state first-state
            round 1]
-      (println "--" "round" round "--")
-      (print-block state)
       (if (< round nb-round)
         (recur (drop block-size key)
                (-> (sub-bytes state)
@@ -210,8 +185,6 @@
     (loop [key   (drop-last expanded-key)
            state first-state
            round 1]
-      (println "--" "round" round "--")
-      (print-block state)
       (if (< round nb-round)
         (recur (drop-last key)
                (-> (inv-shift-row state)
@@ -222,3 +195,27 @@
         (-> (inv-shift-row state)
             (inv-sub-bytes)
             (add-round-key (reverse-matrix (last key))))))))
+
+(defn blocks->bytes
+  "Convert a seq of blockes as described in section 3.4 of FIPS 197
+  in a sequence of bytes"
+  [blocks]
+  (flatten (map #(flatten (reverse-matrix %1)) blocks)))
+
+(defn bytes->blocks
+  "returns a seq of blocks as described in section 3.4 of FIPS 197"
+  [bytes]
+  (map #(reverse-matrix (partition block-size %1))
+       (partition (* 4 block-size) bytes)))
+
+(defn cipher-ecb
+  [plain-bytes key]
+  {:pre [(= 0 (mod (count plain-bytes) (* block-size 4)))]}                     ;; padding is not supported
+  (map #(cipher-block %1 key) (bytes->blocks plain-bytes)))
+
+(defn decipher-ecb
+  [ciphered-bytes key]
+  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size 4)))]}                  ;; padding is not supported
+  (map #(decipher-block %1 key) (bytes->blocks ciphered-bytes)))
+
+

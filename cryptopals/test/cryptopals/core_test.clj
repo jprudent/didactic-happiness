@@ -2,7 +2,8 @@
   (:require [clojure.test :refer :all]
             [cryptopals.core :refer :all]
             [cryptopals.ascii-bytes :refer :all]
-            [cryptopals.xor :refer :all]))
+            [cryptopals.xor :refer :all]
+            [cryptopals.aes :refer :all]))
 
 (deftest set_1_1
   (testing "Encode to Base 64"
@@ -57,3 +58,14 @@
                    (crack-repeating-xor-key)
                    (map second)
                    (map bytes->ascii-string))))))
+
+(deftest set_1_7
+  (testing "Decipher an AES 128 in ECB mode"
+    (is (clojure.string/includes?
+          (-> (slurp "http://www.cryptopals.com/static/challenge-data/7.txt")
+                  (clojure.string/replace "\n" "")
+                  (base64->bytes)
+                  (decipher-ecb (ascii-string->bytes "YELLOW SUBMARINE"))
+                  (blocks->bytes)
+                  (bytes->ascii-string))
+          "Supercalafragilisticexpialidocious"))))
