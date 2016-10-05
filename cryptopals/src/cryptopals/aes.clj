@@ -206,16 +206,23 @@
   "returns a seq of blocks as described in section 3.4 of FIPS 197"
   [bytes]
   (map #(reverse-matrix (partition block-size %1))
-       (partition (* 4 block-size) bytes)))
+       (partition (* word-size block-size) bytes)))
 
 (defn cipher-ecb
   [plain-bytes key]
-  {:pre [(= 0 (mod (count plain-bytes) (* block-size 4)))]}                     ;; padding is not supported
+  {:pre [(= 0 (mod (count plain-bytes) (* block-size word-size)))]}                     ;; padding is not supported
   (map #(cipher-block %1 key) (bytes->blocks plain-bytes)))
 
 (defn decipher-ecb
   [ciphered-bytes key]
-  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size 4)))]}                  ;; padding is not supported
+  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}                  ;; padding is not supported
   (map #(decipher-block %1 key) (bytes->blocks ciphered-bytes)))
+
+(defn pkcs7-padding
+  [bytes block-size]
+  {:pre  [(pos? (count bytes))]
+   :post [(zero? (mod (count %) block-size))]}
+  (let [padding-size (- block-size (mod (count bytes) block-size))]
+    (concat bytes (repeat padding-size  padding-size))))
 
 

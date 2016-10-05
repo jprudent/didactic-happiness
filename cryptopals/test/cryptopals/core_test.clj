@@ -81,3 +81,15 @@
                first
                bytes->hexstring)
           "d88061"))))
+
+(deftest set_1_9
+  (testing "Padding using PKCS#7"
+    (is (= "YELLOW SUBMARINE\u0004\u0004\u0004\u0004"
+           (-> (ascii-string->bytes "YELLOW SUBMARINE")
+               (pkcs7-padding 20)
+               (bytes->ascii-string))))
+    (is (= (apply str "YELLOW SUBMARINE" (repeat 16 "\u0010"))
+            (-> (ascii-string->bytes "YELLOW SUBMARINE")
+                   (pkcs7-padding 16)
+                   (bytes->ascii-string)))
+        "An extra block is added if message is a multiple of block size")))
