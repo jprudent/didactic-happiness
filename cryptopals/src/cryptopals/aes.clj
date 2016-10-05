@@ -36,7 +36,7 @@
 
 ;; bits, bytes and words utilities
 
-(defn byte-rotate-right [byte]
+(defn cycle-bits-right [byte]
   (bit-or
     (bit-shift-right byte 1)
     (if (bit-test byte 0) 128 0)))
@@ -106,12 +106,13 @@
 
 ;; AddRoundKey operation
 
-(defn xor-words [xs ys]
-  (map bit-xor xs ys))
+(defn xor-words [x y]
+  (map bit-xor x y))
 
-(defn add-round-key [state key]
+(defn xor-blocks [state key]
   (map xor-words state key))
 
+(def add-round-key xor-blocks)
 
 ;; Key expansion
 
@@ -210,12 +211,12 @@
 
 (defn cipher-ecb
   [plain-bytes key]
-  {:pre [(= 0 (mod (count plain-bytes) (* block-size word-size)))]}                     ;; padding is not supported
+  {:pre [(= 0 (mod (count plain-bytes) (* block-size word-size)))]}             ;; padding is not supported
   (map #(cipher-block %1 key) (bytes->blocks plain-bytes)))
 
 (defn decipher-ecb
   [ciphered-bytes key]
-  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}                  ;; padding is not supported
+  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}          ;; padding is not supported
   (map #(decipher-block %1 key) (bytes->blocks ciphered-bytes)))
 
 (defn pkcs7-padding
@@ -223,6 +224,31 @@
   {:pre  [(pos? (count bytes))]
    :post [(zero? (mod (count %) block-size))]}
   (let [padding-size (- block-size (mod (count bytes) block-size))]
-    (concat bytes (repeat padding-size  padding-size))))
+    (concat bytes (repeat padding-size padding-size))))
+
+(defn cipher-cbc
+  [plain-bytes key iv]
+  {:pre [(= 0 (mod (count plain-bytes) (* block-size word-size)))]}             ;; padding is not supported
+  (let [iv-block (first (bytes->blocks iv))]
+    (reduce (fn [result block]
+              (conj result
+                    (cipher-block (xor-blocks block (or (last result) iv-block))
+                                  key)))
+            []
+            (bytes->blocks plain-bytes))))
+
+(defn decipher-cbc
+  [ciphered-bytes key iv]
+  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}          ;; padding is not supported
+  (let [ciphered-blocks (bytes->blocks ciphered-bytes)
+        iv-block        (first (bytes->blocks (pkcs7-padding iv 16)))]
+    (reduce (fn [result [previous-block block]]
+              (conj result
+                    (xor-blocks (decipher-block block key)
+                                previous-block)))
+            []
+            (map vector
+                 (concat [iv-block] ciphered-blocks)
+                 ciphered-blocks))))
 
 

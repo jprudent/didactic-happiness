@@ -89,7 +89,18 @@
                (pkcs7-padding 20)
                (bytes->ascii-string))))
     (is (= (apply str "YELLOW SUBMARINE" (repeat 16 "\u0010"))
-            (-> (ascii-string->bytes "YELLOW SUBMARINE")
-                   (pkcs7-padding 16)
-                   (bytes->ascii-string)))
+           (-> (ascii-string->bytes "YELLOW SUBMARINE")
+               (pkcs7-padding 16)
+               (bytes->ascii-string)))
         "An extra block is added if message is a multiple of block size")))
+
+(deftest set_1_10
+  (testing "Decipher AES 128 CBC"
+    (is (clojure.string/includes?
+          (-> (slurp "http://www.cryptopals.com/static/challenge-data/10.txt")
+              (clojure.string/replace "\n" "")
+              (cryptopals.ascii-bytes/base64->bytes)
+              (decipher-cbc (ascii-string->bytes "YELLOW SUBMARINE") (repeat 16 0))
+              (blocks->bytes)
+              (bytes->ascii-string))
+          "The girlies sa y they love me and that is ok"))))

@@ -1,6 +1,7 @@
 (ns cryptopals.aes-test
   (:require [clojure.test :refer :all]
-            [cryptopals.aes :refer :all]))
+            [cryptopals.aes :refer :all]
+            [cryptopals.ascii-bytes :refer :all]))
 
 (deftest test_gf*
   (testing "(x^6 + x^4 + x^2 + x + 1)(x^7 + x + 1) = x^7 + x^6 + 1"
@@ -10,7 +11,7 @@
 
 (deftest byte_rotate
   (testing "byte rotation"
-    (is (= 2r10000001 (byte-rotate-right 2r11)))))
+    (is (= 2r10000001 (cycle-bits-right 2r11)))))
 
 (deftest sub_byte
   (testing "SubByte operation"
@@ -85,3 +86,19 @@
                  0xab 0xf7 0x15 0x88
                  0x09 0xcf 0x4f 0x3c]]
       (is (= block (decipher-block (cipher-block block key) key))))))
+
+(deftest decipher_cbc
+  (testing "One block"                                                          ;; see https://tools.ietf.org/html/rfc3602
+    (is (= "Single block msg"
+           (-> (decipher-cbc
+                 (hexstring->bytes "e353779c1079aeb82708942dbe77181a")
+                 (hexstring->bytes "06a9214036b8a15b512e03d534120006")
+                 (hexstring->bytes "3dafba429d9eb430b422da802c9fac41"))
+               (blocks->bytes)
+               (bytes->ascii-string))))
+    (is (= (hexstring->bytes "e353779c1079aeb82708942dbe77181a")
+           (-> (cipher-cbc
+                 (ascii-string->bytes "Single block msg")
+                 (hexstring->bytes "06a9214036b8a15b512e03d534120006")
+                 (hexstring->bytes "3dafba429d9eb430b422da802c9fac41"))
+               (blocks->bytes))))))
