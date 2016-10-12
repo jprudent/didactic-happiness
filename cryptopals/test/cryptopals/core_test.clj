@@ -119,16 +119,27 @@
       (with-redefs [rand-int (constantly 1)]
         (is (not (ecb-mode? (encryption-oracle (repeat 333 0xAA)))))))))
 
-#_(deftest set_2_12
-    (testing "Crack ECB mode"
-      (let [key          (random-key)
-            cipher-ecb   (fn [plain-bytes] (cipher-ecb plain-bytes key))
-            unknown-text (base64->bytes "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK")
-            oracle       (fn [plain-bytes]
-                           (cipher-ecb
-                             (concat plain-bytes unknown-text)))]
-        (is (= unknown-text
-               (crack-ecb oracle))))))
+(deftest set_2_12-14
+  (testing "Crack ECB mode (easy)"
+    (let [key          (random-key)
+          cipher-ecb   (fn [plain-bytes] (cipher-ecb plain-bytes key))
+          unknown-text (base64->bytes "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK")
+          oracle       (fn [plain-bytes]
+                         (cipher-ecb
+                           (concat plain-bytes unknown-text)))]
+      (is (= unknown-text
+             (one-byte-at-a-time-attack oracle)))))
+  (testing "Cracking ECB mode (hard)"
+    (let [unknown-text (ascii-string->bytes "Simple made easy : Clojure")
+          key          (random-key)
+          prelude      (random-bytes (rand-int 123))
+          oracle       (fn [plain-bytes]
+                         (cipher-ecb (concat prelude
+                                             plain-bytes
+                                             unknown-text)
+                                     key))]
+      (is (= unknown-text
+             (one-byte-at-a-time-attack oracle))))))
 
 (deftest set_2_13
   (testing "copy paste attack"
@@ -141,9 +152,10 @@
                                           (array-map "email" (sanitize email)
                                                      "uid" 10
                                                      "role" "user")))
+          key               (random-key)
           encrypt           (fn [s] (cipher-ecb (cryptopals.ascii-bytes/ascii-string->bytes s)
-                                                (range 16)))
-          decrypt           (fn [bytes] (-> (decipher-ecb bytes (range 16))
+                                                key))
+          decrypt           (fn [bytes] (-> (decipher-ecb bytes key)
                                             bytes->ascii-string
                                             query-string->map))
           oracle            (comp encrypt profile-for)

@@ -193,6 +193,7 @@
 (defn bytes->blocks
   "returns a seq of blocks as described in section 3.4 of FIPS 197"
   [bytes]
+  {:pre [(coll? bytes)]}
   (map #(reverse-matrix (partition block-size %1))
        (partition (* word-size block-size) bytes)))
 
