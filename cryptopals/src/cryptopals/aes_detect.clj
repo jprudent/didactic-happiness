@@ -1,5 +1,6 @@
 (ns cryptopals.aes-detect
-  (:require [cryptopals.aes :refer :all]))
+  (:require [cryptopals.aes :refer :all]
+            [cryptopals.ascii-bytes :refer :all]))
 
 (defn frequency-of-most-repeated-block
   [bytes]
@@ -29,7 +30,9 @@
   "returns the block size of the oracle
   Limitation : This only works if oracle is prepending input."
   [oracle]
-  (first (let [ciphered (oracle (repeat 1000 0xAA))]
+  (first (let [ciphered       (oracle (repeat 1000 0xAA))
+               starting-index (quot (count ciphered) 3)
+               ciphered       (drop starting-index ciphered)]
            (filter (complement nil?)
                    (for [i (range 4 100)
                          :let [chunk    (take i ciphered)
@@ -69,3 +72,23 @@
            (recur (conj acc cracked-byte)))
        (drop-last acc)))))                                                      ;; drop last because it's 0x01 padding
 
+#_(defn two-consecutive-identical-blocks? [bytes block-size]
+    (let [blocks (partition block-size bytes)]
+      (->> (map vector blocks (concat [nil] blocks))
+           (some (fn [[block next-block]] (= block next-block))))))
+
+#_(defn pad-before
+    "If you pass a string that have a size computed by this fonction,
+     under the hood, the oracle will cipher a message that have a size
+     multiple of block-size. That also means that the last block is
+     entirely a padding block (assuming that PKCS7 is used).
+     This only works if the oracle is a padding oracle that prepends a constant."
+    [oracle block-size]
+    (let [block (apply str (repeat block-size "A"))]
+      (some
+        (fn [[i ciphered]]
+          (when (two-consecutive-identical-blocks? ciphered block-size) i))
+        (for [i (range 0 (inc block-size))
+              :let [padding  (apply str (repeat i "A"))
+                    ciphered (oracle (str padding block block))]]
+          [i ciphered]))))

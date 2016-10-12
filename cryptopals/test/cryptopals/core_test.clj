@@ -119,13 +119,43 @@
       (with-redefs [rand-int (constantly 1)]
         (is (not (ecb-mode? (encryption-oracle (repeat 333 0xAA)))))))))
 
-(deftest set_2_12
-  (testing "Crack ECB mode"
-    (let [key          (random-key)
-          cipher-ecb   (fn [plain-bytes] (cipher-ecb plain-bytes key))
-          unknown-text (base64->bytes "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK")
-          oracle       (fn [plain-bytes]
-                         (cipher-ecb
-                           (concat plain-bytes unknown-text)))]
-      (is (= unknown-text
-             (crack-ecb oracle))))))
+#_(deftest set_2_12
+    (testing "Crack ECB mode"
+      (let [key          (random-key)
+            cipher-ecb   (fn [plain-bytes] (cipher-ecb plain-bytes key))
+            unknown-text (base64->bytes "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK")
+            oracle       (fn [plain-bytes]
+                           (cipher-ecb
+                             (concat plain-bytes unknown-text)))]
+        (is (= unknown-text
+               (crack-ecb oracle))))))
+
+(deftest set_2_13
+  (testing "copy paste attack"
+    (let [query-string->map (fn [q] (->> (clojure.string/split q #"&")
+                                         (map #(clojure.string/split % #"="))
+                                         (into {})))
+          map->query-string (fn [o] (clojure.string/join "&" (map (fn [[k v]] (str k "=" v)) o)))
+          sanitize          (fn [s] (clojure.string/replace s #"&|=" ""))
+          profile-for       (fn [email] (map->query-string
+                                          (array-map "email" (sanitize email)
+                                                     "uid" 10
+                                                     "role" "user")))
+          encrypt           (fn [s] (cipher-ecb (cryptopals.ascii-bytes/ascii-string->bytes s)
+                                                (range 16)))
+          decrypt           (fn [bytes] (-> (decipher-ecb bytes (range 16))
+                                            bytes->ascii-string
+                                            query-string->map))
+          oracle            (comp encrypt profile-for)
+          mk-string         (fn [size] (apply str (repeat size "X")))
+          copy-paste-attack (fn [oracle]
+                              (let [block-size    (detect-block-size oracle)
+                                    forged-head   (take (* 2 block-size) (oracle (mk-string 13))) ;; forge a block like "...role="
+                                    forged-middle (take block-size              ;; forge a block like "admin&...&rol"
+                                                        (drop block-size
+                                                              (oracle (str (mk-string 10) "admin"))))
+                                    forged-tail   (take block-size
+                                                        (drop (* 2 block-size)
+                                                              (oracle (str (mk-string 14)))))] ;; forge a block like "=user..."
+                                (concat forged-head forged-middle forged-tail)))]
+      (is (= "admin" (-> (copy-paste-attack oracle) decrypt (get "role")))))))
