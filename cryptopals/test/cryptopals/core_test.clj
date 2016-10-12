@@ -171,3 +171,17 @@
                                                               (oracle (str (mk-string 14)))))] ;; forge a block like "=user..."
                                 (concat forged-head forged-middle forged-tail)))]
       (is (= "admin" (-> (copy-paste-attack oracle) decrypt (get "role")))))))
+
+(deftest set_2_15
+  (testing "PKCS#7 unpadding validation"
+    (is (= "ICE ICE BABY" (-> (ascii-string->bytes "ICE ICE BABY\u0004\u0004\u0004\u0004")
+                              pkcs7-unpadding
+                              bytes->ascii-string)))
+    (let [dataset (map #(vector % (pkcs7-padding % 16))
+                       (map ascii-string->bytes ["0123456789ABCDEF" "ICE ICE BABY"]))]
+      (is (= nil (some (fn [[original padded]]
+                         (when (not (> (count padded) (count original))) original))
+                       dataset)))
+      (is (= nil (some (fn [[original padded]]
+                         (when (not= original (pkcs7-unpadding padded)) original))
+                       dataset))))))

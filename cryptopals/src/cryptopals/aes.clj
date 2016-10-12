@@ -204,11 +204,19 @@
   (let [padding-size (- block-size (mod (count bytes) block-size))]
     (concat bytes (repeat padding-size padding-size))))
 
+(defn pkcs7-unpadding
+  [bytes]
+  (let [nb (last bytes)
+        [text pad] (split-at (- (count bytes) nb) bytes)]
+    (if (not= (repeat nb nb) pad)
+      (throw (new Exception))
+      text)))
+
 (defn cipher-ecb
   [plain-bytes key]
   (let [size        (* block-size word-size)
         plain-bytes (pkcs7-padding plain-bytes size)
-        key (key-expansion key)]
+        key         (key-expansion key)]
     (blocks->bytes (pmap #(cipher-block %1 key) (bytes->blocks plain-bytes)))))
 
 (defn decipher-ecb
@@ -221,7 +229,7 @@
   [plain-bytes key iv]
   (blocks->bytes
     (let [iv-block (first (bytes->blocks iv))
-          key (key-expansion key)]
+          key      (key-expansion key)]
       (reduce (fn [result block]
                 (conj result
                       (cipher-block (xor-blocks block (or (last result) iv-block))
@@ -237,7 +245,7 @@
           iv-block        (-> (pkcs7-padding iv (* block-size word-size))
                               bytes->blocks
                               first)
-          key (key-expansion key)]
+          key             (key-expansion key)]
       (reduce (fn [result [previous-block block]]
                 (conj result
                       (xor-blocks (decipher-block block key)
