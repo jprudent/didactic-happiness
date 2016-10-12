@@ -185,3 +185,31 @@
       (is (= nil (some (fn [[original padded]]
                          (when (not= original (pkcs7-unpadding padded)) original))
                        dataset))))))
+
+(deftest set_2_16
+  (testing "bitflip attack"
+    (let [key             (random-key)
+          iv              (random-bytes 16)
+          quote-out       (fn [plain-text]
+                            (-> (clojure.string/replace plain-text ";" "X")
+                                (clojure.string/replace "=" "X")))
+          oracle          (fn [plain-text]
+                            (-> (concat "comment1=cooking%20MCs;userdata="
+                                        (quote-out plain-text)
+                                        ";comment2=%20like%20a%20pound%20of%20bacon")
+                                (ascii-string->bytes)
+                                (cipher-cbc key iv)))
+          decrypt         (fn [ciphered-bytes]
+                            (-> (decipher-cbc ciphered-bytes key iv)
+                                (pkcs7-unpadding)
+                                (bytes->ascii-string)))
+          admin?          (fn [plain-text]
+                            (not (nil? (re-matches #".*;admin=true;.*" plain-text))))
+
+          bit-flip-attack (fn [oracle]                                          ;; The attack is really specific to the challeng 2.16.
+                            (let [unquoted-string   ":admin<true:"              ;; ';' ^ 1 = ':' AND '=' ^ 1 = '<'
+                                  compromised       (oracle unquoted-string)
+                                  bitflip-positions {16 1, 22 1, 27 1}]
+                              (map (fn [i ciphered] (bit-xor ciphered (get bitflip-positions i 0)))
+                                   (range) compromised)))]
+      (is (admin? (decrypt (bit-flip-attack oracle)))))))
