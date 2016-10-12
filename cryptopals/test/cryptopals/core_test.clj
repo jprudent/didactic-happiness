@@ -81,7 +81,7 @@
                bytes->hexstring)
           "d88061"))))
 
-(deftest set_1_9
+(deftest set_2_9
   (testing "Padding using PKCS#7"
     (is (= "YELLOW SUBMARINE\u0004\u0004\u0004\u0004"
            (-> (ascii-string->bytes "YELLOW SUBMARINE")
@@ -93,7 +93,7 @@
                (bytes->ascii-string)))
         "An extra block is added if message is a multiple of block size")))
 
-(deftest set_1_10
+(deftest set_2_10
   (testing "Decipher AES 128 CBC"
     (is (clojure.string/includes?
           (-> (slurp "http://www.cryptopals.com/static/challenge-data/10.txt")
@@ -103,13 +103,9 @@
               (bytes->ascii-string))
           "The girlies sa y they love me and that is ok"))))
 
-(deftest set_1_11
+(deftest set_2_11
   (testing "Detecting ECB or CBC"
-    (let [
-          rand-byte         (fn [] (rand-int 256))
-          random-bytes      (fn [n] (repeatedly n rand-byte))
-          random-key        (partial random-bytes (* block-size word-size))
-          random-iv         random-key
+    (let [random-iv         random-key
           encryption-oracle (fn [plain-bytes]
                               (let [my-bytes (random-bytes (+ 5 (rand-int 6)))
                                     key      (random-key)
@@ -117,9 +113,19 @@
                                                #(cipher-ecb % key)
                                                #(cipher-cbc % key (random-iv)))]
                                 (-> (concat my-bytes plain-bytes my-bytes)
-                                    (pkcs7-padding (* block-size word-size))
                                     cipher)))]
       (with-redefs [rand-int (constantly 0)]
         (is (ecb-mode? (encryption-oracle (repeat 333 0xAA)))))
       (with-redefs [rand-int (constantly 1)]
         (is (not (ecb-mode? (encryption-oracle (repeat 333 0xAA)))))))))
+
+(deftest set_2_12
+  (testing "Crack ECB mode"
+    (let [key          (random-key)
+          cipher-ecb   (fn [plain-bytes] (cipher-ecb plain-bytes key))
+          unknown-text (base64->bytes "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK")
+          oracle       (fn [plain-bytes]
+                         (cipher-ecb
+                           (concat plain-bytes unknown-text)))]
+      (is (= unknown-text
+             (crack-ecb oracle))))))

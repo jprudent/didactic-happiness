@@ -1,18 +1,5 @@
 (ns cryptopals.aes)
 
-;; some cool debugging utils ^^
-
-(defn print-word [word]
-  (print "|")
-  (doseq [elem word]
-    (print (format "%02X|" elem))))
-
-(defn print-block [block]
-  (doseq [word block]
-    (do (print-word word)
-        (println ""))))
-
-
 ;; Some Galois field arithmetic
 
 (def gf+ bit-xor)
@@ -154,10 +141,10 @@
 (defn cipher-block
   "cipher block against key
   block is a matrix of 4*Nb as described in section 3.4 of FIPS 197
-  key is a sequence of bytes (that will be expanded in the implementation)
+  key should already be exansioned
   returns the output in the same format as block"
   [block key]
-  (let [expanded-key (key-expansion key)
+  (let [expanded-key key
         first-state  (add-round-key block
                                     (reverse-matrix (take block-size expanded-key)))]
     (loop [key   (drop block-size expanded-key)
@@ -177,10 +164,10 @@
 (defn decipher-block
   "cipher block against key
   block is a matrix of 4*Nb as described in section 3.4 of FIPS 197
-  key is a sequence of bytes (that will be expanded in the implementation)
+  key should already be exansioned
   returns the output in the same format as block"
   [block key]
-  (let [expanded-key (partition block-size (key-expansion key))
+  (let [expanded-key (partition block-size key)
         first-state  (add-round-key block
                                     (reverse-matrix (last expanded-key)))]
     (loop [key   (drop-last expanded-key)
@@ -209,16 +196,6 @@
   (map #(reverse-matrix (partition block-size %1))
        (partition (* word-size block-size) bytes)))
 
-(defn cipher-ecb
-  [plain-bytes key]
-  {:pre [(= 0 (mod (count plain-bytes) (* block-size word-size)))]}             ;; padding is not supported
-  (blocks->bytes (map #(cipher-block %1 key) (bytes->blocks plain-bytes))))
-
-(defn decipher-ecb
-  [ciphered-bytes key]
-  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}
-  (blocks->bytes (map #(decipher-block %1 key) (bytes->blocks ciphered-bytes))))
-
 (defn pkcs7-padding
   [bytes block-size]
   {:pre  [(pos? (count bytes))]
@@ -226,26 +203,40 @@
   (let [padding-size (- block-size (mod (count bytes) block-size))]
     (concat bytes (repeat padding-size padding-size))))
 
+(defn cipher-ecb
+  [plain-bytes key]
+  (let [size        (* block-size word-size)
+        plain-bytes (pkcs7-padding plain-bytes size)
+        key (key-expansion key)]
+    (blocks->bytes (pmap #(cipher-block %1 key) (bytes->blocks plain-bytes)))))
+
+(defn decipher-ecb
+  [ciphered-bytes key]
+  {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}
+  (let [key (key-expansion key)]
+    (blocks->bytes (pmap #(decipher-block %1 key) (bytes->blocks ciphered-bytes)))))
+
 (defn cipher-cbc
   [plain-bytes key iv]
-  {:pre [(= 0 (mod (count plain-bytes) (* block-size word-size)))]}             ;; padding is not supported
   (blocks->bytes
-    (let [iv-block (first (bytes->blocks iv))]
+    (let [iv-block (first (bytes->blocks iv))
+          key (key-expansion key)]
       (reduce (fn [result block]
                 (conj result
                       (cipher-block (xor-blocks block (or (last result) iv-block))
                                     key)))
               []
-              (bytes->blocks plain-bytes)))))
+              (bytes->blocks (pkcs7-padding plain-bytes (* block-size word-size)))))))
 
 (defn decipher-cbc
   [ciphered-bytes key iv]
   {:pre [(= 0 (mod (count ciphered-bytes) (* block-size word-size)))]}
   (blocks->bytes
-    (let [ciphered-blocks  (bytes->blocks ciphered-bytes)
-          iv-block         (-> (pkcs7-padding iv (* block-size word-size))
-                               bytes->blocks
-                               first)]
+    (let [ciphered-blocks (bytes->blocks ciphered-bytes)
+          iv-block        (-> (pkcs7-padding iv (* block-size word-size))
+                              bytes->blocks
+                              first)
+          key (key-expansion key)]
       (reduce (fn [result [previous-block block]]
                 (conj result
                       (xor-blocks (decipher-block block key)

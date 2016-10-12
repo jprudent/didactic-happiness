@@ -1,4 +1,5 @@
-(ns cryptopals.aes-detect)
+(ns cryptopals.aes-detect
+  (:require [cryptopals.aes :refer :all]))
 
 (defn frequency-of-most-repeated-block
   [bytes]
@@ -25,7 +26,46 @@
   (> (frequency-of-most-repeated-block ciphered-bytes) 1))
 
 (defn detect-block-size
-  "Given a cipher function, returns the block size of the cipher"
-  [cipher])
+  "returns the block size of the oracle
+  Limitation : This only works if oracle is prepending input."
+  [oracle]
+  (first (let [ciphered (oracle (repeat 1000 0xAA))]
+           (filter (complement nil?)
+                   (for [i (range 4 100)
+                         :let [chunk    (take i ciphered)
+                               ciphered (drop i ciphered)]]
+                     (when (= (take i ciphered) chunk) i))))))
 
+(defn make-dic
+  "Make a dictionary of every possible (conj plain-bytes byte)"
+  [cipher plain-bytes]
+  {:pre [(vector? plain-bytes) (= 15 (mod (count plain-bytes) 16))]}
+  (->> (range 256)
+       (map (partial conj plain-bytes))
+       (pmap #(vector (take (inc (count plain-bytes)) (cipher %)) (last %)))
+       (into {})))
+
+(def rand-byte (partial rand-int 256))
+(defn random-bytes [n] (repeatedly n rand-byte))
+(def random-key (partial random-bytes (* block-size word-size)))
+
+(defn crack-one-byte-ecb [oracle known-secret-bytes block-size]
+  (let [a-byte        0xAA
+        padding-size  (- block-size (mod (count known-secret-bytes) block-size) 1)
+        padding-bytes (repeat padding-size a-byte)
+        crafted-block (take (+ padding-size (count known-secret-bytes) 1)
+                            (oracle padding-bytes))
+        dic           (make-dic oracle (vec (concat padding-bytes known-secret-bytes)))]
+    (get dic crafted-block)))
+
+(defn crack-ecb
+  ([oracle]
+   (when (ecb-mode? (oracle (repeat 1000 0xAA)))
+     (crack-ecb oracle (detect-block-size oracle))))
+  ([oracle block-size]
+   (loop [acc []]
+     (if-let [cracked-byte (crack-one-byte-ecb oracle acc block-size)]
+       (do (println (char cracked-byte) cracked-byte)
+           (recur (conj acc cracked-byte)))
+       (drop-last acc)))))                                                      ;; drop last because it's 0x01 padding
 
