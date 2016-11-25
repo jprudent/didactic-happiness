@@ -11,11 +11,11 @@
 #define LCD_NB_COLS 16
 #define LCD_NB_ROWS 2
 
-#define LCD_RS 7
-#define LCD_ENABLE 2
-#define LCD_D4 3
-#define LCD_D5 4
-#define LCD_D6 5
+#define LCD_RS 4
+#define LCD_ENABLE 3
+#define LCD_D4 9
+#define LCD_D5 8
+#define LCD_D6 7
 #define LCD_D7 6
 
 class Display {

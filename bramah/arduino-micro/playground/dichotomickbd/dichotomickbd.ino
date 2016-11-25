@@ -12,11 +12,13 @@
 #define STEP_INPUT 0
 #define STEP_GENERATE 1
 
-#define BTN_LEFT A5
-#define BTN_RIGHT A3
-#define BTN_SELECT A2
-#define BTN_ERASE A1
-#define BTN_OK 13
+#define BTN_LEFT 0x2100
+#define BTN_RIGHT 0x2101
+#define BTN_SELECT 0x2102
+#define BTN_ERASE 0x2103
+#define BTN_OK 0x2104
+
+#define PIN_BUTTONS A1
 
 
 Keys * alpha = new Keys("abcdefghijklmnopqrstuvwxyz", 26);
@@ -34,13 +36,8 @@ void pullupMode(byte pin) {
 }
 
 void setup() {
-  // Serial.begin(9600);
-  // while(!Serial) {;}
-  pullupMode(BTN_RIGHT);
-  pullupMode(BTN_LEFT);
-  pullupMode(BTN_SELECT);
-  pullupMode(BTN_ERASE);
-  pullupMode(BTN_OK);
+  //Serial.begin(9600);
+  //while(!Serial) {;}
   hmacSecret = new HmacSecret(RandomSource());
   hmacSecret->setup();
 }
@@ -88,13 +85,31 @@ void loop() {
 
   }
 
-
-
   delay(100);
 }
 
-boolean isBtnPressed(int btnPin) {
-  return ! isPinHigh(btnPin);
+int read_LCD_buttons(){               // read the buttons
+    int adc_key_in = analogRead(PIN_BUTTONS);       // read the value from the sensor
+
+    // my buttons when read are centered at these valies: 0, 144, 329, 504, 741
+    // we add approx 50 to those values and check to see if we are close
+    // We make this the 1st option for speed reasons since it will be the most likely result
+
+    if (adc_key_in > 1000) return -1;
+    //Serial.println(adc_key_in);
+
+    if (adc_key_in < 50)   return BTN_RIGHT;
+    if (adc_key_in < 250)  return BTN_SELECT;
+    if (adc_key_in < 450)  return BTN_ERASE;
+    if (adc_key_in < 650)  return BTN_LEFT;
+    if (adc_key_in < 850)  return BTN_OK;
+
+    return -1;                // when all others fail, return this.
+}
+
+
+boolean isBtnPressed(int btn) {
+  return btn == read_LCD_buttons();
 }
 
 boolean isPinHigh(int pin){
