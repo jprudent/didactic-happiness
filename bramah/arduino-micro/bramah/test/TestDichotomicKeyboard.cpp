@@ -137,7 +137,7 @@ void test_dichotomic_keyboard_should_navigate_to_right_or_left(void)
 
 }
 
-int main(int argc, char **argv) {
+void run() {
     UNITY_BEGIN();
     RUN_TEST(test_1_symbol_dichotomic_keyboard_should_always_give_same_letter);
     RUN_TEST(test_2_symbols_dichotomic_keyboard_should_navigate_to_right);
@@ -148,7 +148,22 @@ int main(int argc, char **argv) {
     RUN_TEST(test_4_symbols_dichotomic_keyboard_should_navigate_to_right);
     RUN_TEST(test_dichotomic_keyboard_should_navigate_to_right_or_left);
     UNITY_END();
-    return 0;
 }
 
+#ifndef ARDUINO
+
+int main(int argc, char **argv) {
+   run();
+}
+
+#else
+
+void setup() {
+	run();
+}
+
+void loop() {
+}
+
+#endif
 #endif
