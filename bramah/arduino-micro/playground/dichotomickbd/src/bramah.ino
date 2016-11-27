@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-#include "dichotomicKeyboard.h"
+#include "DichotomicKeyboard.h"
 #include "Display.h"
 #include "PasswordGenerator.h"
 #include "RandomSource.h"

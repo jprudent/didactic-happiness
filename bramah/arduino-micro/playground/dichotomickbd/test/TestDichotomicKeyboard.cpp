@@ -1,14 +1,8 @@
 
-#include "../dichotomicKeyboard.h"
+#include "DichotomicKeyboard.h"
 #include "unity.h"
 
-void setUp(void)
-{
-}
-
-void tearDown(void)
-{
-}
+#ifdef UNIT_TEST
 
 void test_1_symbol_dichotomic_keyboard_should_always_give_same_letter(void)
 {
@@ -142,3 +136,19 @@ void test_dichotomic_keyboard_should_navigate_to_right_or_left(void)
   TEST_ASSERT_EQUAL('d', dichotomicKeyboard.currentLetter());
 
 }
+
+int main(int argc, char **argv) {
+    UNITY_BEGIN();
+    RUN_TEST(test_1_symbol_dichotomic_keyboard_should_always_give_same_letter);
+    RUN_TEST(test_2_symbols_dichotomic_keyboard_should_navigate_to_right);
+    RUN_TEST(test_2_symbols_dichotomic_keyboard_should_navigate_to_left);
+    RUN_TEST(test_3_symbols_dichotomic_keyboard_should_navigate_to_right);
+    RUN_TEST(test_3_symbols_dichotomic_keyboard_should_navigate_to_left);
+    RUN_TEST(test_4_symbols_dichotomic_keyboard_should_navigate_to_right);
+    RUN_TEST(test_4_symbols_dichotomic_keyboard_should_navigate_to_right);
+    RUN_TEST(test_dichotomic_keyboard_should_navigate_to_right_or_left);
+    UNITY_END();
+    return 0;
+}
+
+#endif

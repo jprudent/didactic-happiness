@@ -5,8 +5,8 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include <Arduino.h>
-#include <LiquidCrystal.h>
+#include "Arduino.h"
+#include "LiquidCrystal.h"
 
 #define LCD_NB_COLS 16
 #define LCD_NB_ROWS 2

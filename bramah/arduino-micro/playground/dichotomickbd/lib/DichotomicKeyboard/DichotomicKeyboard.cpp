@@ -1,4 +1,4 @@
-#include "dichotomicKeyboard.h"
+#include "DichotomicKeyboard.h"
 #include "math.h"
 
 void checkArgument(bool condition) {
