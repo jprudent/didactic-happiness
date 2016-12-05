@@ -123,19 +123,7 @@ mod sha256 {
                 .overflowing_add(s1).0;
         }
 
-        for i in 0..64 {
-            println!("w {} : {:x}", i, w[i]);
-        }
-        println!("");
         w
-    }
-
-    fn print_h(t: usize, h: &Vec<u32>) {
-        print!("t = {} : ", t);
-        for i in 0..8 {
-            print!("{:x}, ", h[i]);
-        }
-        println!("")
     }
 
     fn ch(x: u32, y: u32, z: u32) -> u32 {
@@ -158,13 +146,10 @@ mod sha256 {
     fn hash_chunk(h: Vec<u32>, chunk: &[u8]) -> Vec<u32> {
         assert_eq!(h.len(), 8);
         assert_eq!(chunk.len(), 64);
-        println!("h: {:?}, chunk: {:?}", h, chunk);
         let w = make_w(chunk);
         let mut h2 = h.clone();
         let k: Vec<u32> = primes::primes_cube_root_mantissa(64);
-        for i in 0..64 {
-            print_h(i, &h2);
-            println!("k = {:x}, w = {:x}", k[i], w[i]);
+        for i in 0..64 { // TODO a fold would be nice !
             let temp1 = h2[7]
                 .overflowing_add(s1(h2[4])).0
                 .overflowing_add(ch(h2[4], h2[5], h2[6])).0
