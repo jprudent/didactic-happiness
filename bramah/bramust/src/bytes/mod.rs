@@ -16,3 +16,7 @@ pub fn u32_to_vec_u8(n: &u32) -> Vec<u8> {
 fn should_convert_a_u32_to_a_vec_of_u8() {
     assert_eq!(u32_to_vec_u8(&0x11223344), vec![0x11, 0x22, 0x33, 0x44])
 }
+
+pub fn vec_u32_to_vec_u8(v: &Vec<u32>) -> Vec<u8> {
+    v.iter().flat_map(u32_to_vec_u8).collect()
+}
