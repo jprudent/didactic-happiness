@@ -2,7 +2,6 @@ mod primes;
 mod padding;
 
 #[cfg(test)]
-
 use std::iter;
 
 fn make_w(chunk: &[u8]) -> [u32; 64] {
