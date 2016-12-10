@@ -21,8 +21,6 @@ pub fn hmac_sha256(msg: Vec<u8>, key: Vec<u8>) -> Vec<u32> {
         concat(&key, &repeat(0_u8).take(64 - key.len()).collect())
     };
 
-    println!("k = {:?}", k);
-
     let opad = xor(&repeat(0x5c).take(64).collect(), &k);
     let ipad = xor(&repeat(0x36).take(64).collect(), &k);
     let hash_ipad = sha256::hash(concat(&ipad, &msg)).iter().flat_map(bytes::u32_to_vec_u8).collect();
