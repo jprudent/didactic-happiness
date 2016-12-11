@@ -5,6 +5,7 @@
 #include "PasswordGenerator.h"
 #include "RandomSource.h"
 #include "HmacSecret.h"
+#include "Bytes.h"
 #include <LiquidCrystal.h>
 #include <Keyboard.h>
 #include <EEPROM.h>
@@ -35,11 +36,27 @@ void pullupMode(byte pin) {
   digitalWrite(pin, HIGH);
 }
 
+void enter_config_mode(HmacSecret * hmacSecret) {
+  Keyboard.print("entering");
+  if(isBtnPressed(BTN_LEFT)) {
+    char * secret = hmacSecret->secretHmac();
+    size_t secret_len = 16;
+    char * hexSecret = Bytes::bytes_to_hexstring(secret, secret_len);
+    while(true) {
+      if(isBtnPressed(BTN_OK)) {
+        Keyboard.print(hexSecret);
+      }
+      delay(1000);
+    }
+  }
+}
+
 void setup() {
   //Serial.begin(9600);
   //while(!Serial) {;}
   hmacSecret = new HmacSecret(RandomSource());
   hmacSecret->setup();
+  enter_config_mode(hmacSecret);
 }
 
 void generate() {

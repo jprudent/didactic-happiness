@@ -11,5 +11,9 @@ RandomSource::RandomSource() {
 }
 
 char RandomSource::nextChar() {
-  return (char) random();
+  char ret = random();
+  for(int i = 0; i<100; i++){
+    ret ^= random();
+  }
+  return ret;
 }
