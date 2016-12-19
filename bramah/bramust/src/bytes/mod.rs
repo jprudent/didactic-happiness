@@ -21,6 +21,11 @@ pub fn vec_u32_to_vec_u8(v: &Vec<u32>) -> Vec<u8> {
     v.iter().flat_map(u32_to_vec_u8).collect()
 }
 
+#[test]
+fn should_convert_a_vec_u32_to_a_vec_of_u8() {
+    assert_eq!(vec_u32_to_vec_u8(&vec![0x11223344, 0x55667788]), vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88])
+}
+
 pub fn hexstring_to_vec_u8(s: &str) -> Vec<u8> {
     let as_int:Vec<u8> = s.chars().map(|c| c.to_digit(16).unwrap() as u8).collect();
     let hexa_pairs: Vec<&[u8]> = as_int.chunks(2).collect();
