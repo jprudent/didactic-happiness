@@ -2,5 +2,5 @@
 
 class Bytes {
 public:
-    static char * bytes_to_hexstring(char *, size_t);
+    static char * bytes_to_hexstring(unsigned char *, size_t);
 };

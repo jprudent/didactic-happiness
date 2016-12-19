@@ -44,3 +44,6 @@ For now, there is not a lot of tests and still can't run it on the target device
 ## Troubleshooting
 
 While developping, if it happens the program is crashing, the micro will appear connected to the machine for a few seconds and then deconnected. If that happens fire the good old Arduino IDE, upload any valid program by pressing the reset button after compilation. 
+
+
+If the device is not recognized by the computer, use the universal solution : reboot (it happens when upgrading the linux kernel without rebooting).
