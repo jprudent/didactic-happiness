@@ -5,7 +5,6 @@ pub mod hmac;
 use std::env;
 
 fn encode_byte_to_ascii(byte: u8) -> char {
-    println!("Encoding {:?}", byte);
     let range = '~' as u8 - '!' as u8;
     ((byte % range) + '!' as u8) as char
 }
