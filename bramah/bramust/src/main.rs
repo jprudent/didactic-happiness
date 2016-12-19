@@ -27,17 +27,16 @@ fn encode_to_ascii(hash: &Vec<u32>) -> String {
 #[test]
 fn should_encode_to_ascii() {
     assert_eq!(encode_to_ascii(&vec![0x01020304, 0xFCFDFEFF]), "\"#$%cdef".to_string());
-    let mut v = vec![0_u32;64];
+    let mut v = vec![0_u32; 64];
     for i in 0..64 {
         let mut a_u32 = 0_u32;
         for j in 0..4 {
-            let n : u32 = i as u32 * 4 + j;
+            let n: u32 = i as u32 * 4 + j;
             a_u32 = a_u32 | n.wrapping_shl(8 * (3 - j));
         }
         v[i] = a_u32;
     }
     assert_eq!(encode_to_ascii(&v), "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdef")
-
 }
 
 fn bramah(s: &str, k: &Vec<u8>) -> String {
@@ -47,7 +46,8 @@ fn bramah(s: &str, k: &Vec<u8>) -> String {
 
 #[test]
 fn should_mimic_the_bramah() {
-    assert_eq!(bramah("google", &[0_u8; 16]), "^E$af2@\'}W:)PuK\\)YErn;,?AiZ<Kl^_".to_string())
+    assert_eq!(bramah("m", &vec![0x1D, 0xDC, 0x50, 0xF3, 0xA8, 0x88, 0xE4, 0xF5, 0x39, 0x79, 0x28, 0xD6, 0xD3, 0xFD, 0x21, 0x16]),
+    "U8#2_[a6q\"L3V?-x;MK9;2ixG^>!Pl]-".to_string())
 }
 
 fn main() {
