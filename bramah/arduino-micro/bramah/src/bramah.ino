@@ -60,7 +60,7 @@ void setup() {
 }
 
 void generate() {
-  char generatedPassword[HLEN];
+  char generatedPassword[HLEN + 1];
 
   char * line1 = display.getLine1();
   char website[strlen(line1)];
