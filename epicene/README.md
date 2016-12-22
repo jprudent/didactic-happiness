@@ -27,3 +27,5 @@ little pet project for this purpose.
 - [Opcodes quick reference](http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html)
 - [A guide for writing games](http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf)
 - [A walk through RealBoy](https://realboyemulator.wordpress.com/)
+- [Another developer guide](http://bgb.bircd.org/pandocs.htm)
+- [A Javascript implementation explained](http://imrannazar.com/GameBoy-Emulation-in-JavaScript)
