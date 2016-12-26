@@ -1,76 +1,130 @@
-mod register;
-mod memory;
-mod decoder;
-mod program_loader;
+use std::mem;
 
-#[cfg(test)]
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct Register<V: RegisterValue>(V);
+type Word = u8;
+type Double = u16;
+type Address = Double;
 
-impl<V: RegisterValue + Copy> Register<V> {
-    fn value(&self) -> V {
-        self.0
-    }
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Register & co
 
-    fn inc(&self, v: V) -> Register<V> {
-        self.value().inc()
-    }
+fn high_word(double: Double) -> Word {
+    double.wrapping_shr(8) as Word
 }
 
-trait RegisterValue {
-    fn inc(&self) -> RegisterValue;
+fn low_word(double: Double) -> Word {
+    (double & 0xFF) as Word
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct Word(u8);
-
-impl RegisterValue for Word {
-    fn inc(&self) -> RegisterValue {
-        unimplemented!()
-    }
+fn set_high_word(double: Double, word: Word) -> Double {
+    (double & 0xFF) | (word as Double).wrapping_shl(8)
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct Double(u16);
+pub struct Registers {
+    af: Double,
+    bc: Double,
+    de: Double,
+    hl: Double,
+    sp: Double,
+    pc: Double
+}
 
-impl Double {
-    fn high_word(&self) -> Word {
-        Word(self.0.wrapping_shr(8) as u8)
+impl Registers {
+    fn b(&self) -> Word {
+        high_word(self.bc)
     }
 
-    fn low_word(&self) -> Word {
-        Word((self.0 & 0xFF) as u8)
+    fn c(&self) -> Word {
+        low_word(self.bc)
     }
 }
 
-impl RegisterValue for Double {
-    fn inc(&self) -> RegisterValue {
-        unimplemented!()
+pub fn new_registers() -> Registers {
+    Registers {
+        af: 0x1234,
+        bc: 0x1234,
+        de: 0x1234,
+        hl: 0x1234,
+        sp: 0x1234,
+        pc: 0x0000
     }
 }
 
-pub trait ReadableRegisters {
-    fn af(&self) -> Register<Double>;
-    fn bc(&self) -> Register<Double>;
-    fn de(&self) -> Register<Double>;
-    fn hl(&self) -> Register<Double>;
-    fn sp(&self) -> Register<Double>;
-    fn pc(&self) -> Register<Double>;
-    fn a(&self) -> Register<Word>;
-    fn b(&self) -> Register<Word>;
-    fn c(&self) -> Register<Word>;
-    fn d(&self) -> Register<Word>;
-    fn e(&self) -> Register<Word>;
-    fn h(&self) -> Register<Word>;
-    fn l(&self) -> Register<Word>;
+#[test]
+fn should_get_value_from_registers() {
+    let regs = Registers {
+        af: 0xAAFF,
+        bc: 0xBBCC,
+        de: 0xDDEE,
+        hl: 0x4411,
+        sp: 0x5678,
+        pc: 0x8765
+    };
+    assert_eq!(regs.af, 0xAAFF);
+    assert_eq!(regs.b(), 0xBB);
+    assert_eq!(regs.c(), 0xCC);
 }
 
-trait Opcode<CPU: Cpu> {
-    fn exec(&self, CPU) -> CPU;
+
+pub struct SwitchBasedDecoder {}
+
+struct Load<L, R> {
+    left_operand: L,
+    right_operand: R,
+    size: Double,
+    cycles: u8
 }
 
-pub trait Decoder<CPU: Cpu> {
-    fn decode(&self, Word, CPU) -> Opcode<CPU>;
+enum RegisterOperand {
+    A,
+    B
+}
+
+struct ImmediateOperand(Word);
+
+impl Opcode for Load<RegisterOperand, ImmediateOperand> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let ImmediateOperand(immediate_value) = self.right_operand;
+        match self.left_operand {
+            RegisterOperand::A => cpu.set_register_a(immediate_value),
+            RegisterOperand::B => cpu.set_register_b(immediate_value)
+        }
+        cpu.inc_pc(self.size)
+    }
+}
+
+trait Opcode {
+    fn exec(&self, cpu: &mut ComputerUnit);
+}
+
+impl SwitchBasedDecoder {
+    fn decode(&self, word: Word, cpu: &ComputerUnit) -> Box<Opcode> {
+        Box::new(
+            match word {
+                0x06 => Load {
+                    left_operand: RegisterOperand::B,
+                    right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
+                    size: 2,
+                    cycles: 4
+                },
+                _ => panic!(format!("unhandled opcode : {:2X}", word))
+            })
+    }
+}
+
+pub struct ArrayBasedMemory {
+    words: [Word; 0xFFFF]
+}
+
+impl ArrayBasedMemory {
+    fn word_at(&self, address: Address) -> Word {
+        self.words[address as usize]
+    }
+
+    fn map(&mut self, p: Program) {
+        for i in 0..p.content.len() {
+            self.words[i] = p.content[i];
+        }
+    }
 }
 
 struct Program {
@@ -78,84 +132,74 @@ struct Program {
     content: Vec<Word>
 }
 
-trait Cpu {
-    fn load(&self, Program) -> Cpu;
-    fn run_1_instruction(&self) -> Cpu;
-    fn set_register_a(&self, Word) -> Cpu;
-    fn set_register_b(&self, Word) -> Cpu;
-    fn get_b_register(&self) -> Register<Word>;
-    fn get_pc_register(&self) -> Register<Double>;
-}
-
-trait ProgramLoader<T> {
-    fn load(&self, T) -> Program;
-}
-
-type Address = Double;
-
-pub trait ReadableMemory {
-    fn word_at(&self, Address) -> Word;
-}
-
-trait WritableMemory {
-    fn map(&self, p: Program);
-}
-
-// implementation of a CPU
-
 struct ComputerUnit {
-    registers: register::Registers,
-    memory: memory::ArrayBasedMemory,
-    decoder: decoder::SwitchBasedDecoder,
+    registers: Registers,
+    memory: ArrayBasedMemory,
+    decoder: SwitchBasedDecoder,
 }
 
 impl ComputerUnit {
-    fn inc_pc(&self, length: Double) {
-        self.registers.pc().add(length);
+    fn inc_pc(&mut self, length: Double) {
+        self.registers.pc = self.registers.pc + length;
     }
-}
 
-impl Cpu for ComputerUnit {
-    fn run_1_instruction(&self) -> Cpu {
-        let word = self.memory.word_at(self.registers.pc().value());
-        let opcode = self.decoder.decode(word, self.memory, self.get_pc_register());
+    fn run_1_instruction(&mut self) {
+        let word = self.memory.word_at(self.registers.pc);
+        let opcode = self.decoder.decode(word, self);
         opcode.exec(self)
     }
 
-    fn load(&self, program: Program) -> Cpu {
+    fn load(&mut self, program: Program) {
         self.memory.map(program)
     }
 
-    fn get_b_register(&self) -> Register<Word> {
+    fn get_b_register(&self) -> Word {
         self.registers.b()
     }
 
-    fn get_pc_register(&self) -> Register<Double> {
-        self.registers.pc()
+    fn get_pc_register(&self) -> Double {
+        self.registers.pc
     }
-    fn set_register_a(&self, _: Word) -> Cpu {
+    fn set_register_a(&mut self, _: Word) {
         unimplemented!()
     }
 
-    fn set_register_b(&self, _: Word) -> Cpu {
-        unimplemented!()
+    fn set_register_b(&mut self, word: Word) {
+        self.registers.bc = set_high_word(self.registers.bc, word)
+    }
+
+    fn word_at(&self, address: Address) -> Word {
+        self.memory.word_at(address)
+    }
+}
+
+pub struct MemoryProgramLoader {}
+
+impl MemoryProgramLoader {
+    fn load(&self, input: Vec<Word>) -> Program {
+        Program {
+            name: "memory",
+            content: input
+        }
     }
 }
 
 #[test]
 fn should_load_program() {
-    let cpu = ComputerUnit {
-        registers: register::new_register(),
-        memory: memory::new_memory(),
-        decoder: decoder::SwitchBasedDecoder {}
+    let mut cpu = ComputerUnit {
+        registers: new_registers(),
+        memory: ArrayBasedMemory {
+            words: [0xAA; 0xFFFF]
+        },
+        decoder: SwitchBasedDecoder {}
     };
 
-    let program = program_loader::MemoryProgramLoader {
-        words: vec![Word(0x06), Word(0xBA)] // LD B, 0xBA
-    };
+    let program_loader = MemoryProgramLoader {};
+    let program = program_loader.load(vec![0x06, 0xBA]); // LD B, 0xBA
 
-    let actual_cpu = cpu.load(program).run_1_instruction();
+    cpu.load(program);
+    cpu.run_1_instruction();
 
-    assert_eq!(actual_cpu.get_b_register(), Register(Word(0xBA)));
-    assert_eq!(actual_cpu.get_pc_register(), Register(Double(0x02)));
+    assert_eq!(cpu.get_b_register(), 0xBA);
+    assert_eq!(cpu.get_pc_register(), 0x02);
 }
