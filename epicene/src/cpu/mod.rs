@@ -121,7 +121,7 @@ impl Opcode for Load<RegisterOperand, ImmediateOperand> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let ImmediateOperand(immediate_value) = self.source;
         match self.destination {
-            RegisterOperand::A => panic!("This case doesn't exists"),
+            RegisterOperand::A => cpu.set_register_a(immediate_value),
             RegisterOperand::B => cpu.set_register_b(immediate_value),
             RegisterOperand::C => cpu.set_register_c(immediate_value),
             RegisterOperand::D => cpu.set_register_d(immediate_value),
@@ -279,7 +279,7 @@ impl SwitchBasedDecoder {
                     0x75 => Load { source: RegisterOperand::L, ..ld_ptr_hl_r },
                     _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
                 })
-        } else if (word <= 0x2E) && ((word & 0b111) == 0b110) {
+        } else if ((word <= 0x2E) && ((word & 0b111) == 0b110)) || word == 0x3E {
             let ld_r_w = Load {
                 destination: RegisterOperand::B,
                 source: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
@@ -289,6 +289,7 @@ impl SwitchBasedDecoder {
 
             Box::new(
                 match word {
+                    0x3E => Load { destination: RegisterOperand::A, ..ld_r_w },
                     0x06 => Load { destination: RegisterOperand::B, ..ld_r_w },
                     0x0E => Load { destination: RegisterOperand::C, ..ld_r_w },
                     0x16 => Load { destination: RegisterOperand::D, ..ld_r_w },
@@ -579,6 +580,17 @@ fn should_implement_every_ld_r_w_instructions() {
     }
 
     let cases: Vec<Box<UseCaseTrait>> = vec!(
+        Box::new(UseCase {
+            program: Program {
+                name: "LD A, 0x60",
+                content: vec![0x3E, 0x60]
+            },
+            assertions: |cpu, msg| {
+                assert_eq! (cpu.get_a_register(), 0x60, "bad register value after {}", msg);
+                assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+                assert_eq! (cpu.cycles, 0xA8, "bad cycles count after {}", msg);
+            }
+        }),
         Box::new(UseCase {
             program: Program {
                 name: "LD B, 0x60",
