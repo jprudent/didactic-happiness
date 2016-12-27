@@ -126,44 +126,21 @@ trait Opcode {
 
 impl SwitchBasedDecoder {
     fn decode(&self, word: Word, cpu: &ComputerUnit) -> Box<Opcode> {
+        let ld_r_nn = Load {
+            left_operand: RegisterOperand::B,
+            right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
+            size: 2,
+            cycles: 8
+        };
+
         Box::new(
             match word {
-                0x06 => Load {
-                    left_operand: RegisterOperand::B,
-                    right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
-                    size: 2,
-                    cycles: 8
-                },
-                0x0E => Load {
-                    left_operand: RegisterOperand::C,
-                    right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
-                    size: 2,
-                    cycles: 8
-                },
-                0x16 => Load {
-                    left_operand: RegisterOperand::D,
-                    right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
-                    size: 2,
-                    cycles: 8
-                },
-                0x1E => Load {
-                    left_operand: RegisterOperand::E,
-                    right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
-                    size: 2,
-                    cycles: 8
-                },
-                0x26 => Load {
-                    left_operand: RegisterOperand::H,
-                    right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
-                    size: 2,
-                    cycles: 8
-                },
-                0x2E => Load {
-                    left_operand: RegisterOperand::L,
-                    right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
-                    size: 2,
-                    cycles: 8
-                },
+                0x06 => Load { left_operand: RegisterOperand::B, ..ld_r_nn },
+                0x0E => Load { left_operand: RegisterOperand::C, ..ld_r_nn },
+                0x16 => Load { left_operand: RegisterOperand::D, ..ld_r_nn },
+                0x1E => Load { left_operand: RegisterOperand::E, ..ld_r_nn },
+                0x26 => Load { left_operand: RegisterOperand::H, ..ld_r_nn },
+                0x2E => Load { left_operand: RegisterOperand::L, ..ld_r_nn },
                 _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
             })
     }
