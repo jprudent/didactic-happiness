@@ -114,7 +114,8 @@ struct ImmediateMemoryPointer(Address);
 enum MemoryPointerOperand {
     HL,
     BC,
-    DE
+    DE,
+    C
 }
 
 impl Opcode for Load<RegisterOperand, ImmediateOperand> {
@@ -184,6 +185,10 @@ impl Opcode for Load<MemoryPointerOperand, RegisterOperand> {
                 let address = cpu.get_de_register();
                 cpu.set_word_at(address, word)
             }
+            MemoryPointerOperand::C => {
+                let address = set_low_word(0xFF00, cpu.get_c_register());
+                cpu.set_word_at(address, word)
+            }
         }
         cpu.inc_pc(self.size);
         cpu.cycles = cpu.cycles + self.cycles;
@@ -195,7 +200,8 @@ impl Opcode for Load<RegisterOperand, MemoryPointerOperand> {
         let word = match self.source {
             MemoryPointerOperand::HL => cpu.word_at(cpu.get_hl_register()),
             MemoryPointerOperand::BC => cpu.word_at(cpu.get_bc_register()),
-            MemoryPointerOperand::DE => cpu.word_at(cpu.get_de_register())
+            MemoryPointerOperand::DE => cpu.word_at(cpu.get_de_register()),
+            MemoryPointerOperand::C => cpu.word_at(set_low_word(0xFF00, cpu.get_c_register())),
         };
         match self.destination {
             RegisterOperand::A => cpu.set_register_a(word),
@@ -239,6 +245,19 @@ impl Opcode for Load<RegisterOperand, ImmediateMemoryPointer> {
     }
 }
 
+impl Opcode for Load<ImmediateMemoryPointer, RegisterOperand> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let word = match self.source {
+            RegisterOperand::A => cpu.get_a_register(),
+            _ => panic!("should not happend")
+        };
+        let ImmediateMemoryPointer(address) = self.destination;
+        cpu.set_word_at(address, word);
+        cpu.inc_pc(self.size);
+        cpu.cycles = cpu.cycles + self.cycles;
+    }
+}
+
 trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
 }
@@ -249,7 +268,16 @@ fn between(word: Word, lower_bound: Word, upper_bound: Word) -> bool {
 
 impl SwitchBasedDecoder {
     fn decode(&self, word: Word, cpu: &ComputerUnit) -> Box<Opcode> {
-        if word == 0xFA {
+        if word == 0xEA {
+            Box::new(
+                Load {
+                    destination: ImmediateMemoryPointer(cpu.double_at(cpu.get_pc_register() + 1)),
+                    source: RegisterOperand::A,
+                    size: 3,
+                    cycles: 16
+                }
+            )
+        } else if word == 0xFA {
             Box::new(
                 Load {
                     destination: RegisterOperand::A,
@@ -267,7 +295,7 @@ impl SwitchBasedDecoder {
                     cycles: 12
                 }
             )
-        } else if word == 0x02 || word == 0x012 || between(word, 0x70, 0x77) {
+        } else if word == 0x02 || word == 0x012 || word == 0xE2 || between(word, 0x70, 0x77) {
             let ld_ptr_hl_r = Load {
                 destination: MemoryPointerOperand::HL,
                 source: RegisterOperand::A,
@@ -280,6 +308,7 @@ impl SwitchBasedDecoder {
                     0x77 => Load { source: RegisterOperand::A, ..ld_ptr_hl_r },
                     0x02 => Load { destination: MemoryPointerOperand::BC, source: RegisterOperand::A, ..ld_ptr_hl_r },
                     0x12 => Load { destination: MemoryPointerOperand::DE, source: RegisterOperand::A, ..ld_ptr_hl_r },
+                    0xE2 => Load { destination: MemoryPointerOperand::C, source: RegisterOperand::A, ..ld_ptr_hl_r },
                     0x70 => Load { source: RegisterOperand::B, ..ld_ptr_hl_r },
                     0x71 => Load { source: RegisterOperand::C, ..ld_ptr_hl_r },
                     0x72 => Load { source: RegisterOperand::D, ..ld_ptr_hl_r },
@@ -308,7 +337,7 @@ impl SwitchBasedDecoder {
                     _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
                 })
         } else if ((word >= 0x46) && (word <= 0x7E) && ((word & 0b111) == 0b110)) ||
-            word == 0x0A || word == 0x1A {
+            word == 0x0A || word == 0x1A || word == 0xF2 {
             let ld_r_ptr_hl = Load {
                 destination: RegisterOperand::A,
                 source: MemoryPointerOperand::HL,
@@ -320,6 +349,7 @@ impl SwitchBasedDecoder {
                     0x7E => Load { destination: RegisterOperand::A, ..ld_r_ptr_hl },
                     0x0A => Load { destination: RegisterOperand::A, source: MemoryPointerOperand::BC, ..ld_r_ptr_hl },
                     0x1A => Load { destination: RegisterOperand::A, source: MemoryPointerOperand::DE, ..ld_r_ptr_hl },
+                    0xF2 => Load { destination: RegisterOperand::A, source: MemoryPointerOperand::C, ..ld_r_ptr_hl },
                     0x46 => Load { destination: RegisterOperand::B, ..ld_r_ptr_hl },
                     0x4E => Load { destination: RegisterOperand::C, ..ld_r_ptr_hl },
                     0x56 => Load { destination: RegisterOperand::D, ..ld_r_ptr_hl },
@@ -780,6 +810,69 @@ fn should_implement_ld_prt_hl_d_instruction() {
     assert_eq! (cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+}
+
+#[test]
+fn should_implement_ld_prt_c_a_instruction() {
+    let pg = Program {
+        name: "LD (C), A",
+        content: vec![0xE2]
+    };
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.set_register_a(0xEF);
+    cpu.set_register_c(0xCD);
+
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction();
+    assert_eq! (cpu.word_at(0xFFCD), 0xEF, "bad memory value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+}
+
+#[test]
+fn should_implement_ld_a_ptr_c_instruction() {
+    let pg = Program {
+        name: "LD A, (C)",
+        content: vec![0xF2]
+    };
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.set_register_c(0xCD);
+    cpu.set_word_at(0xFFCD, 0xEF);
+
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction();
+    assert_eq! (cpu.get_a_register(), 0xEF, "bad memory value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+}
+
+
+#[test]
+fn should_implement_ld_prt_nn_a_instruction() {
+    let pg = Program {
+        name: "LD (0xABCD),A",
+        content: vec![0xEA, 0xCD, 0xAB] // little endian
+    };
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.registers.af = 0xEF00;
+
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction();
+    assert_eq! (cpu.word_at(0xABCD), 0xEF, "bad memory value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 176, "bad cycles count after {}", msg);
 }
 
 #[test]

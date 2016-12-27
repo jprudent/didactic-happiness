@@ -31,6 +31,7 @@ little pet project for this purpose.
 - [A Javascript implementation explained](http://imrannazar.com/GameBoy-Emulation-in-JavaScript)
 - [Yet another Game Boy instruction set](https://gist.github.com/sifton/4471555)
 - [Game Boy internals cheat sheet](http://www.chrisantonellis.com/files/gameboy/gb-cribsheet.pdfhttp://www.chrisantonellis.com/files/gameboy/gb-cribsheet.pdf)
+- [GameBoy Z80 CPU Opcodes cheat sheet](http://goldencrystal.free.fr/GBZ80Opcodes.pdf)
 
 # Struggling with Rust :
 
@@ -46,3 +47,13 @@ struct UseCase<F: Fn(ComputerUnit, UseCase) -> ()> {
 ```
 
 - Most of the time, be straight forward. Avoid abstractions. Be mutable.
+
+- Rust encompass mutability. It enables developer to reason about mutable code.
+
+- Mutability is not at data level, it's at access (pointer) level and it's 
+clever.
+
+- The compilator is a jewel. It helps a lot. For instance, 
+missing else : an if alone should return ().
+forgot branch in switch case
+
