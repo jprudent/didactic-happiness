@@ -197,6 +197,20 @@ impl Opcode for Load<RegisterOperand, MemoryPointerOperand> {
     }
 }
 
+impl Opcode for Load<MemoryPointerOperand,ImmediateOperand> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let ImmediateOperand(word) = self.source;
+        match self.destination {
+            MemoryPointerOperand::HL => {
+                let hl = cpu.get_hl_register();
+                cpu.set_word_at(hl, word)
+            },
+        }
+        cpu.inc_pc(self.size);
+        cpu.cycles = cpu.cycles + self.cycles;
+    }
+}
+
 trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
 }
@@ -207,7 +221,17 @@ fn between(word: Word, lower_bound: Word, upper_bound: Word) -> bool {
 
 impl SwitchBasedDecoder {
     fn decode(&self, word: Word, cpu: &ComputerUnit) -> Box<Opcode> {
-        if between(word, 0x70, 0x75) {
+        if word == 0x36 {
+            Box::new(
+                Load {
+                    destination: MemoryPointerOperand::HL,
+                    source: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
+                    size: 1,
+                    cycles: 12
+                }
+            )
+        }
+        else if between(word, 0x70, 0x75) {
             let ld_ptr_hl_r = Load {
                 destination: MemoryPointerOperand::HL,
                 source: RegisterOperand::A,
@@ -645,4 +669,24 @@ fn should_implement_ld_prt_hl_d_instruction() {
     assert_eq! (cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+}
+
+#[test]
+fn should_implement_prt_hl_n_instruction() {
+    let pg = Program {
+        name: "LD (HL),0x66",
+        content: vec![0x36, 0x66]
+    };
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.registers.hl = 0xABCD;
+
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction();
+    assert_eq! (cpu.word_at(cpu.get_hl_register()), 0x66, "bad memory value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
 }
