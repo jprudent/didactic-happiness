@@ -29,3 +29,17 @@ little pet project for this purpose.
 - [A walk through RealBoy](https://realboyemulator.wordpress.com/)
 - [Another developer guide](http://bgb.bircd.org/pandocs.htm)
 - [A Javascript implementation explained](http://imrannazar.com/GameBoy-Emulation-in-JavaScript)
+
+# Struggling with Rust :
+
+- Recursive generic type :
+
+Here use case requires a type which requires a type which ....
+
+```rust
+struct UseCase<F: Fn(ComputerUnit, UseCase) -> ()> {
+    program: Program,
+    assertions: F
+}
+```
+
