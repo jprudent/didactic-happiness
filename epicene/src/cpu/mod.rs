@@ -109,6 +109,8 @@ enum RegisterOperand {
 
 struct ImmediateOperand(Word);
 
+struct ImmediateMemoryPointer(Address);
+
 enum MemoryPointerOperand {
     HL,
     BC,
@@ -217,6 +219,19 @@ impl Opcode for Load<MemoryPointerOperand, ImmediateOperand> {
     }
 }
 
+impl Opcode for Load<RegisterOperand, ImmediateMemoryPointer> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let ImmediateMemoryPointer(address) = self.source;
+        let word = cpu.word_at(address);
+        match self.destination {
+            RegisterOperand::A => cpu.set_register_a(word),
+            _ => panic!("should not happen")
+        }
+        cpu.inc_pc(self.size);
+        cpu.cycles = cpu.cycles + self.cycles;
+    }
+}
+
 trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
 }
@@ -227,7 +242,17 @@ fn between(word: Word, lower_bound: Word, upper_bound: Word) -> bool {
 
 impl SwitchBasedDecoder {
     fn decode(&self, word: Word, cpu: &ComputerUnit) -> Box<Opcode> {
-        if word == 0x36 {
+        if word == 0xFA {
+            Box::new(
+                Load {
+                    destination: RegisterOperand::A,
+                    source: ImmediateMemoryPointer(cpu.double_at(cpu.get_pc_register() + 1)),
+                    size: 3,
+                    cycles: 16
+                }
+            )
+        }
+        else if word == 0x36 {
             Box::new(
                 Load {
                     destination: MemoryPointerOperand::HL,
@@ -368,6 +393,11 @@ impl ArrayBasedMemory {
         self.words[address as usize]
     }
 
+    fn double_at(&self, address: Address) -> Double {
+        let i = address as usize;
+        set_high_word(set_low_word(0, self.words[i]), self.words[i + 1])
+    }
+
     fn map(&mut self, p: &Program) {
         for i in 0..p.content.len() {
             self.words[i] = p.content[i];
@@ -480,6 +510,10 @@ impl ComputerUnit {
 
     fn word_at(&self, address: Address) -> Word {
         self.memory.word_at(address)
+    }
+
+    fn double_at(&self, address: Address) -> Double {
+        self.memory.double_at(address)
     }
 
     fn set_word_at(&mut self, address: Address, word: Word) {
@@ -746,4 +780,24 @@ fn should_implement_prt_hl_n_instruction() {
     assert_eq! (cpu.word_at(cpu.get_hl_register()), 0x66, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
+}
+
+
+#[test]
+fn should_implement_ld_a_prt_nn_instruction() {
+    let pg = Program {
+        name: "LD A,(0xABCD)",
+        content: vec![0xFA, 0xCD, 0xAB] // little endian
+    };
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.memory.words[0xABCD] = 0x66;
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction();
+    assert_eq! (cpu.get_a_register(), 0x66, "bad register value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 176, "bad cycles count after {}", msg);
 }

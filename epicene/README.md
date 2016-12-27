@@ -29,6 +29,8 @@ little pet project for this purpose.
 - [A walk through RealBoy](https://realboyemulator.wordpress.com/)
 - [Another developer guide](http://bgb.bircd.org/pandocs.htm)
 - [A Javascript implementation explained](http://imrannazar.com/GameBoy-Emulation-in-JavaScript)
+- [Yet another Game Boy instruction set](https://gist.github.com/sifton/4471555)
+- [Game Boy internals cheat sheet](http://www.chrisantonellis.com/files/gameboy/gb-cribsheet.pdfhttp://www.chrisantonellis.com/files/gameboy/gb-cribsheet.pdf)
 
 # Struggling with Rust :
 
@@ -43,3 +45,4 @@ struct UseCase<F: Fn(ComputerUnit, UseCase) -> ()> {
 }
 ```
 
+- Most of the time, be straight forward. Avoid abstractions. Be mutable.
