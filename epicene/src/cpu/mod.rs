@@ -32,6 +32,10 @@ pub struct Registers {
 }
 
 impl Registers {
+    fn a(&self) -> Word {
+        high_word(self.af)
+    }
+
     fn b(&self) -> Word {
         high_word(self.bc)
     }
@@ -94,6 +98,7 @@ struct Load<L, R> {
 }
 
 enum RegisterOperand {
+    A,
     B,
     C,
     D,
@@ -104,10 +109,15 @@ enum RegisterOperand {
 
 struct ImmediateOperand(Word);
 
+enum MemoryPointerOperand {
+    HL
+}
+
 impl Opcode for Load<RegisterOperand, ImmediateOperand> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let ImmediateOperand(immediate_value) = self.right_operand;
         match self.left_operand {
+            RegisterOperand::A => panic!("This case doesn't exists"),
             RegisterOperand::B => cpu.set_register_b(immediate_value),
             RegisterOperand::C => cpu.set_register_c(immediate_value),
             RegisterOperand::D => cpu.set_register_d(immediate_value),
@@ -120,29 +130,155 @@ impl Opcode for Load<RegisterOperand, ImmediateOperand> {
     }
 }
 
+impl Opcode for Load<RegisterOperand, RegisterOperand> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let word = match self.right_operand {
+            RegisterOperand::A => cpu.get_a_register(),
+            RegisterOperand::B => cpu.get_b_register(),
+            RegisterOperand::C => cpu.get_c_register(),
+            RegisterOperand::D => cpu.get_d_register(),
+            RegisterOperand::E => cpu.get_e_register(),
+            RegisterOperand::H => cpu.get_h_register(),
+            RegisterOperand::L => cpu.get_l_register(),
+        };
+        match self.left_operand {
+            RegisterOperand::A => cpu.set_register_a(word),
+            RegisterOperand::B => cpu.set_register_b(word),
+            RegisterOperand::C => cpu.set_register_c(word),
+            RegisterOperand::D => cpu.set_register_d(word),
+            RegisterOperand::E => cpu.set_register_e(word),
+            RegisterOperand::H => cpu.set_register_h(word),
+            RegisterOperand::L => cpu.set_register_l(word),
+        }
+        cpu.inc_pc(self.size);
+        cpu.cycles = cpu.cycles + self.cycles;
+    }
+}
+
+impl Opcode for Load<RegisterOperand, MemoryPointerOperand> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let word = match self.right_operand {
+            MemoryPointerOperand::HL => cpu.word_at(cpu.get_hl_register())
+        };
+        match self.left_operand {
+            RegisterOperand::A => cpu.set_register_a(word),
+            RegisterOperand::B => cpu.set_register_b(word),
+            RegisterOperand::C => cpu.set_register_c(word),
+            RegisterOperand::D => cpu.set_register_d(word),
+            RegisterOperand::E => cpu.set_register_e(word),
+            RegisterOperand::H => cpu.set_register_h(word),
+            RegisterOperand::L => cpu.set_register_l(word),
+        }
+        cpu.inc_pc(self.size);
+        cpu.cycles = cpu.cycles + self.cycles;
+    }
+}
+
 trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
 }
 
 impl SwitchBasedDecoder {
     fn decode(&self, word: Word, cpu: &ComputerUnit) -> Box<Opcode> {
-        let ld_r_nn = Load {
-            left_operand: RegisterOperand::B,
-            right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
-            size: 2,
-            cycles: 8
-        };
+        if (word <= 0x2E) && ((word & 0b111) == 0b110) {
+            let ld_r_w = Load {
+                left_operand: RegisterOperand::B,
+                right_operand: ImmediateOperand(cpu.word_at(cpu.get_pc_register() + 1)),
+                size: 2,
+                cycles: 8
+            };
 
-        Box::new(
-            match word {
-                0x06 => Load { left_operand: RegisterOperand::B, ..ld_r_nn },
-                0x0E => Load { left_operand: RegisterOperand::C, ..ld_r_nn },
-                0x16 => Load { left_operand: RegisterOperand::D, ..ld_r_nn },
-                0x1E => Load { left_operand: RegisterOperand::E, ..ld_r_nn },
-                0x26 => Load { left_operand: RegisterOperand::H, ..ld_r_nn },
-                0x2E => Load { left_operand: RegisterOperand::L, ..ld_r_nn },
-                _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
-            })
+            Box::new(
+                match word {
+                    0x06 => Load { left_operand: RegisterOperand::B, ..ld_r_w },
+                    0x0E => Load { left_operand: RegisterOperand::C, ..ld_r_w },
+                    0x16 => Load { left_operand: RegisterOperand::D, ..ld_r_w },
+                    0x1E => Load { left_operand: RegisterOperand::E, ..ld_r_w },
+                    0x26 => Load { left_operand: RegisterOperand::H, ..ld_r_w },
+                    0x2E => Load { left_operand: RegisterOperand::L, ..ld_r_w },
+                    _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
+                })
+        } else if (word >= 0x46) && (word <= 0x7E) && ((word & 0b111) == 0b110) {
+            let ld_r_ptr_hl = Load {
+                left_operand: RegisterOperand::A,
+                right_operand: MemoryPointerOperand::HL,
+                size: 1,
+                cycles: 8
+            };
+            Box::new(
+                match word {
+                    0x7E => Load { left_operand: RegisterOperand::A, ..ld_r_ptr_hl },
+                    0x46 => Load { left_operand: RegisterOperand::B, ..ld_r_ptr_hl },
+                    0x4E => Load { left_operand: RegisterOperand::C, ..ld_r_ptr_hl },
+                    0x56 => Load { left_operand: RegisterOperand::D, ..ld_r_ptr_hl },
+                    0x5E => Load { left_operand: RegisterOperand::E, ..ld_r_ptr_hl },
+                    0x66 => Load { left_operand: RegisterOperand::H, ..ld_r_ptr_hl },
+                    0x6E => Load { left_operand: RegisterOperand::L, ..ld_r_ptr_hl },
+                    _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
+                })
+        } else {
+            let ld_r_r = Load {
+                left_operand: RegisterOperand::A,
+                right_operand: RegisterOperand::A,
+                size: 1,
+                cycles: 4
+            };
+            Box::new(
+                match word {
+                    0x7F => Load { left_operand: RegisterOperand::A, right_operand: RegisterOperand::A, ..ld_r_r },
+                    0x78 => Load { left_operand: RegisterOperand::A, right_operand: RegisterOperand::B, ..ld_r_r },
+                    0x79 => Load { left_operand: RegisterOperand::A, right_operand: RegisterOperand::C, ..ld_r_r },
+                    0x7A => Load { left_operand: RegisterOperand::A, right_operand: RegisterOperand::D, ..ld_r_r },
+                    0x7B => Load { left_operand: RegisterOperand::A, right_operand: RegisterOperand::E, ..ld_r_r },
+                    0x7C => Load { left_operand: RegisterOperand::A, right_operand: RegisterOperand::H, ..ld_r_r },
+                    0x7D => Load { left_operand: RegisterOperand::A, right_operand: RegisterOperand::L, ..ld_r_r },
+
+                    0x40 => Load { left_operand: RegisterOperand::B, right_operand: RegisterOperand::B, ..ld_r_r },
+                    0x41 => Load { left_operand: RegisterOperand::B, right_operand: RegisterOperand::C, ..ld_r_r },
+                    0x42 => Load { left_operand: RegisterOperand::B, right_operand: RegisterOperand::D, ..ld_r_r },
+                    0x43 => Load { left_operand: RegisterOperand::B, right_operand: RegisterOperand::E, ..ld_r_r },
+                    0x44 => Load { left_operand: RegisterOperand::B, right_operand: RegisterOperand::H, ..ld_r_r },
+                    0x45 => Load { left_operand: RegisterOperand::B, right_operand: RegisterOperand::L, ..ld_r_r },
+
+                    0x48 => Load { left_operand: RegisterOperand::C, right_operand: RegisterOperand::B, ..ld_r_r },
+                    0x49 => Load { left_operand: RegisterOperand::C, right_operand: RegisterOperand::C, ..ld_r_r },
+                    0x4A => Load { left_operand: RegisterOperand::C, right_operand: RegisterOperand::D, ..ld_r_r },
+                    0x4B => Load { left_operand: RegisterOperand::C, right_operand: RegisterOperand::E, ..ld_r_r },
+                    0x4C => Load { left_operand: RegisterOperand::C, right_operand: RegisterOperand::H, ..ld_r_r },
+                    0x4D => Load { left_operand: RegisterOperand::C, right_operand: RegisterOperand::L, ..ld_r_r },
+
+                    0x50 => Load { left_operand: RegisterOperand::D, right_operand: RegisterOperand::B, ..ld_r_r },
+                    0x51 => Load { left_operand: RegisterOperand::D, right_operand: RegisterOperand::C, ..ld_r_r },
+                    0x52 => Load { left_operand: RegisterOperand::D, right_operand: RegisterOperand::D, ..ld_r_r },
+                    0x53 => Load { left_operand: RegisterOperand::D, right_operand: RegisterOperand::E, ..ld_r_r },
+                    0x54 => Load { left_operand: RegisterOperand::D, right_operand: RegisterOperand::H, ..ld_r_r },
+                    0x55 => Load { left_operand: RegisterOperand::D, right_operand: RegisterOperand::L, ..ld_r_r },
+
+                    0x58 => Load { left_operand: RegisterOperand::E, right_operand: RegisterOperand::B, ..ld_r_r },
+                    0x59 => Load { left_operand: RegisterOperand::E, right_operand: RegisterOperand::C, ..ld_r_r },
+                    0x5A => Load { left_operand: RegisterOperand::E, right_operand: RegisterOperand::D, ..ld_r_r },
+                    0x5B => Load { left_operand: RegisterOperand::E, right_operand: RegisterOperand::E, ..ld_r_r },
+                    0x5C => Load { left_operand: RegisterOperand::E, right_operand: RegisterOperand::H, ..ld_r_r },
+                    0x5D => Load { left_operand: RegisterOperand::E, right_operand: RegisterOperand::L, ..ld_r_r },
+
+                    0x60 => Load { left_operand: RegisterOperand::H, right_operand: RegisterOperand::B, ..ld_r_r },
+                    0x61 => Load { left_operand: RegisterOperand::H, right_operand: RegisterOperand::C, ..ld_r_r },
+                    0x62 => Load { left_operand: RegisterOperand::H, right_operand: RegisterOperand::D, ..ld_r_r },
+                    0x63 => Load { left_operand: RegisterOperand::H, right_operand: RegisterOperand::E, ..ld_r_r },
+                    0x64 => Load { left_operand: RegisterOperand::H, right_operand: RegisterOperand::H, ..ld_r_r },
+                    0x65 => Load { left_operand: RegisterOperand::H, right_operand: RegisterOperand::L, ..ld_r_r },
+
+                    0x68 => Load { left_operand: RegisterOperand::L, right_operand: RegisterOperand::B, ..ld_r_r },
+                    0x69 => Load { left_operand: RegisterOperand::L, right_operand: RegisterOperand::C, ..ld_r_r },
+                    0x6A => Load { left_operand: RegisterOperand::L, right_operand: RegisterOperand::D, ..ld_r_r },
+                    0x6B => Load { left_operand: RegisterOperand::L, right_operand: RegisterOperand::E, ..ld_r_r },
+                    0x6C => Load { left_operand: RegisterOperand::L, right_operand: RegisterOperand::H, ..ld_r_r },
+                    0x6D => Load { left_operand: RegisterOperand::L, right_operand: RegisterOperand::L, ..ld_r_r },
+
+                    _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
+                }
+            )
+        }
     }
 }
 
@@ -189,6 +325,10 @@ impl ComputerUnit {
         self.memory.map(&program)
     }
 
+    fn get_a_register(&self) -> Word {
+        self.registers.a()
+    }
+
     fn get_b_register(&self) -> Word {
         self.registers.b()
     }
@@ -217,6 +357,13 @@ impl ComputerUnit {
         self.registers.pc
     }
 
+    fn get_hl_register(&self) -> Double {
+        self.registers.hl
+    }
+
+    fn set_register_a(&mut self, word: Word) {
+        self.registers.af = set_high_word(self.registers.af, word)
+    }
 
     fn set_register_b(&mut self, word: Word) {
         self.registers.bc = set_high_word(self.registers.bc, word)
@@ -284,7 +431,7 @@ fn should_load_program() {
 }
 
 #[test]
-fn should_implement_every_load_instructions() {
+fn should_implement_every_ld_r_w_instructions() {
     trait UseCaseTrait {
         fn program(&self) -> &Program;
         fn assert(&self, ComputerUnit);
@@ -370,7 +517,7 @@ fn should_implement_every_load_instructions() {
                 assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
                 assert_eq! (cpu.cycles, 0xA8, "bad cycles count after {}", msg);
             }
-        })
+        }),
     );
 
     for case in cases {
@@ -380,4 +527,50 @@ fn should_implement_every_load_instructions() {
         case.assert(cpu);
         // (case.assertions)(cpu, case.program.name.to_string());
     }
+}
+
+#[test]
+fn should_implement_ld_b_a_instructions() {
+    let pg = Program {
+        name: "\nLD B, 0xBB\nLD A, B\n",
+        content: vec![0x06, 0xBB, 0x78]
+    };
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction();
+    assert_eq! (cpu.get_b_register(), 0xBB, "bad right register value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction();
+    assert_eq! (cpu.get_a_register(), 0xBB, "bad left register value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
+}
+
+#[test]
+fn should_implement_ld_c_prt_hl_instructions() {
+    let pg = Program {
+        name: "LD C,(HL)",
+        content: vec![0x4E]
+    };
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.registers.hl = 0xABCD;
+    cpu.memory.words[0xABCD] = 0xEF;
+
+
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction();
+    assert_eq! (cpu.get_c_register(), 0xEF, "bad register value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+
 }
