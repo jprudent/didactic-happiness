@@ -1,3 +1,7 @@
+use std::ops::IndexMut;
+use std::ops::Index;
+use std::marker::PhantomData;
+
 type Word = u8;
 type Double = u16;
 type Address = Double;
@@ -87,14 +91,12 @@ fn should_get_value_from_registers() {
     assert_eq!(regs.c(), 0xCC);
 }
 
-
-pub struct SwitchBasedDecoder {}
-
-struct Load<DESTINATION, SOURCE> {
-    destination: DESTINATION,
-    source: SOURCE,
+struct Load<X, L:LeftOperand<X>, R:RightOperand<X>> {
+    destination: L,
+    source: R,
     size: Double,
-    cycles: Cycle
+    cycles: Cycle,
+    operation_type: PhantomData<X>
 }
 
 enum WordRegister {
@@ -107,6 +109,34 @@ enum WordRegister {
     L,
 }
 
+impl LeftOperand<Word> for WordRegister {
+    fn alter(&self, cpu: &mut ComputerUnit, word: Word) {
+        match *self {
+            WordRegister::A => cpu.set_register_a(word),
+            WordRegister::B => cpu.set_register_b(word),
+            WordRegister::C => cpu.set_register_c(word),
+            WordRegister::D => cpu.set_register_d(word),
+            WordRegister::E => cpu.set_register_e(word),
+            WordRegister::H => cpu.set_register_h(word),
+            WordRegister::L => cpu.set_register_l(word),
+        }
+    }
+}
+
+impl RightOperand<Word> for WordRegister {
+    fn resolve(&self, cpu: &ComputerUnit) -> Word {
+        match *self {
+            WordRegister::A => cpu.get_a_register(),
+            WordRegister::B => cpu.get_b_register(),
+            WordRegister::C => cpu.get_c_register(),
+            WordRegister::D => cpu.get_d_register(),
+            WordRegister::E => cpu.get_e_register(),
+            WordRegister::H => cpu.get_h_register(),
+            WordRegister::L => cpu.get_l_register(),
+        }
+    }
+}
+
 enum DoubleRegister {
     BC,
     DE,
@@ -114,169 +144,130 @@ enum DoubleRegister {
     SP
 }
 
-// TODO generic ? can be deleted altogether
-struct ImmediateWord(Word);
+impl RightOperand<Double> for DoubleRegister {
+    fn resolve(&self, cpu: &ComputerUnit) -> Double {
+        match *self {
+            DoubleRegister::BC => cpu.get_bc_register(),
+            DoubleRegister::DE => cpu.get_de_register(),
+            DoubleRegister::HL => cpu.get_hl_register(),
+            DoubleRegister::SP => cpu.get_sp_register(),
+        }
+    }
+}
 
-struct ImmediateDouble(Double);
+impl LeftOperand<Double> for DoubleRegister {
+    fn alter(&self, cpu: &mut ComputerUnit, double: Double) {
+        match *self {
+            DoubleRegister::BC => cpu.set_register_bc(double),
+            DoubleRegister::DE => cpu.set_register_de(double),
+            DoubleRegister::HL => cpu.set_register_hl(double),
+            DoubleRegister::SP => cpu.set_register_sp(double),
+        }
+    }
+}
 
-struct ImmediateMemoryPointer(Address);
+trait RightOperand<R> {
+    fn resolve(&self, cpu: &ComputerUnit) -> R;
+}
 
-enum MemoryPointerOperand {
+trait LeftOperand<L> {
+    fn alter(&self, cpu: &mut ComputerUnit, value: L);
+}
+
+// TODO generic ?
+struct ImmediateWord {}
+
+impl RightOperand<Word> for ImmediateWord {
+    fn resolve(&self, cpu: &ComputerUnit) -> Word {
+        cpu.word_at(cpu.get_pc_register() + 1)
+    }
+}
+
+struct ImmediateDouble {}
+
+impl RightOperand<Double> for ImmediateDouble {
+    fn resolve(&self, cpu: &ComputerUnit) -> Double {
+        cpu.double_at(cpu.get_pc_register() + 1)
+    }
+}
+
+struct ImmediatePointer<T> {
+    resource_type: PhantomData<T>,
+}
+
+impl ImmediatePointer<Word> {
+    fn address(&self, cpu: &ComputerUnit) -> Address {
+        cpu.double_at(cpu.get_pc_register() + 1)
+    }
+}
+
+impl LeftOperand<Word> for ImmediatePointer<Word> {
+    fn alter(&self, cpu: &mut ComputerUnit, word: Word) {
+        let address = self.address(cpu);
+        cpu.set_word_at(address, word);
+    }
+}
+
+impl RightOperand<Word> for ImmediatePointer<Word> {
+    fn resolve(&self, cpu: &ComputerUnit) -> Word {
+        cpu.word_at(self.address(cpu))
+    }
+}
+
+impl ImmediatePointer<Double> {
+    fn address(&self, cpu: &ComputerUnit) -> Address {
+        cpu.double_at(cpu.get_pc_register() + 1)
+    }
+}
+
+impl LeftOperand<Double> for ImmediatePointer<Double> {
+    fn alter(&self, cpu: &mut ComputerUnit, double: Double) {
+        let address = self.address(cpu);
+        cpu.set_double_at(address, double);
+    }
+}
+
+impl RightOperand<Double> for ImmediatePointer<Double> {
+    fn resolve(&self, cpu: &ComputerUnit) -> Double {
+        cpu.double_at(self.address(cpu))
+    }
+}
+
+enum RegisterPointer {
     HL,
     BC,
     DE,
     C
 }
 
-impl Opcode for Load<WordRegister, ImmediateWord> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let ImmediateWord(immediate_value) = self.source;
-        match self.destination {
-            WordRegister::A => cpu.set_register_a(immediate_value),
-            WordRegister::B => cpu.set_register_b(immediate_value),
-            WordRegister::C => cpu.set_register_c(immediate_value),
-            WordRegister::D => cpu.set_register_d(immediate_value),
-            WordRegister::E => cpu.set_register_e(immediate_value),
-            WordRegister::H => cpu.set_register_h(immediate_value),
-            WordRegister::L => cpu.set_register_l(immediate_value),
-        }
-        cpu.inc_pc(self.size);
-        cpu.cycles = cpu.cycles + self.cycles;
-    }
-}
-
-impl Opcode for Load<DoubleRegister, ImmediateDouble> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let ImmediateDouble(immediate_value) = self.source;
-        match self.destination {
-            DoubleRegister::BC => cpu.set_register_bc(immediate_value),
-            DoubleRegister::DE => cpu.set_register_de(immediate_value),
-            DoubleRegister::HL => cpu.set_register_hl(immediate_value),
-            DoubleRegister::SP => cpu.set_register_sp(immediate_value),
-        }
-        cpu.inc_pc(self.size);
-        cpu.cycles = cpu.cycles + self.cycles;
-    }
-}
-
-impl Opcode for Load<WordRegister, WordRegister> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let word = match self.source {
-            WordRegister::A => cpu.get_a_register(),
-            WordRegister::B => cpu.get_b_register(),
-            WordRegister::C => cpu.get_c_register(),
-            WordRegister::D => cpu.get_d_register(),
-            WordRegister::E => cpu.get_e_register(),
-            WordRegister::H => cpu.get_h_register(),
-            WordRegister::L => cpu.get_l_register(),
+impl LeftOperand<Word> for RegisterPointer {
+    fn alter(&self, cpu: &mut ComputerUnit, word: Word) {
+        let address = match *self {
+            RegisterPointer::HL => cpu.get_hl_register(),
+            RegisterPointer::BC => cpu.get_bc_register(),
+            RegisterPointer::DE => cpu.get_de_register(),
+            RegisterPointer::C => set_low_word(0xFF00, cpu.get_c_register())
         };
-        match self.destination {
-            WordRegister::A => cpu.set_register_a(word),
-            WordRegister::B => cpu.set_register_b(word),
-            WordRegister::C => cpu.set_register_c(word),
-            WordRegister::D => cpu.set_register_d(word),
-            WordRegister::E => cpu.set_register_e(word),
-            WordRegister::H => cpu.set_register_h(word),
-            WordRegister::L => cpu.set_register_l(word),
-        }
-        cpu.inc_pc(self.size);
-        cpu.cycles = cpu.cycles + self.cycles;
+        cpu.set_word_at(address, word)
     }
 }
 
-impl Opcode for Load<MemoryPointerOperand, WordRegister> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let word = match self.source {
-            WordRegister::A => cpu.get_a_register(),
-            WordRegister::B => cpu.get_b_register(),
-            WordRegister::C => cpu.get_c_register(),
-            WordRegister::D => cpu.get_d_register(),
-            WordRegister::E => cpu.get_e_register(),
-            WordRegister::H => cpu.get_h_register(),
-            WordRegister::L => cpu.get_l_register(),
+impl RightOperand<Word> for RegisterPointer {
+    fn resolve(&self, cpu: &ComputerUnit) -> Word {
+        let address = match *self {
+            RegisterPointer::HL => cpu.get_hl_register(),
+            RegisterPointer::BC => cpu.get_bc_register(),
+            RegisterPointer::DE => cpu.get_de_register(),
+            RegisterPointer::C => set_low_word(0xFF00, cpu.get_c_register()),
         };
-
-        match self.destination {
-            MemoryPointerOperand::HL => {
-                let address = cpu.get_hl_register();
-                cpu.set_word_at(address, word)
-            }
-            MemoryPointerOperand::BC => {
-                let address = cpu.get_bc_register();
-                cpu.set_word_at(address, word)
-            }
-            MemoryPointerOperand::DE => {
-                let address = cpu.get_de_register();
-                cpu.set_word_at(address, word)
-            }
-            MemoryPointerOperand::C => {
-                let address = set_low_word(0xFF00, cpu.get_c_register());
-                cpu.set_word_at(address, word)
-            }
-        }
-        cpu.inc_pc(self.size);
-        cpu.cycles = cpu.cycles + self.cycles;
+        cpu.word_at(address)
     }
 }
 
-impl Opcode for Load<WordRegister, MemoryPointerOperand> {
+impl<X, L:LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R>{
     fn exec(&self, cpu: &mut ComputerUnit) {
-        let word = match self.source {
-            MemoryPointerOperand::HL => cpu.word_at(cpu.get_hl_register()),
-            MemoryPointerOperand::BC => cpu.word_at(cpu.get_bc_register()),
-            MemoryPointerOperand::DE => cpu.word_at(cpu.get_de_register()),
-            MemoryPointerOperand::C => cpu.word_at(set_low_word(0xFF00, cpu.get_c_register())),
-        };
-        match self.destination {
-            WordRegister::A => cpu.set_register_a(word),
-            WordRegister::B => cpu.set_register_b(word),
-            WordRegister::C => cpu.set_register_c(word),
-            WordRegister::D => cpu.set_register_d(word),
-            WordRegister::E => cpu.set_register_e(word),
-            WordRegister::H => cpu.set_register_h(word),
-            WordRegister::L => cpu.set_register_l(word),
-        }
-        cpu.inc_pc(self.size);
-        cpu.cycles = cpu.cycles + self.cycles;
-    }
-}
-
-impl Opcode for Load<MemoryPointerOperand, ImmediateWord> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let ImmediateWord(word) = self.source;
-        match self.destination {
-            MemoryPointerOperand::HL => {
-                let hl = cpu.get_hl_register();
-                cpu.set_word_at(hl, word)
-            },
-            _ => panic!("should not happen")
-        }
-        cpu.inc_pc(self.size);
-        cpu.cycles = cpu.cycles + self.cycles;
-    }
-}
-
-impl Opcode for Load<WordRegister, ImmediateMemoryPointer> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let ImmediateMemoryPointer(address) = self.source;
-        let word = cpu.word_at(address);
-        match self.destination {
-            WordRegister::A => cpu.set_register_a(word),
-            _ => panic!("should not happen")
-        }
-        cpu.inc_pc(self.size);
-        cpu.cycles = cpu.cycles + self.cycles;
-    }
-}
-
-impl Opcode for Load<ImmediateMemoryPointer, WordRegister> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let word = match self.source {
-            WordRegister::A => cpu.get_a_register(),
-            _ => panic!("should not happen")
-        };
-        let ImmediateMemoryPointer(address) = self.destination;
-        cpu.set_word_at(address, word);
+        let word = self.source.resolve(cpu);
+        self.destination.alter(cpu, word);
         cpu.inc_pc(self.size);
         cpu.cycles = cpu.cycles + self.cycles;
     }
@@ -286,182 +277,224 @@ trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
 }
 
-fn between(word: Word, lower_bound: Word, upper_bound: Word) -> bool {
-    word >= lower_bound && word <= upper_bound
+struct NotImplemented {}
+
+impl Opcode for NotImplemented {
+    fn exec(&self, _: &mut ComputerUnit) {
+        unimplemented!()
+    }
 }
 
-impl SwitchBasedDecoder {
-    fn decode(&self, word: Word, cpu: &ComputerUnit) -> Box<Opcode> {
-        if word == 0xEA {
-            Box::new(
-                Load {
-                    destination: ImmediateMemoryPointer(cpu.double_at(cpu.get_pc_register() + 1)),
-                    source: WordRegister::A,
-                    size: 3,
-                    cycles: 16
-                }
-            )
-        } else if word == 0xFA {
-            Box::new(
-                Load {
-                    destination: WordRegister::A,
-                    source: ImmediateMemoryPointer(cpu.double_at(cpu.get_pc_register() + 1)),
-                    size: 3,
-                    cycles: 16
-                }
-            )
-        } else if word == 0x36 {
-            Box::new(
-                Load {
-                    destination: MemoryPointerOperand::HL,
-                    source: ImmediateWord(cpu.word_at(cpu.get_pc_register() + 1)),
-                    size: 1,
-                    cycles: 12
-                }
-            )
-        } else if word == 0x02 || word == 0x012 || word == 0xE2 || between(word, 0x70, 0x77) {
-            let ld_ptr_hl_r = Load {
-                destination: MemoryPointerOperand::HL,
-                source: WordRegister::A,
-                size: 1,
-                cycles: 8
-            };
+struct Decoder(Vec<Box<Opcode>>);
 
-            Box::new(
-                match word {
-                    0x77 => Load { source: WordRegister::A, ..ld_ptr_hl_r },
-                    0x02 => Load { destination: MemoryPointerOperand::BC, source: WordRegister::A, ..ld_ptr_hl_r },
-                    0x12 => Load { destination: MemoryPointerOperand::DE, source: WordRegister::A, ..ld_ptr_hl_r },
-                    0xE2 => Load { destination: MemoryPointerOperand::C, source: WordRegister::A, ..ld_ptr_hl_r },
-                    0x70 => Load { source: WordRegister::B, ..ld_ptr_hl_r },
-                    0x71 => Load { source: WordRegister::C, ..ld_ptr_hl_r },
-                    0x72 => Load { source: WordRegister::D, ..ld_ptr_hl_r },
-                    0x73 => Load { source: WordRegister::E, ..ld_ptr_hl_r },
-                    0x74 => Load { source: WordRegister::H, ..ld_ptr_hl_r },
-                    0x75 => Load { source: WordRegister::L, ..ld_ptr_hl_r },
-                    _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
-                })
-        } else if ((word <= 0x2E) && ((word & 0b111) == 0b110)) || word == 0x3E {
-            let ld_r_w = Load {
-                destination: WordRegister::B,
-                source: ImmediateWord(cpu.word_at(cpu.get_pc_register() + 1)),
-                size: 2,
-                cycles: 8
-            };
-
-            Box::new(
-                match word {
-                    0x3E => Load { destination: WordRegister::A, ..ld_r_w },
-                    0x06 => Load { destination: WordRegister::B, ..ld_r_w },
-                    0x0E => Load { destination: WordRegister::C, ..ld_r_w },
-                    0x16 => Load { destination: WordRegister::D, ..ld_r_w },
-                    0x1E => Load { destination: WordRegister::E, ..ld_r_w },
-                    0x26 => Load { destination: WordRegister::H, ..ld_r_w },
-                    0x2E => Load { destination: WordRegister::L, ..ld_r_w },
-                    _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
-                })
-        } else if word == 0x01 || word == 0x11 || word == 0x21 || word == 0x31 {
-            let ld_r_w = Load {
-                destination: DoubleRegister::BC,
-                source: ImmediateDouble(cpu.double_at(cpu.get_pc_register() + 1)),
-                size: 3,
-                cycles: 12
-            };
-
-            Box::new(
-                match word {
-                    0x01 => Load { destination: DoubleRegister::BC, ..ld_r_w },
-                    0x11 => Load { destination: DoubleRegister::DE, ..ld_r_w },
-                    0x21 => Load { destination: DoubleRegister::HL, ..ld_r_w },
-                    0x31 => Load { destination: DoubleRegister::SP, ..ld_r_w },
-                    _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
-                })
-        } else if ((word >= 0x46) && (word <= 0x7E) && ((word & 0b111) == 0b110)) ||
-            word == 0x0A || word == 0x1A || word == 0xF2 {
-            let ld_r_ptr_hl = Load {
-                destination: WordRegister::A,
-                source: MemoryPointerOperand::HL,
-                size: 1,
-                cycles: 8
-            };
-            Box::new(
-                match word {
-                    0x7E => Load { destination: WordRegister::A, ..ld_r_ptr_hl },
-                    0x0A => Load { destination: WordRegister::A, source: MemoryPointerOperand::BC, ..ld_r_ptr_hl },
-                    0x1A => Load { destination: WordRegister::A, source: MemoryPointerOperand::DE, ..ld_r_ptr_hl },
-                    0xF2 => Load { destination: WordRegister::A, source: MemoryPointerOperand::C, ..ld_r_ptr_hl },
-                    0x46 => Load { destination: WordRegister::B, ..ld_r_ptr_hl },
-                    0x4E => Load { destination: WordRegister::C, ..ld_r_ptr_hl },
-                    0x56 => Load { destination: WordRegister::D, ..ld_r_ptr_hl },
-                    0x5E => Load { destination: WordRegister::E, ..ld_r_ptr_hl },
-                    0x66 => Load { destination: WordRegister::H, ..ld_r_ptr_hl },
-                    0x6E => Load { destination: WordRegister::L, ..ld_r_ptr_hl },
-                    _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
-                })
-        } else {
-            let ld_r_r = Load {
-                destination: WordRegister::A,
-                source: WordRegister::A,
-                size: 1,
-                cycles: 4
-            };
-            Box::new(
-                match word {
-                    0x7F => Load { destination: WordRegister::A, source: WordRegister::A, ..ld_r_r },
-                    0x78 => Load { destination: WordRegister::A, source: WordRegister::B, ..ld_r_r },
-                    0x79 => Load { destination: WordRegister::A, source: WordRegister::C, ..ld_r_r },
-                    0x7A => Load { destination: WordRegister::A, source: WordRegister::D, ..ld_r_r },
-                    0x7B => Load { destination: WordRegister::A, source: WordRegister::E, ..ld_r_r },
-                    0x7C => Load { destination: WordRegister::A, source: WordRegister::H, ..ld_r_r },
-                    0x7D => Load { destination: WordRegister::A, source: WordRegister::L, ..ld_r_r },
-
-                    0x40 => Load { destination: WordRegister::B, source: WordRegister::B, ..ld_r_r },
-                    0x41 => Load { destination: WordRegister::B, source: WordRegister::C, ..ld_r_r },
-                    0x42 => Load { destination: WordRegister::B, source: WordRegister::D, ..ld_r_r },
-                    0x43 => Load { destination: WordRegister::B, source: WordRegister::E, ..ld_r_r },
-                    0x44 => Load { destination: WordRegister::B, source: WordRegister::H, ..ld_r_r },
-                    0x45 => Load { destination: WordRegister::B, source: WordRegister::L, ..ld_r_r },
-
-                    0x48 => Load { destination: WordRegister::C, source: WordRegister::B, ..ld_r_r },
-                    0x49 => Load { destination: WordRegister::C, source: WordRegister::C, ..ld_r_r },
-                    0x4A => Load { destination: WordRegister::C, source: WordRegister::D, ..ld_r_r },
-                    0x4B => Load { destination: WordRegister::C, source: WordRegister::E, ..ld_r_r },
-                    0x4C => Load { destination: WordRegister::C, source: WordRegister::H, ..ld_r_r },
-                    0x4D => Load { destination: WordRegister::C, source: WordRegister::L, ..ld_r_r },
-
-                    0x50 => Load { destination: WordRegister::D, source: WordRegister::B, ..ld_r_r },
-                    0x51 => Load { destination: WordRegister::D, source: WordRegister::C, ..ld_r_r },
-                    0x52 => Load { destination: WordRegister::D, source: WordRegister::D, ..ld_r_r },
-                    0x53 => Load { destination: WordRegister::D, source: WordRegister::E, ..ld_r_r },
-                    0x54 => Load { destination: WordRegister::D, source: WordRegister::H, ..ld_r_r },
-                    0x55 => Load { destination: WordRegister::D, source: WordRegister::L, ..ld_r_r },
-
-                    0x58 => Load { destination: WordRegister::E, source: WordRegister::B, ..ld_r_r },
-                    0x59 => Load { destination: WordRegister::E, source: WordRegister::C, ..ld_r_r },
-                    0x5A => Load { destination: WordRegister::E, source: WordRegister::D, ..ld_r_r },
-                    0x5B => Load { destination: WordRegister::E, source: WordRegister::E, ..ld_r_r },
-                    0x5C => Load { destination: WordRegister::E, source: WordRegister::H, ..ld_r_r },
-                    0x5D => Load { destination: WordRegister::E, source: WordRegister::L, ..ld_r_r },
-
-                    0x60 => Load { destination: WordRegister::H, source: WordRegister::B, ..ld_r_r },
-                    0x61 => Load { destination: WordRegister::H, source: WordRegister::C, ..ld_r_r },
-                    0x62 => Load { destination: WordRegister::H, source: WordRegister::D, ..ld_r_r },
-                    0x63 => Load { destination: WordRegister::H, source: WordRegister::E, ..ld_r_r },
-                    0x64 => Load { destination: WordRegister::H, source: WordRegister::H, ..ld_r_r },
-                    0x65 => Load { destination: WordRegister::H, source: WordRegister::L, ..ld_r_r },
-
-                    0x68 => Load { destination: WordRegister::L, source: WordRegister::B, ..ld_r_r },
-                    0x69 => Load { destination: WordRegister::L, source: WordRegister::C, ..ld_r_r },
-                    0x6A => Load { destination: WordRegister::L, source: WordRegister::D, ..ld_r_r },
-                    0x6B => Load { destination: WordRegister::L, source: WordRegister::E, ..ld_r_r },
-                    0x6C => Load { destination: WordRegister::L, source: WordRegister::H, ..ld_r_r },
-                    0x6D => Load { destination: WordRegister::L, source: WordRegister::L, ..ld_r_r },
-
-                    _ => panic!(format!("unhandled opcode : 0x{:02X}", word))
-                }
-            )
-        }
+impl Decoder {
+    fn push<T: 'static + Opcode>(&mut self, opcode: T) {
+        self.0.push(Box::new(opcode))
     }
+}
+
+impl Index<Word> for Decoder {
+    type Output = Box<Opcode>;
+
+    fn index(&self, index: Word) -> &Self::Output {
+        &self.0[index as usize]
+    }
+}
+
+impl IndexMut<Word> for Decoder {
+    fn index_mut(&mut self, index: Word) -> &mut Self::Output {
+        &mut self.0[index as usize]
+    }
+}
+
+fn build_decoder() -> Decoder {
+    fn ld_ptr_r_from_r(destination: RegisterPointer, source: WordRegister) -> Box<Load<Word, RegisterPointer, WordRegister>> {
+        Box::new(Load {
+            destination: destination,
+            source: source,
+            size: 1,
+            cycles: 8,
+            operation_type: PhantomData
+        })
+    }
+
+    fn ld_r_from_w(destination: WordRegister) -> Box<Load<Word, WordRegister, ImmediateWord>> {
+        Box::new(Load {
+            destination: destination,
+            source: ImmediateWord {},
+            size: 2,
+            cycles: 8,
+            operation_type: PhantomData
+        })
+    }
+    fn ld_rr_from_ww(destination: DoubleRegister) -> Box<Load<Double, DoubleRegister, ImmediateDouble>> {
+        Box::new(Load {
+            destination: destination,
+            source: ImmediateDouble {},
+            size: 3,
+            cycles: 12,
+            operation_type: PhantomData
+        })
+    }
+
+    fn ld_r_from_ptr_r(destination: WordRegister, source: RegisterPointer) -> Box<Load<Word, WordRegister, RegisterPointer>> {
+        Box::new(Load {
+            destination: destination,
+            source: source,
+            size: 1,
+            cycles: 8,
+            operation_type: PhantomData
+        })
+    }
+
+    fn ld_r_from_r(destination: WordRegister, source: WordRegister) -> Box<Load<Word, WordRegister, WordRegister>> {
+        Box::new(Load {
+            destination: destination,
+            source: source,
+            size: 1,
+            cycles: 4,
+            operation_type: PhantomData
+        })
+    }
+
+    fn ld_ptr_nn_from_rr(source: DoubleRegister) -> Box<Load<Double, ImmediatePointer<Double>, DoubleRegister>> {
+        Box::new(Load {
+            destination: ImmediatePointer { resource_type: PhantomData },
+            source: source,
+            size: 3,
+            cycles: 20,
+            operation_type: PhantomData
+        })
+    }
+
+    fn ld_ptr_nn_from_r(source: WordRegister) -> Box<Load<Word, ImmediatePointer<Word>, WordRegister>> {
+        Box::new(Load {
+            destination: ImmediatePointer { resource_type: PhantomData },
+            source: source,
+            size: 3,
+            cycles: 16,
+            operation_type: PhantomData
+        })
+    }
+
+    fn ld_ptr_r_from_w(destination: RegisterPointer) -> Box<Load<Word, RegisterPointer, ImmediateWord>> {
+        Box::new(Load {
+            destination: destination,
+            source: ImmediateWord {},
+            size: 1,
+            cycles: 12,
+            operation_type: PhantomData
+        })
+    }
+
+    fn ld_rr_from_rr(destination: DoubleRegister, source: DoubleRegister) -> Box<Load<Double, DoubleRegister, DoubleRegister>> {
+        Box::new(Load {
+            destination: destination,
+            source: source,
+            size: 1,
+            cycles: 8,
+            operation_type: PhantomData
+        })
+    }
+
+    fn ld_r_from_ptr_nn(destination: WordRegister) -> Box<Load<Word, WordRegister, ImmediatePointer<Word>>> {
+        Box::new(Load {
+            destination: destination,
+            source: ImmediatePointer { resource_type: PhantomData },
+            size: 3,
+            cycles: 16,
+            operation_type: PhantomData
+        })
+    }
+
+    let mut decoder = Decoder(vec!());
+
+    //todo temp loop for growing the vec
+    for _ in 0..256 {
+        decoder.push(NotImplemented {})
+    }
+
+    decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
+    decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
+    decoder[0x06] = ld_r_from_w(WordRegister::B);
+    decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
+    decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
+    decoder[0x0E] = ld_r_from_w(WordRegister::C);
+    decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
+    decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
+    decoder[0x16] = ld_r_from_w(WordRegister::D);
+    decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
+    decoder[0x1E] = ld_r_from_w(WordRegister::E);
+    decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
+    decoder[0x26] = ld_r_from_w(WordRegister::H);
+    decoder[0x2E] = ld_r_from_w(WordRegister::L);
+    decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
+    decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
+    decoder[0x3E] = ld_r_from_w(WordRegister::A);
+    decoder[0x40] = ld_r_from_r(WordRegister::B, WordRegister::B);
+    decoder[0x41] = ld_r_from_r(WordRegister::B, WordRegister::C);
+    decoder[0x42] = ld_r_from_r(WordRegister::B, WordRegister::D);
+    decoder[0x43] = ld_r_from_r(WordRegister::B, WordRegister::E);
+    decoder[0x44] = ld_r_from_r(WordRegister::B, WordRegister::H);
+    decoder[0x45] = ld_r_from_r(WordRegister::B, WordRegister::L);
+    decoder[0x46] = ld_r_from_ptr_r(WordRegister::B, RegisterPointer::HL);
+    decoder[0x48] = ld_r_from_r(WordRegister::C, WordRegister::B);
+    decoder[0x49] = ld_r_from_r(WordRegister::C, WordRegister::C);
+    decoder[0x4A] = ld_r_from_r(WordRegister::C, WordRegister::D);
+    decoder[0x4B] = ld_r_from_r(WordRegister::C, WordRegister::E);
+    decoder[0x4C] = ld_r_from_r(WordRegister::C, WordRegister::H);
+    decoder[0x4D] = ld_r_from_r(WordRegister::C, WordRegister::L);
+    decoder[0x4E] = ld_r_from_ptr_r(WordRegister::C, RegisterPointer::HL);
+    decoder[0x50] = ld_r_from_r(WordRegister::D, WordRegister::B);
+    decoder[0x51] = ld_r_from_r(WordRegister::D, WordRegister::C);
+    decoder[0x52] = ld_r_from_r(WordRegister::D, WordRegister::D);
+    decoder[0x53] = ld_r_from_r(WordRegister::D, WordRegister::E);
+    decoder[0x54] = ld_r_from_r(WordRegister::D, WordRegister::H);
+    decoder[0x55] = ld_r_from_r(WordRegister::D, WordRegister::L);
+    decoder[0x56] = ld_r_from_ptr_r(WordRegister::D, RegisterPointer::HL);
+    decoder[0x58] = ld_r_from_r(WordRegister::E, WordRegister::B);
+    decoder[0x59] = ld_r_from_r(WordRegister::E, WordRegister::C);
+    decoder[0x5A] = ld_r_from_r(WordRegister::E, WordRegister::D);
+    decoder[0x5B] = ld_r_from_r(WordRegister::E, WordRegister::E);
+    decoder[0x5C] = ld_r_from_r(WordRegister::E, WordRegister::H);
+    decoder[0x5D] = ld_r_from_r(WordRegister::E, WordRegister::L);
+    decoder[0x5E] = ld_r_from_ptr_r(WordRegister::E, RegisterPointer::HL);
+    decoder[0x60] = ld_r_from_r(WordRegister::H, WordRegister::B);
+    decoder[0x61] = ld_r_from_r(WordRegister::H, WordRegister::C);
+    decoder[0x62] = ld_r_from_r(WordRegister::H, WordRegister::D);
+    decoder[0x63] = ld_r_from_r(WordRegister::H, WordRegister::E);
+    decoder[0x64] = ld_r_from_r(WordRegister::H, WordRegister::H);
+    decoder[0x65] = ld_r_from_r(WordRegister::H, WordRegister::L);
+    decoder[0x68] = ld_r_from_r(WordRegister::L, WordRegister::B);
+    decoder[0x69] = ld_r_from_r(WordRegister::L, WordRegister::C);
+    decoder[0x6A] = ld_r_from_r(WordRegister::L, WordRegister::D);
+    decoder[0x6B] = ld_r_from_r(WordRegister::L, WordRegister::E);
+    decoder[0x6C] = ld_r_from_r(WordRegister::L, WordRegister::H);
+    decoder[0x6D] = ld_r_from_r(WordRegister::L, WordRegister::L);
+    decoder[0x66] = ld_r_from_ptr_r(WordRegister::H, RegisterPointer::HL);
+    decoder[0x6E] = ld_r_from_ptr_r(WordRegister::L, RegisterPointer::HL);
+    decoder[0x70] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::B);
+    decoder[0x71] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::C);
+    decoder[0x72] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::D);
+    decoder[0x73] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::E);
+    decoder[0x74] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::H);
+    decoder[0x75] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::L);
+    decoder[0x77] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::A);
+    decoder[0x7E] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::HL);
+    decoder[0x78] = ld_r_from_r(WordRegister::A, WordRegister::B);
+    decoder[0x79] = ld_r_from_r(WordRegister::A, WordRegister::C);
+    decoder[0x7A] = ld_r_from_r(WordRegister::A, WordRegister::D);
+    decoder[0x7B] = ld_r_from_r(WordRegister::A, WordRegister::E);
+    decoder[0x7C] = ld_r_from_r(WordRegister::A, WordRegister::H);
+    decoder[0x7D] = ld_r_from_r(WordRegister::A, WordRegister::L);
+    decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
+    decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
+    decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
+    decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
+    decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
+    decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
+
+    decoder
 }
 
 pub struct ArrayBasedMemory {
@@ -487,6 +520,12 @@ impl ArrayBasedMemory {
     fn set_word_at(&mut self, address: Address, word: Word) {
         self.words[address as usize] = word;
     }
+
+    fn set_double_at(&mut self, address: Address, double: Double) {
+        let i = address as usize;
+        self.words[i] = low_word(double);
+        self.words[i + 1] = high_word(double);
+    }
 }
 
 struct Program {
@@ -497,7 +536,6 @@ struct Program {
 struct ComputerUnit {
     registers: Registers,
     memory: ArrayBasedMemory,
-    decoder: SwitchBasedDecoder,
     cycles: Cycle
 }
 
@@ -506,9 +544,9 @@ impl ComputerUnit {
         self.registers.pc = self.registers.pc + length;
     }
 
-    fn run_1_instruction(&mut self) {
+    fn run_1_instruction(&mut self, decoder: &Decoder) {
         let word = self.memory.word_at(self.registers.pc);
-        let opcode = self.decoder.decode(word, self);
+        let ref opcode = decoder[word];
         opcode.exec(self);
     }
 
@@ -619,6 +657,10 @@ impl ComputerUnit {
     fn set_word_at(&mut self, address: Address, word: Word) {
         self.memory.set_word_at(address, word);
     }
+
+    fn set_double_at(&mut self, address: Address, double: Double) {
+        self.memory.set_double_at(address, double);
+    }
 }
 
 fn new_cpu() -> ComputerUnit {
@@ -627,7 +669,6 @@ fn new_cpu() -> ComputerUnit {
         memory: ArrayBasedMemory {
             words: [0xAA; 0xFFFF]
         },
-        decoder: SwitchBasedDecoder {},
         cycles: 0xA0 // this is some random value
     }
 }
@@ -651,7 +692,7 @@ fn should_load_program() {
     let program = program_loader.load(vec![0x06, 0xBA]); // LD B, 0xBA
 
     cpu.load(&program);
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
 
     assert_eq!(cpu.get_b_register(), 0xBA);
     assert_eq!(cpu.get_pc_register(), 0x02);
@@ -805,7 +846,7 @@ fn should_implement_every_ld_r_w_instructions() {
     for case in cases {
         let mut cpu = new_cpu();
         cpu.load(&case.program());
-        cpu.run_1_instruction();
+        cpu.run_1_instruction(&build_decoder());
         case.assert(cpu);
         // (case.assertions)(cpu, case.program.name.to_string());
     }
@@ -823,12 +864,12 @@ fn should_implement_ld_b_a_instructions() {
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.get_b_register(), 0xBB, "bad right register value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.get_a_register(), 0xBB, "bad left register value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
@@ -848,7 +889,7 @@ fn should_implement_ld_c_prt_hl_instructions() {
     cpu.memory.words[0xABCD] = 0xEF;
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.get_c_register(), 0xEF, "bad register value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -868,7 +909,7 @@ fn should_implement_ld_a_prt_bc_instructions() {
     cpu.memory.words[0xABCD] = 0xEF;
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.get_a_register(), 0xEF, "bad register value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -889,7 +930,7 @@ fn should_implement_ld_a_prt_de_instructions() {
     cpu.memory.words[0xABCD] = 0xEF;
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.get_a_register(), 0xEF, "bad register value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -910,7 +951,7 @@ fn should_implement_ld_prt_hl_d_instruction() {
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -931,7 +972,7 @@ fn should_implement_ld_prt_c_a_instruction() {
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.word_at(0xFFCD), 0xEF, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -952,7 +993,7 @@ fn should_implement_ld_a_ptr_c_instruction() {
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.get_a_register(), 0xEF, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -973,7 +1014,7 @@ fn should_implement_ld_prt_nn_a_instruction() {
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.word_at(0xABCD), 0xEF, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 176, "bad cycles count after {}", msg);
@@ -994,7 +1035,7 @@ fn should_implement_ld_prt_hl_a_instruction() {
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -1015,7 +1056,7 @@ fn should_implement_ld_prt_bc_a_instruction() {
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.word_at(cpu.get_bc_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -1036,7 +1077,7 @@ fn should_implement_ld_prt_de_a_instruction() {
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.word_at(cpu.get_de_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -1056,7 +1097,7 @@ fn should_implement_prt_hl_n_instruction() {
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.word_at(cpu.get_hl_register()), 0x66, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
@@ -1076,8 +1117,46 @@ fn should_implement_ld_a_prt_nn_instruction() {
     cpu.memory.words[0xABCD] = 0x66;
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction();
+    cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.get_a_register(), 0x66, "bad register value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 176, "bad cycles count after {}", msg);
+}
+
+#[test]
+fn should_implement_ld_sp_hl_instruction() {
+    let pg = Program {
+        name: "LD SP,HL",
+        content: vec![0xF9]
+    };
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.set_register_hl(0xABCD);
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction(&build_decoder());
+    assert_eq! (cpu.get_sp_register(), 0xABCD, "bad register value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+}
+
+#[test]
+fn should_implement_ld_ptr_nn_sp_instruction() {
+    let pg = Program {
+        name: "LD (0xABCD),SP",
+        content: vec![0x08, 0xCD, 0xAB]
+    };
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.set_register_sp(0x1234);
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction(&build_decoder());
+    assert_eq! (cpu.double_at(0xABCD), 0x1234, "bad memory value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 180, "bad cycles count after {}", msg);
 }

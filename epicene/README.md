@@ -56,4 +56,13 @@ clever.
 - The compilator is a jewel. It helps a lot. For instance, 
 missing else : an if alone should return ().
 forgot branch in switch case
+dead code detection
+unused variable
+fortement typé : params, return, generics ... 
+pas de null
+
+- les génériques sont compliqués
+
+- quand ça compile, on est à peu près sûr que ça marche
+
 
