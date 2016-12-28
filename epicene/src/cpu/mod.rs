@@ -91,7 +91,7 @@ fn should_get_value_from_registers() {
     assert_eq!(regs.c(), 0xCC);
 }
 
-struct Load<X, L:LeftOperand<X>, R:RightOperand<X>> {
+struct Load<X, L: LeftOperand<X>, R: RightOperand<X>> {
     destination: L,
     source: R,
     size: Double,
@@ -264,7 +264,7 @@ impl RightOperand<Word> for RegisterPointer {
     }
 }
 
-impl<X, L:LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R>{
+impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let word = self.source.resolve(cpu);
         self.destination.alter(cpu, word);
@@ -503,12 +503,18 @@ pub struct ArrayBasedMemory {
 
 impl ArrayBasedMemory {
     fn word_at(&self, address: Address) -> Word {
-        self.words[address as usize]
+        let i = if address % 2 == 0 {
+            address + 1
+        } else {
+            address - 1
+        } as usize;
+        self.words[i]
     }
 
     fn double_at(&self, address: Address) -> Double {
-        let i = address as usize;
-        set_high_word(set_low_word(0, self.words[i]), self.words[i + 1])
+        set_low_word(
+            set_high_word(0, self.word_at(address)),
+            self.word_at(address + 1))
     }
 
     fn map(&mut self, p: &Program) {
@@ -518,13 +524,17 @@ impl ArrayBasedMemory {
     }
 
     fn set_word_at(&mut self, address: Address, word: Word) {
-        self.words[address as usize] = word;
+        let i = if address % 2 == 0 {
+            address + 1
+        } else {
+            address - 1
+        } as usize;
+        self.words[i] = word;
     }
 
     fn set_double_at(&mut self, address: Address, double: Double) {
-        let i = address as usize;
-        self.words[i] = low_word(double);
-        self.words[i + 1] = high_word(double);
+        self.set_word_at(address, high_word(double));
+        self.set_word_at(address + 1, low_word(double));
     }
 }
 
@@ -689,7 +699,7 @@ fn should_load_program() {
     let mut cpu = new_cpu();
 
     let program_loader = MemoryProgramLoader {};
-    let program = program_loader.load(vec![0x06, 0xBA]); // LD B, 0xBA
+    let program = program_loader.load(vec![0xBA, 0x06]); // LD B, 0xBA
 
     cpu.load(&program);
     cpu.run_1_instruction(&build_decoder());
@@ -723,7 +733,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD A, 0x60",
-                content: vec![0x3E, 0x60]
+                content: vec![0x60, 0x3E]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_a_register(), 0x60, "bad register value after {}", msg);
@@ -734,7 +744,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD B, 0x60",
-                content: vec![0x06, 0x60]
+                content: vec![0x60, 0x06]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_b_register(), 0x60, "bad register value after {}", msg);
@@ -745,7 +755,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD C, 0xE0",
-                content: vec![0x0E, 0xE0]
+                content: vec![0xE0, 0x0E]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_c_register(), 0xE0, "bad register value after {}", msg);
@@ -756,7 +766,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD D, 0x61",
-                content: vec![0x16, 0x61]
+                content: vec![0x61, 0x16]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_d_register(), 0x61, "bad register value after {}", msg);
@@ -767,7 +777,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD E, 0xE1",
-                content: vec![0x1E, 0xE1]
+                content: vec![0xE1, 0x1E]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_e_register(), 0xE1, "bad register value after {}", msg);
@@ -778,7 +788,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD H, 0x62",
-                content: vec![0x26, 0x62]
+                content: vec![0x62, 0x26]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_h_register(), 0x62, "bad register value after {}", msg);
@@ -789,7 +799,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD L, 0xE2",
-                content: vec![0x2E, 0xE2]
+                content: vec![0xE2, 0x2E]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_l_register(), 0xE2, "bad register value after {}", msg);
@@ -800,7 +810,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD BC, 0xABCD",
-                content: vec![0x01, 0xCD, 0xAB]
+                content: vec![0xAB, 0x01, 0x00, 0xCD]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_bc_register(), 0xABCD, "bad register value after {}", msg);
@@ -811,7 +821,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD DE, 0xABCD",
-                content: vec![0x11, 0xCD, 0xAB]
+                content: vec![0xAB, 0x11, 0x00, 0xCD]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_de_register(), 0xABCD, "bad register value after {}", msg);
@@ -822,7 +832,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD HL, 0xABCD",
-                content: vec![0x21, 0xCD, 0xAB]
+                content: vec![0xAB, 0x21, 0x00, 0xCD]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_hl_register(), 0xABCD, "bad register value after {}", msg);
@@ -833,7 +843,7 @@ fn should_implement_every_ld_r_w_instructions() {
         Box::new(UseCase {
             program: Program {
                 name: "LD SP, 0xABCD",
-                content: vec![0x31, 0xCD, 0xAB]
+                content: vec![0xAB, 0x31, 0x00, 0xCD]
             },
             assertions: |cpu, msg| {
                 assert_eq! (cpu.get_sp_register(), 0xABCD, "bad register value after {}", msg);
@@ -856,7 +866,7 @@ fn should_implement_every_ld_r_w_instructions() {
 fn should_implement_ld_b_a_instructions() {
     let pg = Program {
         name: "\nLD B, 0xBB\nLD A, B\n",
-        content: vec![0x06, 0xBB, 0x78]
+        content: vec![0xBB, 0x06, 0x00, 0x78]
     };
     let msg = pg.name;
     let mut cpu = new_cpu();
@@ -879,14 +889,14 @@ fn should_implement_ld_b_a_instructions() {
 fn should_implement_ld_c_prt_hl_instructions() {
     let pg = Program {
         name: "LD C,(HL)",
-        content: vec![0x4E]
+        content: vec![0x00, 0x4E]
     };
 
     let msg = pg.name;
     let mut cpu = new_cpu();
     cpu.load(&pg);
-    cpu.registers.hl = 0xABCD;
-    cpu.memory.words[0xABCD] = 0xEF;
+    cpu.set_register_hl(0xABCD);
+    cpu.set_word_at(0xABCD, 0xEF);
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
@@ -899,14 +909,14 @@ fn should_implement_ld_c_prt_hl_instructions() {
 fn should_implement_ld_a_prt_bc_instructions() {
     let pg = Program {
         name: "LD A,(BC)",
-        content: vec![0x0A]
+        content: vec![0x00, 0x0A]
     };
 
     let msg = pg.name;
     let mut cpu = new_cpu();
     cpu.load(&pg);
-    cpu.registers.bc = 0xABCD;
-    cpu.memory.words[0xABCD] = 0xEF;
+    cpu.set_register_bc(0xABCD);
+    cpu.set_word_at(0xABCD, 0xEF);
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
@@ -920,14 +930,14 @@ fn should_implement_ld_a_prt_bc_instructions() {
 fn should_implement_ld_a_prt_de_instructions() {
     let pg = Program {
         name: "LD A,(DE)",
-        content: vec![0x1A]
+        content: vec![0x00, 0x1A]
     };
 
     let msg = pg.name;
     let mut cpu = new_cpu();
     cpu.load(&pg);
-    cpu.registers.de = 0xABCD;
-    cpu.memory.words[0xABCD] = 0xEF;
+    cpu.set_register_de(0xABCD);
+    cpu.set_word_at(0xABCD, 0xEF);
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
@@ -940,7 +950,7 @@ fn should_implement_ld_a_prt_de_instructions() {
 fn should_implement_ld_prt_hl_d_instruction() {
     let pg = Program {
         name: "LD (HL),D",
-        content: vec![0x72]
+        content: vec![0x00, 0x72]
     };
 
     let msg = pg.name;
@@ -961,7 +971,7 @@ fn should_implement_ld_prt_hl_d_instruction() {
 fn should_implement_ld_prt_c_a_instruction() {
     let pg = Program {
         name: "LD (C), A",
-        content: vec![0xE2]
+        content: vec![0x00, 0xE2]
     };
 
     let msg = pg.name;
@@ -982,7 +992,7 @@ fn should_implement_ld_prt_c_a_instruction() {
 fn should_implement_ld_a_ptr_c_instruction() {
     let pg = Program {
         name: "LD A, (C)",
-        content: vec![0xF2]
+        content: vec![0x00, 0xF2]
     };
 
     let msg = pg.name;
@@ -1004,13 +1014,13 @@ fn should_implement_ld_a_ptr_c_instruction() {
 fn should_implement_ld_prt_nn_a_instruction() {
     let pg = Program {
         name: "LD (0xABCD),A",
-        content: vec![0xEA, 0xCD, 0xAB] // little endian
+        content: vec![0xAB, 0xEA, 0x00, 0xCD]
     };
 
     let msg = pg.name;
     let mut cpu = new_cpu();
     cpu.load(&pg);
-    cpu.registers.af = 0xEF00;
+    cpu.set_register_a(0xEF);
 
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
@@ -1024,7 +1034,7 @@ fn should_implement_ld_prt_nn_a_instruction() {
 fn should_implement_ld_prt_hl_a_instruction() {
     let pg = Program {
         name: "LD (HL),A",
-        content: vec![0x77]
+        content: vec![0x00, 0x77]
     };
 
     let msg = pg.name;
@@ -1045,7 +1055,7 @@ fn should_implement_ld_prt_hl_a_instruction() {
 fn should_implement_ld_prt_bc_a_instruction() {
     let pg = Program {
         name: "LD (BC),A",
-        content: vec![0x02]
+        content: vec![0x00, 0x02]
     };
 
     let msg = pg.name;
@@ -1066,7 +1076,7 @@ fn should_implement_ld_prt_bc_a_instruction() {
 fn should_implement_ld_prt_de_a_instruction() {
     let pg = Program {
         name: "LD (DE),A",
-        content: vec![0x12]
+        content: vec![0x00, 0x12]
     };
 
     let msg = pg.name;
@@ -1087,7 +1097,7 @@ fn should_implement_ld_prt_de_a_instruction() {
 fn should_implement_prt_hl_n_instruction() {
     let pg = Program {
         name: "LD (HL),0x66",
-        content: vec![0x36, 0x66]
+        content: vec![0x66, 0x36]
     };
 
     let msg = pg.name;
@@ -1108,13 +1118,13 @@ fn should_implement_prt_hl_n_instruction() {
 fn should_implement_ld_a_prt_nn_instruction() {
     let pg = Program {
         name: "LD A,(0xABCD)",
-        content: vec![0xFA, 0xCD, 0xAB] // little endian
+        content: vec![0xAB, 0xFA, 0x00, 0xCD]
     };
 
     let msg = pg.name;
     let mut cpu = new_cpu();
     cpu.load(&pg);
-    cpu.memory.words[0xABCD] = 0x66;
+    cpu.set_word_at(0xABCD, 0x66);
     assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
@@ -1127,7 +1137,7 @@ fn should_implement_ld_a_prt_nn_instruction() {
 fn should_implement_ld_sp_hl_instruction() {
     let pg = Program {
         name: "LD SP,HL",
-        content: vec![0xF9]
+        content: vec![0x00, 0xF9]
     };
 
     let msg = pg.name;
@@ -1146,7 +1156,7 @@ fn should_implement_ld_sp_hl_instruction() {
 fn should_implement_ld_ptr_nn_sp_instruction() {
     let pg = Program {
         name: "LD (0xABCD),SP",
-        content: vec![0x08, 0xCD, 0xAB]
+        content: vec![0xAB, 0x08, 0x00, 0xCD]
     };
 
     let msg = pg.name;
