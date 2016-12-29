@@ -365,7 +365,7 @@ impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
         self.size
     }
 
-    fn cycles(&self) -> Cycle {
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
 }
@@ -373,20 +373,20 @@ impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
 trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
     fn size(&self) -> Size;
-    fn cycles(&self) -> Cycle;
+    fn cycles(&self, &ComputerUnit) -> Cycle;
 }
 
 struct NotImplemented(Word);
 
 impl Opcode for NotImplemented {
-    fn exec(&self, _: &mut ComputerUnit) {
-        panic!("{:02X} not implemented", self.0);
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        panic!("{:02X} not implemented at {:04X}", self.0, cpu.get_pc_register());
     }
     fn size(&self) -> Size {
         unimplemented!()
     }
 
-    fn cycles(&self) -> Cycle {
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
         unimplemented!()
     }
 }
@@ -403,19 +403,20 @@ impl Opcode for Nop {
         self.size
     }
 
-    fn cycles(&self) -> Cycle {
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
 }
 
-struct Jmp<X, A: RightOperand<X>> {
+
+struct UnconditionalJump<X, A: RightOperand<X>> {
     address: A,
     size: Size,
     cycles: Cycle,
     operation_type: PhantomData<X>
 }
 
-impl<A: RightOperand<Double>> Opcode for Jmp<Double, A> {
+impl<A: RightOperand<Double>> Opcode for UnconditionalJump<Double, A> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let address: Double = self.address.resolve(cpu);
         cpu.set_register_pc(address - self.size()); // self.size() is added afterward
@@ -425,8 +426,68 @@ impl<A: RightOperand<Double>> Opcode for Jmp<Double, A> {
         self.size
     }
 
-    fn cycles(&self) -> Cycle {
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
+    }
+}
+
+#[derive(Debug)]
+enum JmpCondition {
+    NONZERO,
+    //ZERO,
+    //NOCARRY,
+    //CARRY
+}
+
+impl JmpCondition {
+    fn matches(&self, cpu: &ComputerUnit) -> bool {
+        match *self {
+            JmpCondition::NONZERO => !cpu.zero_flag(),
+            //JmpCondition::ZERO => cpu.zero_flag(),
+            //JmpCondition::NOCARRY => !cpu.carry_flag(),
+            //JmpCondition::CARRY => cpu.carry_flag()
+        }
+    }
+}
+
+struct ConditionalJump<X, A: RightOperand<X>> {
+    address: A,
+    condition: JmpCondition,
+    size: Size,
+    cycles_when_taken: Cycle,
+    cycles_when_not_taken: Cycle,
+    operation_type: PhantomData<X>
+}
+
+fn is_negative(word: Word) -> bool {
+    word & 0x80 != 0
+}
+
+impl<A: RightOperand<Word>> Opcode for ConditionalJump<Word, A> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let relative_address: Word = self.address.resolve(cpu);
+        if self.condition.matches(cpu) {
+            //don't use ALU because we don't touch flags
+            let address = if is_negative(relative_address) {
+                let negative_address = (!relative_address).wrapping_sub(1);
+                cpu.get_pc_register().wrapping_sub(negative_address as u16)
+            } else {
+                cpu.get_pc_register().wrapping_add(relative_address as u16)
+            };
+            cpu.set_register_pc(address - self.size()); // self.size() is added afterward
+        }
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, cpu: &ComputerUnit) -> Cycle {
+        if self.condition.matches(cpu) {
+            self.cycles_when_taken
+        } else {
+            self.cycles_when_not_taken
+        }
     }
 }
 
@@ -444,7 +505,7 @@ impl Opcode for DisableInterrupts {
         self.size
     }
 
-    fn cycles(&self) -> Cycle {
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
 }
@@ -471,7 +532,7 @@ impl<S: RightOperand<Word>> Opcode for XorWithA<S> {
         self.size
     }
 
-    fn cycles(&self) -> Cycle {
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
 }
@@ -606,11 +667,22 @@ fn build_decoder() -> Decoder {
         })
     }
 
-    fn jmp_nn() -> Box<Jmp<Double, ImmediateDouble>> {
-        Box::new(Jmp {
+    fn jmp_nn() -> Box<UnconditionalJump<Double, ImmediateDouble>> {
+        Box::new(UnconditionalJump {
             address: ImmediateDouble {},
             size: 3,
             cycles: 16,
+            operation_type: PhantomData
+        })
+    }
+
+    fn jr_nz_w() -> Box<ConditionalJump<Word, ImmediateWord>> {
+        Box::new(ConditionalJump {
+            address: ImmediateWord {},
+            condition: JmpCondition::NONZERO,
+            size: 3,
+            cycles_when_taken: 12,
+            cycles_when_not_taken: 8,
             operation_type: PhantomData
         })
     }
@@ -684,17 +756,19 @@ fn build_decoder() -> Decoder {
         })
     }
 
-    fn dec_r(destination: WordRegister) -> Box<Dec<WordRegister>> {
-        Box::new(Dec {
+    fn dec_r(destination: WordRegister) -> Box<IncDec<WordRegister>> {
+        Box::new(IncDec {
             destination: destination,
+            operation: ArithmeticLogicalUnit::sub,
             size: 1,
             cycles: 4
         })
     }
 
-    fn dec_ptr_r(destination: RegisterPointer) -> Box<Dec<RegisterPointer>> {
-        Box::new(Dec {
+    fn dec_ptr_r(destination: RegisterPointer) -> Box<IncDec<RegisterPointer>> {
+        Box::new(IncDec {
             destination: destination,
+            operation: ArithmeticLogicalUnit::sub,
             size: 1,
             cycles: 12
         })
@@ -718,22 +792,24 @@ fn build_decoder() -> Decoder {
         })
     }
 
-    fn inc_r(destination: WordRegister) -> Box<Inc<WordRegister>> {
-        Box::new(Inc {
+    fn inc_r(destination: WordRegister) -> Box<IncDec<WordRegister>> {
+        Box::new(IncDec {
             destination: destination,
+            operation: ArithmeticLogicalUnit::add,
             size: 1,
             cycles: 4
         })
     }
 
-    fn inc_ptr_r(destination: RegisterPointer) -> Box<Inc<RegisterPointer>> {
-        Box::new(Inc {
+    fn inc_ptr_r(destination: RegisterPointer) -> Box<IncDec<RegisterPointer>> {
+        Box::new(IncDec {
             destination: destination,
+            operation: ArithmeticLogicalUnit::add,
             size: 1,
             cycles: 12
         })
     }
-    
+
     let mut decoder = Decoder(vec!());
 
     //todo temp loop for growing the vec
@@ -761,6 +837,7 @@ fn build_decoder() -> Decoder {
     decoder[0x1C] = inc_r(WordRegister::E);
     decoder[0x1D] = dec_r(WordRegister::E);
     decoder[0x1E] = ld_r_from_w(WordRegister::E);
+    decoder[0x20] = jr_nz_w();
     decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
     decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
     decoder[0x24] = inc_r(WordRegister::H);
@@ -899,21 +976,22 @@ impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
         self.size
     }
 
-    fn cycles(&self) -> Cycle {
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
 }
 
-struct Dec<D: LeftOperand<Word> + RightOperand<Word>> {
+struct IncDec<D: LeftOperand<Word> + RightOperand<Word>> {
     destination: D,
+    operation: fn(Word, Word) -> ArithmeticResult,
     size: Size,
     cycles: Cycle
 }
 
-impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for Dec<D> {
+impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for IncDec<D> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let x = self.destination.resolve(cpu);
-        let r = ArithmeticLogicalUnit::sub(x, 1);
+        let r = (self.operation)(x, 1);
         self.destination.alter(cpu, r.result);
         //unfortunately this instruction doesn't set the carry flag
         cpu.set_zero_flag(r.flags.zero_flag());
@@ -925,34 +1003,7 @@ impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for Dec<D> {
         self.size
     }
 
-    fn cycles(&self) -> Cycle {
-        self.cycles
-    }
-}
-
-//todo factorize with dec
-struct Inc<D: LeftOperand<Word> + RightOperand<Word>> {
-    destination: D,
-    size: Size,
-    cycles: Cycle
-}
-
-impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for Inc<D> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let x = self.destination.resolve(cpu);
-        let r = ArithmeticLogicalUnit::add(x, 1);
-        self.destination.alter(cpu, r.result);
-        //unfortunately this instruction doesn't set the carry flag
-        cpu.set_zero_flag(r.flags.zero_flag());
-        cpu.set_add_sub_flag(r.flags.add_sub_flag());
-        cpu.set_half_carry_flag(r.flags.half_carry_flag());
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self) -> Cycle {
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
 }
@@ -1042,7 +1093,7 @@ impl ComputerUnit {
         let ref opcode = decoder[word];
         opcode.exec(self);
         self.inc_pc(opcode.size());
-        self.cycles = self.cycles + opcode.cycles();
+        self.cycles = self.cycles.wrapping_add(opcode.cycles(self));
     }
 
     fn load(&mut self, program: &Program) {
@@ -1274,7 +1325,7 @@ impl ArithmeticLogicalUnit {
 
 #[test]
 fn should_add() {
-    assert_eq!(ArithmeticLogicalUnit::add(1, 1), ArithmeticResult {
+    assert_eq! (ArithmeticLogicalUnit::add(1, 1), ArithmeticResult {
         result: 0b10,
         flags: FlagRegister {
             cy: true,
@@ -1283,7 +1334,7 @@ fn should_add() {
             n: false
         }
     });
-    assert_eq!(ArithmeticLogicalUnit::add(0b1000, 0b1000), ArithmeticResult {
+    assert_eq! (ArithmeticLogicalUnit::add(0b1000, 0b1000), ArithmeticResult {
         result: 0b10000,
         flags: FlagRegister {
             cy: true,
@@ -1292,7 +1343,7 @@ fn should_add() {
             n: false
         }
     });
-    assert_eq!(ArithmeticLogicalUnit::add(0b1000_0000, 0b1000_0000), ArithmeticResult {
+    assert_eq! (ArithmeticLogicalUnit::add(0b1000_0000, 0b1000_0000), ArithmeticResult {
         result: 0,
         flags: FlagRegister {
             cy: false,
@@ -1301,7 +1352,7 @@ fn should_add() {
             n: false
         }
     });
-    assert_eq!(ArithmeticLogicalUnit::add(0b1111_1000, 0b1000), ArithmeticResult {
+    assert_eq! (ArithmeticLogicalUnit::add(0b1111_1000, 0b1000), ArithmeticResult {
         result: 0,
         flags: FlagRegister {
             cy: false,
@@ -1311,12 +1362,12 @@ fn should_add() {
         }
     });
 
-    assert_eq!(ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result, 0xFF);
+    assert_eq! (ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result, 0xFF);
 }
 
 #[test]
 fn should_sub() {
-    assert_eq!(ArithmeticLogicalUnit::sub(1, 1), ArithmeticResult {
+    assert_eq! (ArithmeticLogicalUnit::sub(1, 1), ArithmeticResult {
         result: 0,
         flags: FlagRegister {
             cy: false,
@@ -1325,7 +1376,7 @@ fn should_sub() {
             n: true
         }
     });
-    assert_eq!(ArithmeticLogicalUnit::sub(0b01, 0b10).result, ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result);
+    assert_eq! (ArithmeticLogicalUnit::sub(0b01, 0b10).result, ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result);
     assert_eq!(ArithmeticLogicalUnit::sub(0, 1), ArithmeticResult {
         result: 0xFF,
         flags: FlagRegister {
@@ -1347,8 +1398,8 @@ fn should_load_program() {
     cpu.load(&program);
     cpu.run_1_instruction(&build_decoder());
 
-    assert_eq!(cpu.get_b_register(), 0xBA);
-    assert_eq!(cpu.get_pc_register(), 0x02);
+    assert_eq! (cpu.get_b_register(), 0xBA);
+    assert_eq! (cpu.get_pc_register(), 0x02);
 }
 
 #[test]
@@ -1849,8 +1900,8 @@ fn should_implement_dec_instruction() {
     cpu.run_1_instruction(&build_decoder());
     assert_eq! (cpu.get_b_register(), 0xFF);
     assert_eq! (cpu.get_pc_register(), 1);
-    assert!(!cpu.zero_flag());
-    assert!(!cpu.carry_flag());
+    assert!( !cpu.zero_flag());
+    assert! ( !cpu.carry_flag());
     assert_eq! (cpu.cycles, 164);
 }
 
@@ -1861,19 +1912,10 @@ fn should_run_bios() {
     let mut f = File::open("roms/gunsriders.gb").unwrap();
     let mut s = vec!();
     f.read_to_end(&mut s).unwrap();
-    let content = s;
     let pg = Program {
         name: "Guns Rider",
-        content: content
+        content: s
     };
-    println!("first byte {:02X}", pg.content[0x100]);
-    println!("sec byte {:02X}", pg.content[0x101]);
-    println!("sec byte {:02X}", pg.content[0x102]);
-    println!("sec byte {:02X}", pg.content[0x103]);
-    println!("sec byte {:02X}", pg.content[0x104]);
-    println!("sec byte {:02X}", pg.content[0x105]);
-    println!("sec byte {:02X}", pg.content[0x106]);
-    println!("sec byte {:02X}", pg.content[0x107]);
 
     let msg = pg.name;
     let mut cpu = new_cpu();
@@ -1888,7 +1930,7 @@ fn should_run_bios() {
     assert_eq! (cpu.get_pc_register(), 0x150, "bad pc after {}", msg);
 
     cpu.run_1_instruction(&decoder); // DI
-    assert!(!cpu.interrupt_master(), "the interrupt master flag should not be set");
+    assert! ( !cpu.interrupt_master(), "the interrupt master flag should not be set");
     assert_eq! (cpu.get_pc_register(), 0x151, "bad pc after {}", msg);
 
     cpu.run_1_instruction(&decoder); // LD D,A (stupid!)
@@ -1898,9 +1940,9 @@ fn should_run_bios() {
     assert_eq! (cpu.get_pc_register(), 0x153, "bad pc after {}", msg);
     assert_eq! (cpu.get_a_register(), 0x00, "bad A register value after {}", msg);
     assert! (cpu.zero_flag(), "zero flag should be set after {}", msg);
-    assert! (!cpu.carry_flag(), "carry flag should not be set after {}", msg);
-    assert! (!cpu.half_carry_flag(), "half carry flag should not be set after {}", msg);
-    assert! (!cpu.add_sub_flag(), "add/sub flag should not be set after {}", msg);
+    assert! ( !cpu.carry_flag(), "carry flag should not be set after {}", msg);
+    assert! ( !cpu.half_carry_flag(), "half carry flag should not be set after {}", msg);
+    assert! ( !cpu.add_sub_flag(), "add/sub flag should not be set after {}", msg);
 
     cpu.run_1_instruction(&decoder); // LD SP, 0xE000
     assert_eq! (cpu.get_pc_register(), 0x156, "bad pc after {}", msg);
@@ -1926,10 +1968,18 @@ fn should_run_bios() {
     cpu.run_1_instruction(&decoder); // DEC B
     assert_eq! (cpu.get_pc_register(), 351, "bad pc after {}", msg);
     assert_eq! (cpu.get_b_register(), 0xFF, "bad register value after {}", msg);
-    assert!(!cpu.zero_flag());
-    assert!(cpu.add_sub_flag());
-    assert!(!cpu.carry_flag());
-    assert!(cpu.half_carry_flag());
+    assert!( !cpu.zero_flag());
+    assert! (cpu.add_sub_flag());
+    assert! ( !cpu.carry_flag());
+    assert! (cpu.half_carry_flag());
+
+    cpu.run_1_instruction(&decoder); // JR nz,0xFC
+    assert_eq! (cpu.get_pc_register(), 349, "bad pc after {}", msg);
+    assert_eq! (cpu.get_b_register(), 0xFF, "bad register value after {}", msg);
+
+    //while true {
+    //    cpu.run_1_instruction(&decoder);
+    //}
 }
 
 
