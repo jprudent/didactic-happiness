@@ -169,7 +169,7 @@ impl LeftOperand<Word> for WordRegister {
 }
 
 impl RightOperand<Word> for WordRegister {
-    fn resolve(&self, cpu: &ComputerUnit) -> Word {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
         match *self {
             WordRegister::A => cpu.get_a_register(),
             WordRegister::B => cpu.get_b_register(),
@@ -190,7 +190,7 @@ enum DoubleRegister {
 }
 
 impl RightOperand<Double> for DoubleRegister {
-    fn resolve(&self, cpu: &ComputerUnit) -> Double {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
         match *self {
             DoubleRegister::BC => cpu.get_bc_register(),
             DoubleRegister::DE => cpu.get_de_register(),
@@ -212,7 +212,10 @@ impl LeftOperand<Double> for DoubleRegister {
 }
 
 trait RightOperand<R> {
-    fn resolve(&self, cpu: &ComputerUnit) -> R;
+    // in some very rare case reading a value can mut the cpu
+    // LD A,(HLI) (0x2A)
+    // LD A,(HLD) (0x3A)
+    fn resolve(&self, cpu: &mut ComputerUnit) -> R;
 }
 
 trait LeftOperand<L> {
@@ -223,7 +226,7 @@ trait LeftOperand<L> {
 struct ImmediateWord {}
 
 impl RightOperand<Word> for ImmediateWord {
-    fn resolve(&self, cpu: &ComputerUnit) -> Word {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
         cpu.word_at(cpu.get_pc_register() + 1)
     }
 }
@@ -231,7 +234,7 @@ impl RightOperand<Word> for ImmediateWord {
 struct ImmediateDouble {}
 
 impl RightOperand<Double> for ImmediateDouble {
-    fn resolve(&self, cpu: &ComputerUnit) -> Double {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
         cpu.double_at(cpu.get_pc_register() + 1)
     }
 }
@@ -254,7 +257,7 @@ impl LeftOperand<Word> for ImmediatePointer<Word> {
 }
 
 impl RightOperand<Word> for ImmediatePointer<Word> {
-    fn resolve(&self, cpu: &ComputerUnit) -> Word {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
         cpu.word_at(self.address(cpu))
     }
 }
@@ -273,7 +276,7 @@ impl LeftOperand<Double> for ImmediatePointer<Double> {
 }
 
 impl RightOperand<Double> for ImmediatePointer<Double> {
-    fn resolve(&self, cpu: &ComputerUnit) -> Double {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
         cpu.double_at(self.address(cpu))
     }
 }
@@ -298,7 +301,7 @@ impl LeftOperand<Word> for RegisterPointer {
 }
 
 impl RightOperand<Word> for RegisterPointer {
-    fn resolve(&self, cpu: &ComputerUnit) -> Word {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
         let address = match *self {
             RegisterPointer::HL => cpu.get_hl_register(),
             RegisterPointer::BC => cpu.get_bc_register(),
@@ -599,6 +602,26 @@ fn build_decoder() -> Decoder {
         })
     }
 
+    fn ld_ptr_hl_from_a(hlop: HlOp) -> Box<Load<Word, HlOp, WordRegister>> {
+        Box::new(Load {
+            source: WordRegister::A,
+            destination: hlop,
+            size: 1,
+            cycles: 8,
+            operation_type: PhantomData
+        })
+    }
+
+    fn ld_a_from_ptr_hl(hlop: HlOp) -> Box<Load<Word, WordRegister, HlOp>> {
+            Box::new(Load {
+                source: hlop,
+                destination: WordRegister::A,
+                size: 1,
+                cycles: 8,
+                operation_type: PhantomData
+            })
+        }
+
     let mut decoder = Decoder(vec!());
 
     //todo temp loop for growing the vec
@@ -619,10 +642,14 @@ fn build_decoder() -> Decoder {
     decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
     decoder[0x1E] = ld_r_from_w(WordRegister::E);
     decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
+    decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
     decoder[0x26] = ld_r_from_w(WordRegister::H);
+    decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
     decoder[0x2E] = ld_r_from_w(WordRegister::L);
     decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
+    decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
     decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
+    decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
     decoder[0x3E] = ld_r_from_w(WordRegister::A);
     decoder[0x40] = ld_r_from_r(WordRegister::B, WordRegister::B);
     decoder[0x41] = ld_r_from_r(WordRegister::B, WordRegister::C);
@@ -706,6 +733,38 @@ fn build_decoder() -> Decoder {
     decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
 
     decoder
+}
+
+enum HlOp {
+    HLI,
+    HLD
+}
+
+impl HlOp {
+    fn apply(&self, double: Double) -> Double {
+        match *self {
+            HlOp::HLI => double + 1,
+            HlOp::HLD => double - 1
+        }
+    }
+}
+
+impl LeftOperand<Word> for HlOp {
+    fn alter(&self, cpu: &mut ComputerUnit, value: Word) {
+        let hl = cpu.get_hl_register();
+        cpu.set_word_at(hl, value);
+        cpu.set_register_hl(self.apply(hl))
+    }
+}
+
+impl RightOperand<Word> for HlOp {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
+        let ret = cpu.word_at(cpu.get_hl_register());
+        let hl = cpu.get_hl_register();
+        //this is the only known case where right operand mut the cpu
+        cpu.set_register_hl(self.apply(hl));
+        ret
+    }
 }
 
 pub struct ArrayBasedMemory {
@@ -1258,6 +1317,26 @@ fn should_implement_ld_a_ptr_c_instruction() {
     assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
+#[test]
+fn should_implement_ld_a_hli_instruction() {
+    let pg = Program {
+        name: "LD A, (HLI)",
+        content: vec![0x2A]
+    };
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.set_register_hl(0xABCD);
+    cpu.set_word_at(0xABCD, 0xEF);
+
+    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+
+    cpu.run_1_instruction(&build_decoder());
+    assert_eq! (cpu.get_a_register(), 0xEF, "bad memory value after {}", msg);
+    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+}
 
 #[test]
 fn should_implement_ld_prt_nn_a_instruction() {
@@ -1467,4 +1546,25 @@ fn should_run_bios() {
     assert! (!cpu.carry_flag(), "carry flag should not be set after {}", msg);
     assert! (!cpu.half_carry_flag(), "half carry flag should not be set after {}", msg);
     assert! (!cpu.add_sub_flag(), "add/sub flag should not be set after {}", msg);
+
+    cpu.run_1_instruction(&decoder); // LD SP, 0xE000
+    assert_eq! (cpu.get_pc_register(), 0x156, "bad pc after {}", msg);
+    assert_eq! (cpu.get_sp_register(), 0xE000, "bad SP register value after {}", msg);
+
+    cpu.run_1_instruction(&decoder); // LD HL, 0xDFFF
+    assert_eq! (cpu.get_pc_register(), 345, "bad pc after {}", msg);
+    assert_eq! (cpu.get_hl_register(), 0xDFFF, "bad HL register value after {}", msg);
+
+    cpu.run_1_instruction(&decoder); // LD C, 0x20
+    assert_eq! (cpu.get_pc_register(), 347, "bad pc after {}", msg);
+    assert_eq! (cpu.get_c_register(), 0x20, "bad C register value after {}", msg);
+
+    cpu.run_1_instruction(&decoder); // LD B, 0
+    assert_eq! (cpu.get_pc_register(), 349, "bad pc after {}", msg);
+    assert_eq! (cpu.get_b_register(), 0, "bad C register value after {}", msg);
+
+    cpu.run_1_instruction(&decoder); // LD (HL-), A
+    assert_eq! (cpu.get_pc_register(), 350, "bad pc after {}", msg);
+    assert_eq! (cpu.get_hl_register(), 0xDFFE, "bad register value after {}", msg);
+    assert_eq! (cpu.word_at(0xDFFF), 0, "bad memory value after {}", msg);
 }
