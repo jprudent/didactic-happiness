@@ -666,17 +666,19 @@ fn build_decoder() -> Decoder {
         })
     }
 
-    fn sub_r(source: WordRegister) -> Box<SubA<WordRegister>> {
-        Box::new(SubA {
+    fn sub_r(source: WordRegister) -> Box<ArithmeticOperationOnRegisterA<WordRegister>> {
+        Box::new(ArithmeticOperationOnRegisterA {
             source: source,
+            operation: ArithmeticLogicalUnit::sub,
             size: 1,
             cycles: 4
         })
     }
 
-    fn sub_ptr_r(source: RegisterPointer) -> Box<SubA<RegisterPointer>> {
-        Box::new(SubA {
+    fn sub_ptr_r(source: RegisterPointer) -> Box<ArithmeticOperationOnRegisterA<RegisterPointer>> {
+        Box::new(ArithmeticOperationOnRegisterA {
             source: source,
+            operation: ArithmeticLogicalUnit::sub,
             size: 1,
             cycles: 8
         })
@@ -698,17 +700,19 @@ fn build_decoder() -> Decoder {
         })
     }
 
-    fn add_r(source: WordRegister) -> Box<AddA<WordRegister>> {
-        Box::new(AddA {
+    fn add_r(source: WordRegister) -> Box<ArithmeticOperationOnRegisterA<WordRegister>> {
+        Box::new(ArithmeticOperationOnRegisterA {
             source: source,
+            operation: ArithmeticLogicalUnit::add,
             size: 1,
             cycles: 4
         })
     }
 
-    fn add_ptr_r(source: RegisterPointer) -> Box<AddA<RegisterPointer>> {
-        Box::new(AddA {
+    fn add_ptr_r(source: RegisterPointer) -> Box<ArithmeticOperationOnRegisterA<RegisterPointer>> {
+        Box::new(ArithmeticOperationOnRegisterA {
             source: source,
+            operation: ArithmeticLogicalUnit::add,
             size: 1,
             cycles: 8
         })
@@ -729,8 +733,7 @@ fn build_decoder() -> Decoder {
             cycles: 12
         })
     }
-
-
+    
     let mut decoder = Decoder(vec!());
 
     //todo temp loop for growing the vec
@@ -876,42 +879,18 @@ fn build_decoder() -> Decoder {
     decoder
 }
 
-struct SubA<S: RightOperand<Word>> {
+struct ArithmeticOperationOnRegisterA<S: RightOperand<Word>> {
     source: S,
+    operation: fn(Word, Word) -> ArithmeticResult,
     size: Size,
     cycles: Cycle
 }
 
-impl<S: RightOperand<Word>> Opcode for SubA<S> {
+impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let b = self.source.resolve(cpu);
         let a = cpu.get_a_register();
-        let r = ArithmeticLogicalUnit::sub(a, b);
-        cpu.set_register_a(r.result);
-        cpu.set_flags(r.flags);
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self) -> Cycle {
-        self.cycles
-    }
-}
-
-struct AddA<S: RightOperand<Word>> {
-    source: S,
-    size: Size,
-    cycles: Cycle
-}
-
-//todo factorize with sub
-impl<S: RightOperand<Word>> Opcode for AddA<S> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let b = self.source.resolve(cpu);
-        let a = cpu.get_a_register();
-        let r = ArithmeticLogicalUnit::add(a, b);
+        let r = (self.operation)(a, b);
         cpu.set_register_a(r.result);
         cpu.set_flags(r.flags);
     }
@@ -937,7 +916,7 @@ impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for Dec<D> {
         let r = ArithmeticLogicalUnit::sub(x, 1);
         self.destination.alter(cpu, r.result);
         //unfortunately this instruction doesn't set the carry flag
-        cpu.set_zero_flag(r.flags.half_carry_flag());
+        cpu.set_zero_flag(r.flags.zero_flag());
         cpu.set_add_sub_flag(r.flags.add_sub_flag());
         cpu.set_half_carry_flag(r.flags.half_carry_flag());
     }
@@ -964,7 +943,7 @@ impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for Inc<D> {
         let r = ArithmeticLogicalUnit::add(x, 1);
         self.destination.alter(cpu, r.result);
         //unfortunately this instruction doesn't set the carry flag
-        cpu.set_zero_flag(r.flags.half_carry_flag());
+        cpu.set_zero_flag(r.flags.zero_flag());
         cpu.set_add_sub_flag(r.flags.add_sub_flag());
         cpu.set_half_carry_flag(r.flags.half_carry_flag());
     }
@@ -1856,6 +1835,26 @@ fn should_implement_ld_ptr_nn_sp_instruction() {
 }
 
 #[test]
+fn should_implement_dec_instruction() {
+    let pg = Program {
+        name: "DEC B",
+        content: vec![0x05]
+    };
+
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.set_register_b(0);
+    assert_eq! (cpu.cycles, 160);
+
+    cpu.run_1_instruction(&build_decoder());
+    assert_eq! (cpu.get_b_register(), 0xFF);
+    assert_eq! (cpu.get_pc_register(), 1);
+    assert!(!cpu.zero_flag());
+    assert!(!cpu.carry_flag());
+    assert_eq! (cpu.cycles, 164);
+}
+
+#[test]
 fn should_run_bios() {
     use std::io::prelude::*;
     use std::fs::File;
@@ -1927,6 +1926,10 @@ fn should_run_bios() {
     cpu.run_1_instruction(&decoder); // DEC B
     assert_eq! (cpu.get_pc_register(), 351, "bad pc after {}", msg);
     assert_eq! (cpu.get_b_register(), 0xFF, "bad register value after {}", msg);
+    assert!(!cpu.zero_flag());
+    assert!(cpu.add_sub_flag());
+    assert!(!cpu.carry_flag());
+    assert!(cpu.half_carry_flag());
 }
 
 
