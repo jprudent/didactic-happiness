@@ -8,9 +8,6 @@ type Address = Double;
 type Cycle = u8;
 type Size = u16;
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Register & co
-
 fn high_word(double: Double) -> Word {
     double.wrapping_shr(8) as Word
 }
@@ -188,6 +185,28 @@ struct Load<X, L: LeftOperand<X>, R: RightOperand<X>> {
     operation_type: PhantomData<X>
 }
 
+impl<X, L: LeftOperand<X>, R: RightOperand<X>> Load<X, L, R> {
+    fn ldh_ptr_a() -> Load<Word, HighMemoryPointer, WordRegister> {
+        Load {
+            destination: HighMemoryPointer {},
+            source: WordRegister::A,
+            size: 2,
+            cycles: 12,
+            operation_type: PhantomData
+        }
+    }
+
+    fn ldh_a_ptr() -> Load<Word, WordRegister, HighMemoryPointer> {
+        Load {
+            destination: WordRegister::A,
+            source: HighMemoryPointer {},
+            size: 2,
+            cycles: 12,
+            operation_type: PhantomData
+        }
+    }
+}
+
 enum WordRegister {
     A,
     B,
@@ -283,6 +302,22 @@ impl RightOperand<Double> for ImmediateDouble {
     }
 }
 
+struct HighMemoryPointer {}
+
+impl RightOperand<Word> for HighMemoryPointer {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
+        let relative = cpu.word_at(cpu.get_pc_register() + 1);
+        cpu.word_at(set_low_word(0xFF00, relative))
+    }
+}
+
+impl LeftOperand<Word> for HighMemoryPointer {
+    fn alter(&self, cpu: &mut ComputerUnit, value: Word) {
+        let relative = cpu.word_at(cpu.get_pc_register() + 1);
+        cpu.set_word_at(set_low_word(0xFF00, relative), value)
+    }
+}
+
 struct ImmediatePointer<T> {
     resource_type: PhantomData<T>,
 }
@@ -361,6 +396,7 @@ impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
         let word = self.source.resolve(cpu);
         self.destination.alter(cpu, word);
     }
+
     fn size(&self) -> Size {
         self.size
     }
@@ -431,6 +467,40 @@ impl<A: RightOperand<Double>> Opcode for UnconditionalJump<Double, A> {
     }
 }
 
+struct UnconditionalCall {
+    address: ImmediateDouble,
+    size: Size,
+    cycles: Cycle
+}
+
+impl UnconditionalCall {
+    fn new() -> UnconditionalCall {
+        UnconditionalCall {
+            address: ImmediateDouble {},
+            size: 3,
+            cycles: 24
+        }
+    }
+}
+
+impl Opcode for UnconditionalCall {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let pc = cpu.get_pc_register();
+        cpu.push(pc);
+
+        let address = self.address.resolve(cpu);
+        cpu.set_register_pc(address - self.size()); // self.size() is added afterward
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        self.cycles
+    }
+}
+
 #[derive(Debug)]
 enum JmpCondition {
     NONZERO,
@@ -444,7 +514,7 @@ impl JmpCondition {
         match *self {
             JmpCondition::NONZERO => !cpu.zero_flag(),
             //JmpCondition::ZERO => cpu.zero_flag(),
-            //JmpCondition::NOCARRY => !cpu.carry_flag(),
+            //JmpCondition::NOCARRY =>!cpu.carry_flag(),
             //JmpCondition::CARRY => cpu.carry_flag()
         }
     }
@@ -680,7 +750,7 @@ fn build_decoder() -> Decoder {
         Box::new(ConditionalJump {
             address: ImmediateWord {},
             condition: JmpCondition::NONZERO,
-            size: 3,
+            size: 2,
             cycles_when_taken: 12,
             cycles_when_not_taken: 8,
             operation_type: PhantomData
@@ -816,7 +886,6 @@ fn build_decoder() -> Decoder {
     for i in 0..256 {
         decoder.push(NotImplemented(i as Word))
     }
-
     decoder[0x00] = nop();
     decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
     decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
@@ -945,9 +1014,12 @@ fn build_decoder() -> Decoder {
     decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
     decoder[0xAF] = xor_r(WordRegister::A);
     decoder[0xC3] = jmp_nn();
+    decoder[0xCD] = Box::new(UnconditionalCall::new());
+    decoder[0xE0] = Box::new(Load::<Word, HighMemoryPointer, WordRegister>::ldh_ptr_a());
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
     decoder[0xAE] = xor_n();
+    decoder[0xF0] = Box::new(Load::<Word, HighMemoryPointer, WordRegister>::ldh_a_ptr());
     decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
     decoder[0xF3] = di();
     decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
@@ -1041,7 +1113,7 @@ impl RightOperand<Word> for HlOp {
 }
 
 pub struct ArrayBasedMemory {
-    words: [Word; 0xFFFF]
+    words: [Word; 0xFFFF + 1]
 }
 
 impl ArrayBasedMemory {
@@ -1050,8 +1122,9 @@ impl ArrayBasedMemory {
     }
 
     fn double_at(&self, address: Address) -> Double {
-        let i = address as usize;
-        set_high_word(set_low_word(0, self.words[i]), self.words[i + 1])
+        let high = self.word_at(address + 1);
+        let low = self.word_at(address);
+        set_low_word(set_high_word(0, high), low)
     }
 
     fn map(&mut self, p: &Program) {
@@ -1255,13 +1328,20 @@ impl ComputerUnit {
     fn set_flags(&mut self, flags: FlagRegister) {
         self.registers.flags = flags;
     }
+
+    fn push(&mut self, double: Double) {
+        let original_sp = self.get_sp_register();
+        self.set_register_sp(original_sp - 2);
+        let sp = self.get_sp_register();
+        self.set_double_at(sp, double);
+    }
 }
 
 fn new_cpu() -> ComputerUnit {
     ComputerUnit {
         registers: Registers::new(),
         memory: ArrayBasedMemory {
-            words: [0xAA; 0xFFFF]
+            words: [0xAA; 0xFFFF + 1]
         },
         ime: true,
         cycles: 0xA0 // this is some random value
@@ -1293,8 +1373,8 @@ impl ArithmeticLogicalUnit {
         ArithmeticResult {
             result: result,
             flags: FlagRegister {
-                cy: !ArithmeticLogicalUnit::has_carry(a, b),
-                h: !ArithmeticLogicalUnit::has_half_carry(a, b),
+                cy: ArithmeticLogicalUnit::has_carry(a, b),
+                h: ArithmeticLogicalUnit::has_half_carry(a, b),
                 zf: result == 0,
                 n: false
             }
@@ -1325,63 +1405,65 @@ impl ArithmeticLogicalUnit {
 
 #[test]
 fn should_add() {
-    assert_eq! (ArithmeticLogicalUnit::add(1, 1), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::add(1, 1), ArithmeticResult {
         result: 0b10,
         flags: FlagRegister {
-            cy: true,
-            h: true,
-            zf: false,
-            n: false
-        }
-    });
-    assert_eq! (ArithmeticLogicalUnit::add(0b1000, 0b1000), ArithmeticResult {
-        result: 0b10000,
-        flags: FlagRegister {
-            cy: true,
+            cy: false,
             h: false,
             zf: false,
             n: false
         }
     });
-    assert_eq! (ArithmeticLogicalUnit::add(0b1000_0000, 0b1000_0000), ArithmeticResult {
-        result: 0,
+    assert_eq!(ArithmeticLogicalUnit::add(0b1000, 0b1000), ArithmeticResult {
+        result: 0b10000,
         flags: FlagRegister {
             cy: false,
             h: true,
+            zf: false,
+            n: false
+        }
+    });
+    assert_eq!(ArithmeticLogicalUnit::add(0b1000_0000, 0b1000_0000), ArithmeticResult {
+        result: 0,
+        flags: FlagRegister {
+            cy: true,
+            h: false,
             zf: true,
             n: false
         }
     });
-    assert_eq! (ArithmeticLogicalUnit::add(0b1111_1000, 0b1000), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::add(0b1111_1000, 0b1000), ArithmeticResult {
         result: 0,
         flags: FlagRegister {
-            cy: false,
-            h: false,
+            cy: true,
+            h: true,
             zf: true,
             n: false
         }
     });
 
-    assert_eq! (ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result, 0xFF);
+    assert_eq!(ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result, 0xFF);
+
+    assert!(ArithmeticLogicalUnit::add(0xAA, 0xAA).flags.cy);
 }
 
 #[test]
 fn should_sub() {
-    assert_eq! (ArithmeticLogicalUnit::sub(1, 1), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::sub(1, 1), ArithmeticResult {
         result: 0,
         flags: FlagRegister {
-            cy: false,
-            h: false,
+            cy: true,
+            h: true,
             zf: true,
             n: true
         }
     });
-    assert_eq! (ArithmeticLogicalUnit::sub(0b01, 0b10).result, ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result);
+    assert_eq!(ArithmeticLogicalUnit::sub(0b01, 0b10).result, ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result);
     assert_eq!(ArithmeticLogicalUnit::sub(0, 1), ArithmeticResult {
         result: 0xFF,
         flags: FlagRegister {
-            cy: true,
-            h: true,
+            cy: false,
+            h: false,
             zf: false,
             n: true
         }
@@ -1398,8 +1480,8 @@ fn should_load_program() {
     cpu.load(&program);
     cpu.run_1_instruction(&build_decoder());
 
-    assert_eq! (cpu.get_b_register(), 0xBA);
-    assert_eq! (cpu.get_pc_register(), 0x02);
+    assert_eq!(cpu.get_b_register(), 0xBA);
+    assert_eq!(cpu.get_pc_register(), 0x02);
 }
 
 #[test]
@@ -1430,9 +1512,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x3E, 0x60]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_a_register(), 0x60, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 0xA8, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_a_register(), 0x60, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 0xA8, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1441,9 +1523,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x06, 0x60]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_b_register(), 0x60, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 0xA8, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_b_register(), 0x60, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 0xA8, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1452,9 +1534,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x0E, 0xE0]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_c_register(), 0xE0, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 0xA8, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_c_register(), 0xE0, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 0xA8, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1463,9 +1545,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x16, 0x61]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_d_register(), 0x61, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 0xA8, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_d_register(), 0x61, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 0xA8, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1474,9 +1556,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x1E, 0xE1]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_e_register(), 0xE1, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 0xA8, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_e_register(), 0xE1, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 0xA8, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1485,9 +1567,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x26, 0x62]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_h_register(), 0x62, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 0xA8, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_h_register(), 0x62, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 0xA8, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1496,9 +1578,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x2E, 0xE2]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_l_register(), 0xE2, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 0xA8, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_l_register(), 0xE2, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 0xA8, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1507,9 +1589,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x01, 0xCD, 0xAB]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_bc_register(), 0xABCD, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_bc_register(), 0xABCD, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 172, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1518,9 +1600,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x11, 0xCD, 0xAB]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_de_register(), 0xABCD, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_de_register(), 0xABCD, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 172, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1529,9 +1611,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x21, 0xCD, 0xAB]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_hl_register(), 0xABCD, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_hl_register(), 0xABCD, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 172, "bad cycles count after {}", msg);
             }
         }),
         Box::new(UseCase {
@@ -1540,9 +1622,9 @@ fn should_implement_every_ld_r_w_instructions() {
                 content: vec![0x31, 0xCD, 0xAB]
             },
             assertions: |cpu, msg| {
-                assert_eq! (cpu.get_sp_register(), 0xABCD, "bad register value after {}", msg);
-                assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
-                assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
+                assert_eq!(cpu.get_sp_register(), 0xABCD, "bad register value after {}", msg);
+                assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+                assert_eq!(cpu.cycles, 172, "bad cycles count after {}", msg);
             }
         }),
     );
@@ -1566,17 +1648,17 @@ fn should_implement_ld_b_a_instructions() {
     let mut cpu = new_cpu();
     cpu.load(&pg);
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_b_register(), 0xBB, "bad right register value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.get_b_register(), 0xBB, "bad right register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_a_register(), 0xBB, "bad left register value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
+    assert_eq!(cpu.get_a_register(), 0xBB, "bad left register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 172, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1591,12 +1673,12 @@ fn should_implement_ld_c_prt_hl_instructions() {
     cpu.load(&pg);
     cpu.registers.hl = 0xABCD;
     cpu.memory.words[0xABCD] = 0xEF;
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_c_register(), 0xEF, "bad register value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.get_c_register(), 0xEF, "bad register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1611,12 +1693,12 @@ fn should_implement_ld_a_prt_bc_instructions() {
     cpu.load(&pg);
     cpu.registers.bc = 0xABCD;
     cpu.memory.words[0xABCD] = 0xEF;
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_a_register(), 0xEF, "bad register value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.get_a_register(), 0xEF, "bad register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 
@@ -1632,12 +1714,12 @@ fn should_implement_ld_a_prt_de_instructions() {
     cpu.load(&pg);
     cpu.registers.de = 0xABCD;
     cpu.memory.words[0xABCD] = 0xEF;
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_a_register(), 0xEF, "bad register value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.get_a_register(), 0xEF, "bad register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1653,12 +1735,12 @@ fn should_implement_ld_prt_hl_d_instruction() {
     cpu.registers.hl = 0xABCD;
     cpu.registers.de = 0xEF00;
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1674,12 +1756,12 @@ fn should_implement_ld_prt_c_a_instruction() {
     cpu.set_register_a(0xEF);
     cpu.set_register_c(0xCD);
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.word_at(0xFFCD), 0xEF, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.word_at(0xFFCD), 0xEF, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1695,12 +1777,12 @@ fn should_implement_ld_a_ptr_c_instruction() {
     cpu.set_register_c(0xCD);
     cpu.set_word_at(0xFFCD, 0xEF);
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_a_register(), 0xEF, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.get_a_register(), 0xEF, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1716,12 +1798,12 @@ fn should_implement_ld_a_hli_instruction() {
     cpu.set_register_hl(0xABCD);
     cpu.set_word_at(0xABCD, 0xEF);
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_a_register(), 0xEF, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.get_a_register(), 0xEF, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1736,12 +1818,12 @@ fn should_implement_ld_prt_nn_a_instruction() {
     cpu.load(&pg);
     cpu.registers.af = 0xEF00;
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.word_at(0xABCD), 0xEF, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 176, "bad cycles count after {}", msg);
+    assert_eq!(cpu.word_at(0xABCD), 0xEF, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 176, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1757,12 +1839,12 @@ fn should_implement_ld_prt_hl_a_instruction() {
     cpu.registers.hl = 0xABCD;
     cpu.registers.af = 0xEF00;
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1778,12 +1860,12 @@ fn should_implement_ld_prt_bc_a_instruction() {
     cpu.registers.bc = 0xABCD;
     cpu.registers.af = 0xEF00;
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.word_at(cpu.get_bc_register()), 0xEF, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.word_at(cpu.get_bc_register()), 0xEF, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1799,12 +1881,12 @@ fn should_implement_ld_prt_de_a_instruction() {
     cpu.registers.de = 0xABCD;
     cpu.registers.af = 0xEF00;
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.word_at(cpu.get_de_register()), 0xEF, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.word_at(cpu.get_de_register()), 0xEF, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1819,12 +1901,12 @@ fn should_implement_prt_hl_n_instruction() {
     cpu.load(&pg);
     cpu.registers.hl = 0xABCD;
 
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.word_at(cpu.get_hl_register()), 0x66, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 172, "bad cycles count after {}", msg);
+    assert_eq!(cpu.word_at(cpu.get_hl_register()), 0x66, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 172, "bad cycles count after {}", msg);
 }
 
 
@@ -1839,12 +1921,12 @@ fn should_implement_ld_a_prt_nn_instruction() {
     let mut cpu = new_cpu();
     cpu.load(&pg);
     cpu.memory.words[0xABCD] = 0x66;
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_a_register(), 0x66, "bad register value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 176, "bad cycles count after {}", msg);
+    assert_eq!(cpu.get_a_register(), 0x66, "bad register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 176, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1858,12 +1940,12 @@ fn should_implement_ld_sp_hl_instruction() {
     let mut cpu = new_cpu();
     cpu.load(&pg);
     cpu.set_register_hl(0xABCD);
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_sp_register(), 0xABCD, "bad register value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 168, "bad cycles count after {}", msg);
+    assert_eq!(cpu.get_sp_register(), 0xABCD, "bad register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1877,12 +1959,12 @@ fn should_implement_ld_ptr_nn_sp_instruction() {
     let mut cpu = new_cpu();
     cpu.load(&pg);
     cpu.set_register_sp(0x1234);
-    assert_eq! (cpu.cycles, 160, "bad cycles count after {}", msg);
+    assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.double_at(0xABCD), 0x1234, "bad memory value after {}", msg);
-    assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
-    assert_eq! (cpu.cycles, 180, "bad cycles count after {}", msg);
+    assert_eq!(cpu.double_at(0xABCD), 0x1234, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
+    assert_eq!(cpu.cycles, 180, "bad cycles count after {}", msg);
 }
 
 #[test]
@@ -1895,14 +1977,14 @@ fn should_implement_dec_instruction() {
     let mut cpu = new_cpu();
     cpu.load(&pg);
     cpu.set_register_b(0);
-    assert_eq! (cpu.cycles, 160);
+    assert_eq!(cpu.cycles, 160);
 
     cpu.run_1_instruction(&build_decoder());
-    assert_eq! (cpu.get_b_register(), 0xFF);
-    assert_eq! (cpu.get_pc_register(), 1);
-    assert!( !cpu.zero_flag());
-    assert! ( !cpu.carry_flag());
-    assert_eq! (cpu.cycles, 164);
+    assert_eq!(cpu.get_b_register(), 0xFF);
+    assert_eq!(cpu.get_pc_register(), 1);
+    assert!(!cpu.zero_flag());
+    assert!(!cpu.carry_flag());
+    assert_eq!(cpu.cycles, 164);
 }
 
 #[test]
@@ -1924,62 +2006,75 @@ fn should_run_bios() {
     let decoder = build_decoder();
 
     cpu.run_1_instruction(&decoder); // NOP
-    assert_eq! (cpu.get_pc_register(), 0x101, "bad pc after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x101, "bad pc after {}", msg);
 
     cpu.run_1_instruction(&decoder); // JP 0x0150
-    assert_eq! (cpu.get_pc_register(), 0x150, "bad pc after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x150, "bad pc after {}", msg);
 
     cpu.run_1_instruction(&decoder); // DI
-    assert! ( !cpu.interrupt_master(), "the interrupt master flag should not be set");
-    assert_eq! (cpu.get_pc_register(), 0x151, "bad pc after {}", msg);
+    assert!(!cpu.interrupt_master(), "the interrupt master flag should not be set");
+    assert_eq!(cpu.get_pc_register(), 0x151, "bad pc after {}", msg);
 
     cpu.run_1_instruction(&decoder); // LD D,A (stupid!)
-    assert_eq! (cpu.get_pc_register(), 0x152, "bad pc after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x152, "bad pc after {}", msg);
 
     cpu.run_1_instruction(&decoder); // XOR A (A = 0)
-    assert_eq! (cpu.get_pc_register(), 0x153, "bad pc after {}", msg);
-    assert_eq! (cpu.get_a_register(), 0x00, "bad A register value after {}", msg);
-    assert! (cpu.zero_flag(), "zero flag should be set after {}", msg);
-    assert! ( !cpu.carry_flag(), "carry flag should not be set after {}", msg);
-    assert! ( !cpu.half_carry_flag(), "half carry flag should not be set after {}", msg);
-    assert! ( !cpu.add_sub_flag(), "add/sub flag should not be set after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x153, "bad pc after {}", msg);
+    assert_eq!(cpu.get_a_register(), 0x00, "bad A register value after {}", msg);
+    assert!(cpu.zero_flag(), "zero flag should be set after {}", msg);
+    assert!(!cpu.carry_flag(), "carry flag should not be set after {}", msg);
+    assert!(!cpu.half_carry_flag(), "half carry flag should not be set after {}", msg);
+    assert!(!cpu.add_sub_flag(), "add/sub flag should not be set after {}", msg);
 
     cpu.run_1_instruction(&decoder); // LD SP, 0xE000
-    assert_eq! (cpu.get_pc_register(), 0x156, "bad pc after {}", msg);
-    assert_eq! (cpu.get_sp_register(), 0xE000, "bad SP register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x156, "bad pc after {}", msg);
+    assert_eq!(cpu.get_sp_register(), 0xE000, "bad SP register value after {}", msg);
 
     cpu.run_1_instruction(&decoder); // LD HL, 0xDFFF
-    assert_eq! (cpu.get_pc_register(), 345, "bad pc after {}", msg);
-    assert_eq! (cpu.get_hl_register(), 0xDFFF, "bad HL register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 345, "bad pc after {}", msg);
+    assert_eq!(cpu.get_hl_register(), 0xDFFF, "bad HL register value after {}", msg);
 
     cpu.run_1_instruction(&decoder); // LD C, 0x20
-    assert_eq! (cpu.get_pc_register(), 347, "bad pc after {}", msg);
-    assert_eq! (cpu.get_c_register(), 0x20, "bad C register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 347, "bad pc after {}", msg);
+    assert_eq!(cpu.get_c_register(), 0x20, "bad C register value after {}", msg);
 
     cpu.run_1_instruction(&decoder); // LD B, 0
-    assert_eq! (cpu.get_pc_register(), 349, "bad pc after {}", msg);
-    assert_eq! (cpu.get_b_register(), 0, "bad C register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 349, "bad pc after {}", msg);
+    assert_eq!(cpu.get_b_register(), 0, "bad C register value after {}", msg);
 
     cpu.run_1_instruction(&decoder); // LD (HL-), A
-    assert_eq! (cpu.get_pc_register(), 350, "bad pc after {}", msg);
-    assert_eq! (cpu.get_hl_register(), 0xDFFE, "bad register value after {}", msg);
-    assert_eq! (cpu.word_at(0xDFFF), 0, "bad memory value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 350, "bad pc after {}", msg);
+    assert_eq!(cpu.get_hl_register(), 0xDFFE, "bad register value after {}", msg);
+    assert_eq!(cpu.word_at(0xDFFF), 0, "bad memory value after {}", msg);
 
     cpu.run_1_instruction(&decoder); // DEC B
-    assert_eq! (cpu.get_pc_register(), 351, "bad pc after {}", msg);
-    assert_eq! (cpu.get_b_register(), 0xFF, "bad register value after {}", msg);
-    assert!( !cpu.zero_flag());
-    assert! (cpu.add_sub_flag());
-    assert! ( !cpu.carry_flag());
-    assert! (cpu.half_carry_flag());
+    assert_eq!(cpu.get_pc_register(), 351, "bad pc after {}", msg);
+    assert_eq!(cpu.get_b_register(), 0xFF, "bad register value after {}", msg);
+    assert!(!cpu.zero_flag());
+    assert!(cpu.add_sub_flag());
+    assert!(!cpu.carry_flag());
+    assert!(!cpu.half_carry_flag());
 
     cpu.run_1_instruction(&decoder); // JR nz,0xFC
-    assert_eq! (cpu.get_pc_register(), 349, "bad pc after {}", msg);
-    assert_eq! (cpu.get_b_register(), 0xFF, "bad register value after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 349, "bad pc after {}", msg);
+    assert_eq!(cpu.get_b_register(), 0xFF, "bad register value after {}", msg);
 
-    //while true {
-    //    cpu.run_1_instruction(&decoder);
-    //}
+    while cpu.get_pc_register() != 0x017A {
+        cpu.run_1_instruction(&decoder);
+    }
+
+    cpu.run_1_instruction(&decoder); // CALL 0x56D4
+    assert_eq!(cpu.get_pc_register(), 0x56D4);
+    assert_eq!(cpu.get_sp_register(), 0xE000 - 2, "SP is decremented");
+    assert_eq!(cpu.double_at(cpu.get_sp_register()), 0x017A, "the return address is set on stack");
+
+    cpu.run_1_instruction(&decoder); // LD A, (0xFF00 + 40) [LCD Control]
+    assert_eq!(cpu.get_pc_register(), 0x56D6);
+    assert_eq!(cpu.get_a_register(), 0xAA);
+
+    cpu.run_1_instruction(&decoder); // ADD A
+    assert_eq!(cpu.get_pc_register(), 0x56D7);
+    assert!(cpu.carry_flag(), "0xAA + 0xAA produces a carry");
 }
 
 
