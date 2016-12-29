@@ -506,7 +506,7 @@ enum JmpCondition {
     NONZERO,
     //ZERO,
     NOCARRY,
-    //CARRY
+    CARRY
 }
 
 impl JmpCondition {
@@ -515,7 +515,7 @@ impl JmpCondition {
             JmpCondition::NONZERO => !cpu.zero_flag(),
             //JmpCondition::ZERO => cpu.zero_flag(),
             JmpCondition::NOCARRY => !cpu.carry_flag(),
-            //JmpCondition::CARRY => cpu.carry_flag()
+            JmpCondition::CARRY => cpu.carry_flag()
         }
     }
 }
@@ -566,6 +566,27 @@ struct ConditionalJump<X, A: RightOperand<X>> {
     cycles_when_taken: Cycle,
     cycles_when_not_taken: Cycle,
     operation_type: PhantomData<X>
+}
+
+impl ConditionalJump<Word, ImmediateWord> {
+    fn jr_nc_w() -> ConditionalJump<Word, ImmediateWord> {
+        ConditionalJump::<Word, ImmediateWord>::jr_cond_w(JmpCondition::NOCARRY)
+    }
+
+    fn jr_c_w() -> ConditionalJump<Word, ImmediateWord> {
+        ConditionalJump::<Word, ImmediateWord>::jr_cond_w(JmpCondition::CARRY)
+    }
+
+    fn jr_cond_w(condition: JmpCondition) -> ConditionalJump<Word, ImmediateWord> {
+        ConditionalJump {
+            address: ImmediateWord {},
+            condition: condition,
+            size: 2,
+            cycles_when_taken: 12,
+            cycles_when_not_taken: 8,
+            operation_type: PhantomData
+        }
+    }
 }
 
 fn is_negative(word: Word) -> bool {
@@ -955,11 +976,13 @@ fn build_decoder() -> Decoder {
     decoder[0x2C] = inc_r(WordRegister::L);
     decoder[0x2D] = dec_r(WordRegister::L);
     decoder[0x2E] = ld_r_from_w(WordRegister::L);
+    decoder[0x30] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_nc_w());
     decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
     decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
     decoder[0x34] = inc_ptr_r(RegisterPointer::HL);
     decoder[0x35] = dec_ptr_r(RegisterPointer::HL);
     decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
+    decoder[0x38] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_c_w());
     decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
     decoder[0x3C] = inc_r(WordRegister::A);
     decoder[0x3D] = dec_r(WordRegister::A);
@@ -1057,15 +1080,49 @@ fn build_decoder() -> Decoder {
     decoder[0xCD] = Box::new(UnconditionalCall::new());
     decoder[0xE0] = Box::new(Load::<Word, HighMemoryPointer, WordRegister>::ldh_ptr_a());
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
+    decoder[0xE6] = Box::new(ArithmeticOperationOnRegisterA::<ImmediateWord>::xor_a_w());
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
     decoder[0xAE] = xor_n();
-    decoder[0xF0] = Box::new(Load::<Word, HighMemoryPointer, WordRegister>::ldh_a_ptr());
+    decoder[0xF0] = Box::new(Load::<Word, WordRegister, HighMemoryPointer>::ldh_a_ptr());
     decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
     decoder[0xF3] = di();
     decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
     decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
-
+    decoder[0xFE] = Box::new(CompareA::<ImmediateWord>::cp_w());
     decoder
+}
+
+struct CompareA<S: RightOperand<Word>> {
+    source: S,
+    size: Size,
+    cycles: Cycle
+}
+
+impl CompareA<ImmediateWord> {
+    fn cp_w() -> CompareA<ImmediateWord> {
+        CompareA {
+            source: ImmediateWord {},
+            size: 2,
+            cycles: 8
+        }
+    }
+}
+
+impl<S: RightOperand<Word>> Opcode for CompareA<S> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let a = cpu.get_a_register();
+        let b = self.source.resolve(cpu);
+        let r = ArithmeticLogicalUnit::sub(a, b);
+        cpu.set_flags(r.flags);
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        self.cycles
+    }
 }
 
 struct ArithmeticOperationOnRegisterA<S: RightOperand<Word>> {
@@ -1074,6 +1131,18 @@ struct ArithmeticOperationOnRegisterA<S: RightOperand<Word>> {
     size: Size,
     cycles: Cycle
 }
+
+impl ArithmeticOperationOnRegisterA<ImmediateWord> {
+    fn xor_a_w() -> ArithmeticOperationOnRegisterA<ImmediateWord> {
+        ArithmeticOperationOnRegisterA {
+            source: ImmediateWord {},
+            operation: ArithmeticLogicalUnit::and,
+            size: 2,
+            cycles: 8
+        }
+    }
+}
+
 
 impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
@@ -1432,7 +1501,22 @@ impl ArithmeticLogicalUnit {
         let two_complement = (!b).wrapping_add(1);
         let mut add = ArithmeticLogicalUnit::add(a, two_complement);
         add.flags.n = true;
+        add.flags.cy = a < b;
+        add.flags.h = ArithmeticLogicalUnit::low_nibble(a) < ArithmeticLogicalUnit::low_nibble(b);
         add
+    }
+
+    fn and(a: Word, b: Word) -> ArithmeticResult {
+        let r = a & b;
+        ArithmeticResult {
+            result: r,
+            flags: FlagRegister {
+                zf: r == 0,
+                n: false,
+                h: true,
+                cy: false
+            }
+        }
     }
 
     fn has_carry(a: Word, b: Word) -> bool {
@@ -1441,12 +1525,12 @@ impl ArithmeticLogicalUnit {
     }
 
     fn has_half_carry(a: Word, b: Word) -> bool {
-        fn low_nibble(a: Word) -> u8 {
-            a & 0xF
-        }
-
-        let nibble = low_nibble(a) + low_nibble(b);
+        let nibble = ArithmeticLogicalUnit::low_nibble(a) + ArithmeticLogicalUnit::low_nibble(b);
         (nibble & 0x10) != 0
+    }
+
+    fn low_nibble(a: Word) -> u8 {
+        a & 0xF
     }
 }
 
@@ -1499,8 +1583,8 @@ fn should_sub() {
     assert_eq!(ArithmeticLogicalUnit::sub(1, 1), ArithmeticResult {
         result: 0,
         flags: FlagRegister {
-            cy: true,
-            h: true,
+            cy: false,
+            h: false,
             zf: true,
             n: true
         }
@@ -1509,12 +1593,22 @@ fn should_sub() {
     assert_eq!(ArithmeticLogicalUnit::sub(0, 1), ArithmeticResult {
         result: 0xFF,
         flags: FlagRegister {
-            cy: false,
-            h: false,
+            cy: true,
+            h: true,
             zf: false,
             n: true
         }
     });
+
+    assert_eq!(ArithmeticLogicalUnit::sub(0x90, 0x92), ArithmeticResult {
+        result: 0xFE,
+        flags: FlagRegister {
+            cy: true,
+            h: true,
+            zf: false,
+            n: true
+        }
+    })
 }
 
 #[test]
@@ -2100,7 +2194,7 @@ fn should_run_bios() {
     assert!(!cpu.zero_flag());
     assert!(cpu.add_sub_flag());
     assert!(!cpu.carry_flag());
-    assert!(!cpu.half_carry_flag());
+    assert!(cpu.half_carry_flag());
 
     cpu.run_1_instruction(&decoder); // JR nz,0xFC
     assert_eq!(cpu.get_pc_register(), 349, "bad pc after {}", msg);
@@ -2124,9 +2218,58 @@ fn should_run_bios() {
     assert!(cpu.carry_flag(), "0xAA + 0xAA produces a carry");
 
     cpu.run_1_instruction(&decoder); // RET NC
-    assert_eq!(cpu.get_pc_register(), 0x56D8, "Didn't return because there is a carry")
+    assert_eq!(cpu.get_pc_register(), 0x56D8, "Didn't return because there is a carry");
 
-    
+    cpu.set_word_at(0xFF44, 0x90);
+    cpu.run_1_instruction(&decoder); // LD A, (0xFF00 + 0x44) [LY]
+    assert_eq!(cpu.get_pc_register(), 0x56DA);
+    assert_eq!(cpu.get_a_register(), 0x90);
+
+
+    cpu.run_1_instruction(&decoder); // CP A,0x92
+    assert_eq!(cpu.get_pc_register(), 0x56DC);
+    assert!(!cpu.zero_flag());
+    assert!(cpu.carry_flag());
+    assert!(cpu.half_carry_flag());
+    assert!(cpu.add_sub_flag());
+
+    cpu.run_1_instruction(&decoder); // JR NC, 0xFA
+    assert_eq!(cpu.get_pc_register(), 0x56DE, "Jump is not taken");
+
+    cpu.set_word_at(0xFF44, 0x91);
+    cpu.run_1_instruction(&decoder); // LD A, (0xFF00 + 0x44) [LY]
+    assert_eq!(cpu.get_pc_register(), 0x56E0);
+    assert_eq!(cpu.get_a_register(), 0x91);
+
+    cpu.run_1_instruction(&decoder); // CP A,0x91
+    assert_eq!(cpu.get_pc_register(), 0x56E2);
+    assert!(cpu.zero_flag());
+    assert!(!cpu.carry_flag());
+    assert!(!cpu.half_carry_flag());
+    assert!(cpu.add_sub_flag());
+
+    cpu.run_1_instruction(&decoder); // JR C,0xFA
+    assert_eq!(cpu.get_pc_register(), 0x56E4, "Jump is not taken");
+
+    cpu.set_word_at(0xFF40, 0x91);
+    cpu.run_1_instruction(&decoder); // LD A, (0xFF + 0x40)
+    assert_eq!(cpu.get_pc_register(), 0x56E6);
+    assert_eq!(cpu.get_a_register(), 0x91);
+
+    cpu.run_1_instruction(&decoder); // AND A,0x7F
+    assert_eq!(cpu.get_pc_register(), 0x56E8);
+    assert_eq!(cpu.get_a_register(), 0x11);
+    assert!(!cpu.zero_flag());
+    assert!(!cpu.carry_flag());
+    assert!(cpu.half_carry_flag());
+    assert!(!cpu.add_sub_flag());
+
+    cpu.run_1_instruction(&decoder); // LD (0xFF + 0x40), A
+    assert_eq!(cpu.get_pc_register(), 0x56EA);
+    assert_eq!(cpu.word_at(0xFF40), 0x11);
+
+    //cpu.run_1_instruction(&decoder) // RET
+
 }
 
 
