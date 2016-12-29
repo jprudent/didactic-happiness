@@ -32,6 +32,7 @@ little pet project for this purpose.
 - [Yet another Game Boy instruction set](https://gist.github.com/sifton/4471555)
 - [Game Boy internals cheat sheet](http://www.chrisantonellis.com/files/gameboy/gb-cribsheet.pdfhttp://www.chrisantonellis.com/files/gameboy/gb-cribsheet.pdf)
 - [GameBoy Z80 CPU Opcodes cheat sheet](http://goldencrystal.free.fr/GBZ80Opcodes.pdf)
+- [Awake]() is a decompiles ROMS in pseudo code, very useful !!
 
 # Struggling with Rust :
 

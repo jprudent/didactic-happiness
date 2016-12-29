@@ -33,7 +33,11 @@ pub struct Registers {
     de: Double,
     hl: Double,
     sp: Double,
-    pc: Double
+    pc: Double,
+    zf: bool,
+    n: bool,
+    h: bool,
+    cy: bool
 }
 
 impl Registers {
@@ -64,6 +68,38 @@ impl Registers {
     fn l(&self) -> Word {
         low_word(self.hl)
     }
+
+    fn zero_flag(&self) -> bool {
+        self.zf
+    }
+
+    fn carry_flag(&self) -> bool {
+        self.cy
+    }
+
+    fn half_carry_flag(&self) -> bool {
+        self.h
+    }
+
+    fn add_sub_flag(&self) -> bool {
+        self.n
+    }
+
+    fn set_zero_flag(&mut self, flag_value: bool) {
+        self.zf = flag_value
+    }
+
+    fn set_carry_flag(&mut self, flag_value: bool) {
+        self.cy = flag_value
+    }
+
+    fn set_half_carry_flag(&mut self, flag_value: bool) {
+        self.h = flag_value
+    }
+
+    fn set_add_sub_flag(&mut self, flag_value: bool) {
+        self.n = flag_value
+    }
 }
 
 pub fn new_registers() -> Registers {
@@ -73,7 +109,11 @@ pub fn new_registers() -> Registers {
         de: 0x1234,
         hl: 0x1234,
         sp: 0x1234,
-        pc: 0x0000
+        pc: 0x0000,
+        zf: false,
+        h: false,
+        n: false,
+        cy: false
     }
 }
 
@@ -85,7 +125,11 @@ fn should_get_value_from_registers() {
         de: 0xDDEE,
         hl: 0x4411,
         sp: 0x5678,
-        pc: 0x8765
+        pc: 0x8765,
+        zf: false,
+        h: false,
+        n: false,
+        cy: false
     };
     assert_eq!(regs.af, 0xAAFF);
     assert_eq!(regs.b(), 0xBB);
@@ -358,6 +402,33 @@ impl Opcode for DisableInterrupts {
     }
 }
 
+struct XorWithA<S: RightOperand<Word>> {
+    source: S,
+    size: Size,
+    cycles: Cycle
+}
+
+impl<S: RightOperand<Word>> Opcode for XorWithA<S> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let n = self.source.resolve(cpu);
+        let a = cpu.get_a_register();
+        let r = a ^ n;
+        cpu.set_register_a(r);
+        cpu.set_zero_flag(r == 0);
+        cpu.set_carry_flag(false);
+        cpu.set_half_carry_flag(false);
+        cpu.set_add_sub_flag(false);
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self) -> Cycle {
+        self.cycles
+    }
+}
+
 
 struct Decoder(Vec<Box<Opcode>>);
 
@@ -498,9 +569,33 @@ fn build_decoder() -> Decoder {
     }
 
     fn di() -> Box<DisableInterrupts> {
-        Box::new(DisableInterrupts{
+        Box::new(DisableInterrupts {
             size: 1,
             cycles: 4
+        })
+    }
+
+    fn xor_r(r: WordRegister) -> Box<XorWithA<WordRegister>> {
+        Box::new(XorWithA {
+            source: r,
+            size: 1,
+            cycles: 4
+        })
+    }
+
+    fn xor_ptr_r(r: RegisterPointer) -> Box<XorWithA<RegisterPointer>> {
+        Box::new(XorWithA {
+            source: r,
+            size: 1,
+            cycles: 8
+        })
+    }
+
+    fn xor_n() -> Box<XorWithA<ImmediateWord>> {
+        Box::new(XorWithA {
+            source: ImmediateWord {},
+            size: 2,
+            cycles: 8
         })
     }
 
@@ -593,9 +688,18 @@ fn build_decoder() -> Decoder {
     decoder[0x7C] = ld_r_from_r(WordRegister::A, WordRegister::H);
     decoder[0x7D] = ld_r_from_r(WordRegister::A, WordRegister::L);
     decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
+    decoder[0xA8] = xor_r(WordRegister::B);
+    decoder[0xA9] = xor_r(WordRegister::C);
+    decoder[0xAA] = xor_r(WordRegister::D);
+    decoder[0xAB] = xor_r(WordRegister::E);
+    decoder[0xAC] = xor_r(WordRegister::H);
+    decoder[0xAD] = xor_r(WordRegister::L);
+    decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
+    decoder[0xAF] = xor_r(WordRegister::A);
     decoder[0xC3] = jmp_nn();
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
+    decoder[0xAE] = xor_n();
     decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
     decoder[0xF3] = di();
     decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
@@ -782,6 +886,38 @@ impl ComputerUnit {
 
     fn disable_interrupt_master(&mut self) {
         self.ime = false
+    }
+
+    fn zero_flag(&self) -> bool {
+        self.registers.zero_flag()
+    }
+
+    fn carry_flag(&self) -> bool {
+        self.registers.carry_flag()
+    }
+
+    fn half_carry_flag(&self) -> bool {
+        self.registers.half_carry_flag()
+    }
+
+    fn add_sub_flag(&self) -> bool {
+        self.registers.add_sub_flag()
+    }
+
+    fn set_zero_flag(&mut self, flag_value: bool) {
+        self.registers.set_zero_flag(flag_value)
+    }
+
+    fn set_carry_flag(&mut self, flag_value: bool) {
+        self.registers.set_carry_flag(flag_value)
+    }
+
+    fn set_half_carry_flag(&mut self, flag_value: bool) {
+        self.registers.set_half_carry_flag(flag_value)
+    }
+
+    fn set_add_sub_flag(&mut self, flag_value: bool) {
+        self.registers.set_add_sub_flag(flag_value)
     }
 }
 
@@ -1321,6 +1457,14 @@ fn should_run_bios() {
     assert!(!cpu.interrupt_master(), "the interrupt master flag should not be set");
     assert_eq! (cpu.get_pc_register(), 0x151, "bad pc after {}", msg);
 
-    cpu.run_1_instruction(&decoder); // LD D,A (wtf)
+    cpu.run_1_instruction(&decoder); // LD D,A (stupid!)
     assert_eq! (cpu.get_pc_register(), 0x152, "bad pc after {}", msg);
+
+    cpu.run_1_instruction(&decoder); // XOR A (A = 0)
+    assert_eq! (cpu.get_pc_register(), 0x153, "bad pc after {}", msg);
+    assert_eq! (cpu.get_a_register(), 0x00, "bad A register value after {}", msg);
+    assert! (cpu.zero_flag(), "zero flag should be set after {}", msg);
+    assert! (!cpu.carry_flag(), "carry flag should not be set after {}", msg);
+    assert! (!cpu.half_carry_flag(), "half carry flag should not be set after {}", msg);
+    assert! (!cpu.add_sub_flag(), "add/sub flag should not be set after {}", msg);
 }
