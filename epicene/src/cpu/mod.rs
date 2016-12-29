@@ -6,6 +6,7 @@ type Word = u8;
 type Double = u16;
 type Address = Double;
 type Cycle = u8;
+type Size = u16;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Register & co
@@ -91,7 +92,7 @@ fn should_get_value_from_registers() {
     assert_eq!(regs.c(), 0xCC);
 }
 
-struct Load<X, L:LeftOperand<X>, R:RightOperand<X>> {
+struct Load<X, L: LeftOperand<X>, R: RightOperand<X>> {
     destination: L,
     source: R,
     size: Double,
@@ -264,24 +265,56 @@ impl RightOperand<Word> for RegisterPointer {
     }
 }
 
-impl<X, L:LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R>{
+impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let word = self.source.resolve(cpu);
         self.destination.alter(cpu, word);
-        cpu.inc_pc(self.size);
-        cpu.cycles = cpu.cycles + self.cycles;
+    }
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self) -> Cycle {
+        self.cycles
     }
 }
 
 trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
+    fn size(&self) -> Size;
+    fn cycles(&self) -> Cycle;
 }
 
-struct NotImplemented {}
+struct NotImplemented(Word);
 
 impl Opcode for NotImplemented {
     fn exec(&self, _: &mut ComputerUnit) {
+        panic!("{:02X} not implemented", self.0);
+    }
+    fn size(&self) -> Size {
         unimplemented!()
+    }
+
+    fn cycles(&self) -> Cycle {
+        unimplemented!()
+    }
+}
+
+struct Nop {
+    size: Size,
+    cycles: Cycle
+}
+
+impl Opcode for Nop {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self) -> Cycle {
+        self.cycles
     }
 }
 
@@ -407,13 +440,21 @@ fn build_decoder() -> Decoder {
         })
     }
 
+    fn nop() -> Box<Nop> {
+        Box::new(Nop {
+            size: 1,
+            cycles: 4
+        })
+    }
+
     let mut decoder = Decoder(vec!());
 
     //todo temp loop for growing the vec
-    for _ in 0..256 {
-        decoder.push(NotImplemented {})
+    for i in 0..256 {
+        decoder.push(NotImplemented(i as Word))
     }
 
+    decoder[0x00] = nop();
     decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
     decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
     decoder[0x06] = ld_r_from_w(WordRegister::B);
@@ -548,6 +589,8 @@ impl ComputerUnit {
         let word = self.memory.word_at(self.registers.pc);
         let ref opcode = decoder[word];
         opcode.exec(self);
+        self.inc_pc(opcode.size());
+        self.cycles = self.cycles + opcode.cycles();
     }
 
     fn load(&mut self, program: &Program) {
@@ -1159,4 +1202,38 @@ fn should_implement_ld_ptr_nn_sp_instruction() {
     assert_eq! (cpu.double_at(0xABCD), 0x1234, "bad memory value after {}", msg);
     assert_eq! (cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
     assert_eq! (cpu.cycles, 180, "bad cycles count after {}", msg);
+}
+
+#[test]
+fn should_run_bios() {
+    use std::io::prelude::*;
+    use std::fs::File;
+    let mut f = File::open("roms/gunsriders.gb").unwrap();
+    let mut s = vec!();
+    f.read_to_end(&mut s).unwrap();
+    let content = s;
+    let pg = Program {
+        name: "Guns Rider",
+        content: content
+    };
+    println!("first byte {:02X}", pg.content[0x100]);
+    println!("sec byte {:02X}", pg.content[0x101]);
+    println!("sec byte {:02X}", pg.content[0x102]);
+    println!("sec byte {:02X}", pg.content[0x103]);
+    println!("sec byte {:02X}", pg.content[0x104]);
+    println!("sec byte {:02X}", pg.content[0x105]);
+    println!("sec byte {:02X}", pg.content[0x106]);
+    println!("sec byte {:02X}", pg.content[0x107]);
+
+    let msg = pg.name;
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = build_decoder();
+
+    cpu.run_1_instruction(&decoder); // NOP
+    assert_eq! (cpu.get_pc_register(), 0x101, "bad pc after {}", msg);
+
+    cpu.run_1_instruction(&decoder); // JP 0x0150
+    assert_eq! (cpu.get_pc_register(), 0x150, "bad pc after {}", msg);
 }
