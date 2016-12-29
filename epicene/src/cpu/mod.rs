@@ -306,7 +306,28 @@ struct Nop {
 }
 
 impl Opcode for Nop {
+    fn exec(&self, _: &mut ComputerUnit) {}
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self) -> Cycle {
+        self.cycles
+    }
+}
+
+struct Jmp<X, A: RightOperand<X>> {
+    address: A,
+    size: Size,
+    cycles: Cycle,
+    operation_type: PhantomData<X>
+}
+
+impl<A: RightOperand<Double>> Opcode for Jmp<Double, A> {
     fn exec(&self, cpu: &mut ComputerUnit) {
+        let address: Double = self.address.resolve(cpu);
+        cpu.set_register_pc(address - self.size()); // self.size() is added afterward
     }
 
     fn size(&self) -> Size {
@@ -317,6 +338,26 @@ impl Opcode for Nop {
         self.cycles
     }
 }
+
+struct DisableInterrupts {
+    size: Size,
+    cycles: Cycle
+}
+
+impl Opcode for DisableInterrupts {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        cpu.disable_interrupt_master()
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self) -> Cycle {
+        self.cycles
+    }
+}
+
 
 struct Decoder(Vec<Box<Opcode>>);
 
@@ -447,6 +488,22 @@ fn build_decoder() -> Decoder {
         })
     }
 
+    fn jmp_nn() -> Box<Jmp<Double, ImmediateDouble>> {
+        Box::new(Jmp {
+            address: ImmediateDouble {},
+            size: 3,
+            cycles: 16,
+            operation_type: PhantomData
+        })
+    }
+
+    fn di() -> Box<DisableInterrupts> {
+        Box::new(DisableInterrupts{
+            size: 1,
+            cycles: 4
+        })
+    }
+
     let mut decoder = Decoder(vec!());
 
     //todo temp loop for growing the vec
@@ -529,9 +586,11 @@ fn build_decoder() -> Decoder {
     decoder[0x7C] = ld_r_from_r(WordRegister::A, WordRegister::H);
     decoder[0x7D] = ld_r_from_r(WordRegister::A, WordRegister::L);
     decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
+    decoder[0xC3] = jmp_nn();
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
     decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
+    decoder[0xF3] = di();
     decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
     decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
 
@@ -577,7 +636,8 @@ struct Program {
 struct ComputerUnit {
     registers: Registers,
     memory: ArrayBasedMemory,
-    cycles: Cycle
+    cycles: Cycle,
+    ime: bool
 }
 
 impl ComputerUnit {
@@ -689,6 +749,10 @@ impl ComputerUnit {
         self.registers.sp = double
     }
 
+    fn set_register_pc(&mut self, double: Double) {
+        self.registers.pc = double
+    }
+
     fn word_at(&self, address: Address) -> Word {
         self.memory.word_at(address)
     }
@@ -704,6 +768,14 @@ impl ComputerUnit {
     fn set_double_at(&mut self, address: Address, double: Double) {
         self.memory.set_double_at(address, double);
     }
+
+    fn interrupt_master(&self) -> bool {
+        self.ime
+    }
+
+    fn disable_interrupt_master(&mut self) {
+        self.ime = false
+    }
 }
 
 fn new_cpu() -> ComputerUnit {
@@ -712,6 +784,7 @@ fn new_cpu() -> ComputerUnit {
         memory: ArrayBasedMemory {
             words: [0xAA; 0xFFFF]
         },
+        ime: true,
         cycles: 0xA0 // this is some random value
     }
 }
@@ -1236,4 +1309,10 @@ fn should_run_bios() {
 
     cpu.run_1_instruction(&decoder); // JP 0x0150
     assert_eq! (cpu.get_pc_register(), 0x150, "bad pc after {}", msg);
+
+    cpu.run_1_instruction(&decoder); // DI
+    assert!(!cpu.interrupt_master(), "the interrupt master flag should not be set");
+    assert_eq! (cpu.get_pc_register(), 0x151, "bad pc after {}", msg);
+
+    //cpu.run_1_instruction(&decoder); // DI
 }
