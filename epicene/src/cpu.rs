@@ -698,6 +698,39 @@ fn build_decoder() -> Decoder {
         })
     }
 
+    fn add_r(source: WordRegister) -> Box<AddA<WordRegister>> {
+        Box::new(AddA {
+            source: source,
+            size: 1,
+            cycles: 4
+        })
+    }
+
+    fn add_ptr_r(source: RegisterPointer) -> Box<AddA<RegisterPointer>> {
+        Box::new(AddA {
+            source: source,
+            size: 1,
+            cycles: 8
+        })
+    }
+
+    fn inc_r(destination: WordRegister) -> Box<Inc<WordRegister>> {
+        Box::new(Inc {
+            destination: destination,
+            size: 1,
+            cycles: 4
+        })
+    }
+
+    fn inc_ptr_r(destination: RegisterPointer) -> Box<Inc<RegisterPointer>> {
+        Box::new(Inc {
+            destination: destination,
+            size: 1,
+            cycles: 12
+        })
+    }
+
+
     let mut decoder = Decoder(vec!());
 
     //todo temp loop for growing the vec
@@ -708,28 +741,40 @@ fn build_decoder() -> Decoder {
     decoder[0x00] = nop();
     decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
     decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
+    decoder[0x04] = inc_r(WordRegister::B);
     decoder[0x05] = dec_r(WordRegister::B);
     decoder[0x06] = ld_r_from_w(WordRegister::B);
     decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
     decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
+    decoder[0x0C] = inc_r(WordRegister::C);
+    decoder[0x0D] = dec_r(WordRegister::C);
     decoder[0x0E] = ld_r_from_w(WordRegister::C);
     decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
     decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
+    decoder[0x14] = inc_r(WordRegister::D);
     decoder[0x15] = dec_r(WordRegister::D);
     decoder[0x16] = ld_r_from_w(WordRegister::D);
     decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
+    decoder[0x1C] = inc_r(WordRegister::E);
+    decoder[0x1D] = dec_r(WordRegister::E);
     decoder[0x1E] = ld_r_from_w(WordRegister::E);
     decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
     decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
+    decoder[0x24] = inc_r(WordRegister::H);
     decoder[0x25] = dec_r(WordRegister::H);
     decoder[0x26] = ld_r_from_w(WordRegister::H);
     decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
+    decoder[0x2C] = inc_r(WordRegister::L);
+    decoder[0x2D] = dec_r(WordRegister::L);
     decoder[0x2E] = ld_r_from_w(WordRegister::L);
     decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
     decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
+    decoder[0x34] = inc_ptr_r(RegisterPointer::HL);
     decoder[0x35] = dec_ptr_r(RegisterPointer::HL);
     decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
     decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
+    decoder[0x3C] = inc_r(WordRegister::A);
+    decoder[0x3D] = dec_r(WordRegister::A);
     decoder[0x3E] = ld_r_from_w(WordRegister::A);
     decoder[0x40] = ld_r_from_r(WordRegister::B, WordRegister::B);
     decoder[0x41] = ld_r_from_r(WordRegister::B, WordRegister::C);
@@ -795,6 +840,14 @@ fn build_decoder() -> Decoder {
     decoder[0x7C] = ld_r_from_r(WordRegister::A, WordRegister::H);
     decoder[0x7D] = ld_r_from_r(WordRegister::A, WordRegister::L);
     decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
+    decoder[0x80] = add_r(WordRegister::B);
+    decoder[0x81] = add_r(WordRegister::C);
+    decoder[0x82] = add_r(WordRegister::D);
+    decoder[0x83] = add_r(WordRegister::E);
+    decoder[0x84] = add_r(WordRegister::H);
+    decoder[0x85] = add_r(WordRegister::L);
+    decoder[0x86] = add_ptr_r(RegisterPointer::HL);
+    decoder[0x87] = add_r(WordRegister::A);
     decoder[0x90] = sub_r(WordRegister::B);
     decoder[0x91] = sub_r(WordRegister::C);
     decoder[0x92] = sub_r(WordRegister::D);
@@ -836,10 +889,31 @@ impl<S: RightOperand<Word>> Opcode for SubA<S> {
         let r = ArithmeticLogicalUnit::sub(a, b);
         cpu.set_register_a(r.result);
         cpu.set_flags(r.flags);
-        //cpu.set_add_sub_flag(r.flags.add_sub_flag());
-        //cpu.set_carry_flag(r.flags.carry_flag());
-        //cpu.set_half_carry_flag(r.flags.half_carry_flag());
-        //cpu.set_zero_flag(r.flags.half_carry_flag());
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self) -> Cycle {
+        self.cycles
+    }
+}
+
+struct AddA<S: RightOperand<Word>> {
+    source: S,
+    size: Size,
+    cycles: Cycle
+}
+
+//todo factorize with sub
+impl<S: RightOperand<Word>> Opcode for AddA<S> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let b = self.source.resolve(cpu);
+        let a = cpu.get_a_register();
+        let r = ArithmeticLogicalUnit::add(a, b);
+        cpu.set_register_a(r.result);
+        cpu.set_flags(r.flags);
     }
 
     fn size(&self) -> Size {
@@ -861,6 +935,33 @@ impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for Dec<D> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let x = self.destination.resolve(cpu);
         let r = ArithmeticLogicalUnit::sub(x, 1);
+        self.destination.alter(cpu, r.result);
+        //unfortunately this instruction doesn't set the carry flag
+        cpu.set_zero_flag(r.flags.half_carry_flag());
+        cpu.set_add_sub_flag(r.flags.add_sub_flag());
+        cpu.set_half_carry_flag(r.flags.half_carry_flag());
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self) -> Cycle {
+        self.cycles
+    }
+}
+
+//todo factorize with dec
+struct Inc<D: LeftOperand<Word> + RightOperand<Word>> {
+    destination: D,
+    size: Size,
+    cycles: Cycle
+}
+
+impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for Inc<D> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let x = self.destination.resolve(cpu);
+        let r = ArithmeticLogicalUnit::add(x, 1);
         self.destination.alter(cpu, r.result);
         //unfortunately this instruction doesn't set the carry flag
         cpu.set_zero_flag(r.flags.half_carry_flag());
