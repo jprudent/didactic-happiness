@@ -505,7 +505,7 @@ impl Opcode for UnconditionalCall {
 enum JmpCondition {
     NONZERO,
     //ZERO,
-    //NOCARRY,
+    NOCARRY,
     //CARRY
 }
 
@@ -514,8 +514,47 @@ impl JmpCondition {
         match *self {
             JmpCondition::NONZERO => !cpu.zero_flag(),
             //JmpCondition::ZERO => cpu.zero_flag(),
-            //JmpCondition::NOCARRY =>!cpu.carry_flag(),
+            JmpCondition::NOCARRY => !cpu.carry_flag(),
             //JmpCondition::CARRY => cpu.carry_flag()
+        }
+    }
+}
+
+struct ConditionalReturn {
+    condition: JmpCondition,
+    size: Size,
+    cycles_when_taken: Cycle,
+    cycles_when_not_taken: Cycle
+}
+
+impl ConditionalReturn {
+    fn ret_nc() -> ConditionalReturn {
+        ConditionalReturn {
+            condition: JmpCondition::NOCARRY,
+            size: 1,
+            cycles_when_taken: 20,
+            cycles_when_not_taken: 8
+        }
+    }
+}
+
+impl Opcode for ConditionalReturn {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        if self.condition.matches(cpu) {
+            let address = cpu.pop();
+            cpu.set_register_pc(address - self.size())
+        }
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, cpu: &ComputerUnit) -> Cycle {
+        if self.condition.matches(cpu) {
+            self.cycles_when_taken
+        } else {
+            self.cycles_when_not_taken
         }
     }
 }
@@ -1011,6 +1050,7 @@ fn build_decoder() -> Decoder {
     decoder[0xAB] = xor_r(WordRegister::E);
     decoder[0xAC] = xor_r(WordRegister::H);
     decoder[0xAD] = xor_r(WordRegister::L);
+    decoder[0xD0] = Box::new(ConditionalReturn::ret_nc());
     decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
     decoder[0xAF] = xor_r(WordRegister::A);
     decoder[0xC3] = jmp_nn();
@@ -1334,6 +1374,13 @@ impl ComputerUnit {
         self.set_register_sp(original_sp - 2);
         let sp = self.get_sp_register();
         self.set_double_at(sp, double);
+    }
+
+    fn pop(&mut self) -> Double {
+        let sp = self.get_sp_register();
+        let value = self.double_at(sp);
+        self.set_register_pc(sp + 2);
+        value
     }
 }
 
@@ -2075,6 +2122,11 @@ fn should_run_bios() {
     cpu.run_1_instruction(&decoder); // ADD A
     assert_eq!(cpu.get_pc_register(), 0x56D7);
     assert!(cpu.carry_flag(), "0xAA + 0xAA produces a carry");
+
+    cpu.run_1_instruction(&decoder); // RET NC
+    assert_eq!(cpu.get_pc_register(), 0x56D8, "Didn't return because there is a carry")
+
+    
 }
 
 
