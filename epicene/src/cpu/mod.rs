@@ -536,6 +536,7 @@ fn build_decoder() -> Decoder {
     decoder[0x44] = ld_r_from_r(WordRegister::B, WordRegister::H);
     decoder[0x45] = ld_r_from_r(WordRegister::B, WordRegister::L);
     decoder[0x46] = ld_r_from_ptr_r(WordRegister::B, RegisterPointer::HL);
+    decoder[0x47] = ld_r_from_r(WordRegister::B, WordRegister::A);
     decoder[0x48] = ld_r_from_r(WordRegister::C, WordRegister::B);
     decoder[0x49] = ld_r_from_r(WordRegister::C, WordRegister::C);
     decoder[0x4A] = ld_r_from_r(WordRegister::C, WordRegister::D);
@@ -543,6 +544,7 @@ fn build_decoder() -> Decoder {
     decoder[0x4C] = ld_r_from_r(WordRegister::C, WordRegister::H);
     decoder[0x4D] = ld_r_from_r(WordRegister::C, WordRegister::L);
     decoder[0x4E] = ld_r_from_ptr_r(WordRegister::C, RegisterPointer::HL);
+    decoder[0x4F] = ld_r_from_r(WordRegister::C, WordRegister::A);
     decoder[0x50] = ld_r_from_r(WordRegister::D, WordRegister::B);
     decoder[0x51] = ld_r_from_r(WordRegister::D, WordRegister::C);
     decoder[0x52] = ld_r_from_r(WordRegister::D, WordRegister::D);
@@ -550,6 +552,7 @@ fn build_decoder() -> Decoder {
     decoder[0x54] = ld_r_from_r(WordRegister::D, WordRegister::H);
     decoder[0x55] = ld_r_from_r(WordRegister::D, WordRegister::L);
     decoder[0x56] = ld_r_from_ptr_r(WordRegister::D, RegisterPointer::HL);
+    decoder[0x57] = ld_r_from_r(WordRegister::D, WordRegister::A);
     decoder[0x58] = ld_r_from_r(WordRegister::E, WordRegister::B);
     decoder[0x59] = ld_r_from_r(WordRegister::E, WordRegister::C);
     decoder[0x5A] = ld_r_from_r(WordRegister::E, WordRegister::D);
@@ -557,18 +560,21 @@ fn build_decoder() -> Decoder {
     decoder[0x5C] = ld_r_from_r(WordRegister::E, WordRegister::H);
     decoder[0x5D] = ld_r_from_r(WordRegister::E, WordRegister::L);
     decoder[0x5E] = ld_r_from_ptr_r(WordRegister::E, RegisterPointer::HL);
+    decoder[0x5F] = ld_r_from_r(WordRegister::E, WordRegister::A);
     decoder[0x60] = ld_r_from_r(WordRegister::H, WordRegister::B);
     decoder[0x61] = ld_r_from_r(WordRegister::H, WordRegister::C);
     decoder[0x62] = ld_r_from_r(WordRegister::H, WordRegister::D);
     decoder[0x63] = ld_r_from_r(WordRegister::H, WordRegister::E);
     decoder[0x64] = ld_r_from_r(WordRegister::H, WordRegister::H);
     decoder[0x65] = ld_r_from_r(WordRegister::H, WordRegister::L);
+    decoder[0x67] = ld_r_from_r(WordRegister::H, WordRegister::A);
     decoder[0x68] = ld_r_from_r(WordRegister::L, WordRegister::B);
     decoder[0x69] = ld_r_from_r(WordRegister::L, WordRegister::C);
     decoder[0x6A] = ld_r_from_r(WordRegister::L, WordRegister::D);
     decoder[0x6B] = ld_r_from_r(WordRegister::L, WordRegister::E);
     decoder[0x6C] = ld_r_from_r(WordRegister::L, WordRegister::H);
     decoder[0x6D] = ld_r_from_r(WordRegister::L, WordRegister::L);
+    decoder[0x6F] = ld_r_from_r(WordRegister::L, WordRegister::A);
     decoder[0x66] = ld_r_from_ptr_r(WordRegister::H, RegisterPointer::HL);
     decoder[0x6E] = ld_r_from_ptr_r(WordRegister::L, RegisterPointer::HL);
     decoder[0x70] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::B);
@@ -579,6 +585,7 @@ fn build_decoder() -> Decoder {
     decoder[0x75] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::L);
     decoder[0x77] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::A);
     decoder[0x7E] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::HL);
+    decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
     decoder[0x78] = ld_r_from_r(WordRegister::A, WordRegister::B);
     decoder[0x79] = ld_r_from_r(WordRegister::A, WordRegister::C);
     decoder[0x7A] = ld_r_from_r(WordRegister::A, WordRegister::D);
@@ -1314,5 +1321,6 @@ fn should_run_bios() {
     assert!(!cpu.interrupt_master(), "the interrupt master flag should not be set");
     assert_eq! (cpu.get_pc_register(), 0x151, "bad pc after {}", msg);
 
-    //cpu.run_1_instruction(&decoder); // DI
+    cpu.run_1_instruction(&decoder); // LD D,A (wtf)
+    assert_eq! (cpu.get_pc_register(), 0x152, "bad pc after {}", msg);
 }
