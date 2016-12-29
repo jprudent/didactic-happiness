@@ -27,46 +27,22 @@ fn set_low_word(double: Double, word: Word) -> Double {
     (double & 0xFF00) | (word as Double)
 }
 
-pub struct Registers {
-    af: Double,
-    bc: Double,
-    de: Double,
-    hl: Double,
-    sp: Double,
-    pc: Double,
+#[derive(Debug, PartialEq, Eq)]
+struct FlagRegister {
     zf: bool,
     n: bool,
     h: bool,
     cy: bool
 }
 
-impl Registers {
-    fn a(&self) -> Word {
-        high_word(self.af)
-    }
-
-    fn b(&self) -> Word {
-        high_word(self.bc)
-    }
-
-    fn c(&self) -> Word {
-        low_word(self.bc)
-    }
-
-    fn d(&self) -> Word {
-        high_word(self.de)
-    }
-
-    fn e(&self) -> Word {
-        low_word(self.de)
-    }
-
-    fn h(&self) -> Word {
-        high_word(self.hl)
-    }
-
-    fn l(&self) -> Word {
-        low_word(self.hl)
+impl FlagRegister {
+    fn new() -> FlagRegister {
+        FlagRegister {
+            zf: false,
+            n: false,
+            h: false,
+            cy: false
+        }
     }
 
     fn zero_flag(&self) -> bool {
@@ -102,20 +78,91 @@ impl Registers {
     }
 }
 
-pub fn new_registers() -> Registers {
-    Registers {
-        af: 0x1234,
-        bc: 0x1234,
-        de: 0x1234,
-        hl: 0x1234,
-        sp: 0x1234,
-        pc: 0x0000,
-        zf: false,
-        h: false,
-        n: false,
-        cy: false
+
+pub struct Registers {
+    af: Double,
+    bc: Double,
+    de: Double,
+    hl: Double,
+    sp: Double,
+    pc: Double,
+    flags: FlagRegister,
+}
+
+impl Registers {
+    pub fn new() -> Registers {
+        Registers {
+            af: 0x1234,
+            bc: 0x1234,
+            de: 0x1234,
+            hl: 0x1234,
+            sp: 0x1234,
+            pc: 0x0000,
+            flags: FlagRegister::new()
+        }
+    }
+
+    fn a(&self) -> Word {
+        high_word(self.af)
+    }
+
+    fn b(&self) -> Word {
+        high_word(self.bc)
+    }
+
+    fn c(&self) -> Word {
+        low_word(self.bc)
+    }
+
+    fn d(&self) -> Word {
+        high_word(self.de)
+    }
+
+    fn e(&self) -> Word {
+        low_word(self.de)
+    }
+
+    fn h(&self) -> Word {
+        high_word(self.hl)
+    }
+
+    fn l(&self) -> Word {
+        low_word(self.hl)
+    }
+
+    fn zero_flag(&self) -> bool {
+        self.flags.zero_flag()
+    }
+
+    fn carry_flag(&self) -> bool {
+        self.flags.carry_flag()
+    }
+
+    fn half_carry_flag(&self) -> bool {
+        self.flags.half_carry_flag()
+    }
+
+    fn add_sub_flag(&self) -> bool {
+        self.flags.add_sub_flag()
+    }
+
+    fn set_zero_flag(&mut self, flag_value: bool) {
+        self.flags.set_zero_flag(flag_value)
+    }
+
+    fn set_carry_flag(&mut self, flag_value: bool) {
+        self.flags.set_carry_flag(flag_value)
+    }
+
+    fn set_half_carry_flag(&mut self, flag_value: bool) {
+        self.flags.set_half_carry_flag(flag_value)
+    }
+
+    fn set_add_sub_flag(&mut self, flag_value: bool) {
+        self.flags.set_add_sub_flag(flag_value)
     }
 }
+
 
 #[test]
 fn should_get_value_from_registers() {
@@ -126,10 +173,7 @@ fn should_get_value_from_registers() {
         hl: 0x4411,
         sp: 0x5678,
         pc: 0x8765,
-        zf: false,
-        h: false,
-        n: false,
-        cy: false
+        flags: FlagRegister::new()
     };
     assert_eq!(regs.af, 0xAAFF);
     assert_eq!(regs.b(), 0xBB);
@@ -613,14 +657,46 @@ fn build_decoder() -> Decoder {
     }
 
     fn ld_a_from_ptr_hl(hlop: HlOp) -> Box<Load<Word, WordRegister, HlOp>> {
-            Box::new(Load {
-                source: hlop,
-                destination: WordRegister::A,
-                size: 1,
-                cycles: 8,
-                operation_type: PhantomData
-            })
-        }
+        Box::new(Load {
+            source: hlop,
+            destination: WordRegister::A,
+            size: 1,
+            cycles: 8,
+            operation_type: PhantomData
+        })
+    }
+
+    fn sub_r(source: WordRegister) -> Box<SubA<WordRegister>> {
+        Box::new(SubA {
+            source: source,
+            size: 1,
+            cycles: 4
+        })
+    }
+
+    fn sub_ptr_r(source: RegisterPointer) -> Box<SubA<RegisterPointer>> {
+        Box::new(SubA {
+            source: source,
+            size: 1,
+            cycles: 8
+        })
+    }
+
+    fn dec_r(destination: WordRegister) -> Box<Dec<WordRegister>> {
+        Box::new(Dec {
+            destination: destination,
+            size: 1,
+            cycles: 4
+        })
+    }
+
+    fn dec_ptr_r(destination: RegisterPointer) -> Box<Dec<RegisterPointer>> {
+        Box::new(Dec {
+            destination: destination,
+            size: 1,
+            cycles: 12
+        })
+    }
 
     let mut decoder = Decoder(vec!());
 
@@ -632,22 +708,26 @@ fn build_decoder() -> Decoder {
     decoder[0x00] = nop();
     decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
     decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
+    decoder[0x05] = dec_r(WordRegister::B);
     decoder[0x06] = ld_r_from_w(WordRegister::B);
     decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
     decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
     decoder[0x0E] = ld_r_from_w(WordRegister::C);
     decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
     decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
+    decoder[0x15] = dec_r(WordRegister::D);
     decoder[0x16] = ld_r_from_w(WordRegister::D);
     decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
     decoder[0x1E] = ld_r_from_w(WordRegister::E);
     decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
     decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
+    decoder[0x25] = dec_r(WordRegister::H);
     decoder[0x26] = ld_r_from_w(WordRegister::H);
     decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
     decoder[0x2E] = ld_r_from_w(WordRegister::L);
     decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
     decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
+    decoder[0x35] = dec_ptr_r(RegisterPointer::HL);
     decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
     decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
     decoder[0x3E] = ld_r_from_w(WordRegister::A);
@@ -715,6 +795,14 @@ fn build_decoder() -> Decoder {
     decoder[0x7C] = ld_r_from_r(WordRegister::A, WordRegister::H);
     decoder[0x7D] = ld_r_from_r(WordRegister::A, WordRegister::L);
     decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
+    decoder[0x90] = sub_r(WordRegister::B);
+    decoder[0x91] = sub_r(WordRegister::C);
+    decoder[0x92] = sub_r(WordRegister::D);
+    decoder[0x93] = sub_r(WordRegister::E);
+    decoder[0x94] = sub_r(WordRegister::H);
+    decoder[0x95] = sub_r(WordRegister::L);
+    decoder[0x96] = sub_ptr_r(RegisterPointer::HL);
+    decoder[0x97] = sub_r(WordRegister::A);
     decoder[0xA8] = xor_r(WordRegister::B);
     decoder[0xA9] = xor_r(WordRegister::C);
     decoder[0xAA] = xor_r(WordRegister::D);
@@ -733,6 +821,60 @@ fn build_decoder() -> Decoder {
     decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
 
     decoder
+}
+
+struct SubA<S: RightOperand<Word>> {
+    source: S,
+    size: Size,
+    cycles: Cycle
+}
+
+impl<S: RightOperand<Word>> Opcode for SubA<S> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let b = self.source.resolve(cpu);
+        let a = cpu.get_a_register();
+        let r = ArithmeticLogicalUnit::sub(a, b);
+        cpu.set_register_a(r.result);
+        cpu.set_flags(r.flags);
+        //cpu.set_add_sub_flag(r.flags.add_sub_flag());
+        //cpu.set_carry_flag(r.flags.carry_flag());
+        //cpu.set_half_carry_flag(r.flags.half_carry_flag());
+        //cpu.set_zero_flag(r.flags.half_carry_flag());
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self) -> Cycle {
+        self.cycles
+    }
+}
+
+struct Dec<D: LeftOperand<Word> + RightOperand<Word>> {
+    destination: D,
+    size: Size,
+    cycles: Cycle
+}
+
+impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for Dec<D> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let x = self.destination.resolve(cpu);
+        let r = ArithmeticLogicalUnit::sub(x, 1);
+        self.destination.alter(cpu, r.result);
+        //unfortunately this instruction doesn't set the carry flag
+        cpu.set_zero_flag(r.flags.half_carry_flag());
+        cpu.set_add_sub_flag(r.flags.add_sub_flag());
+        cpu.set_half_carry_flag(r.flags.half_carry_flag());
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self) -> Cycle {
+        self.cycles
+    }
 }
 
 enum HlOp {
@@ -978,11 +1120,15 @@ impl ComputerUnit {
     fn set_add_sub_flag(&mut self, flag_value: bool) {
         self.registers.set_add_sub_flag(flag_value)
     }
+
+    fn set_flags(&mut self, flags: FlagRegister) {
+        self.registers.flags = flags;
+    }
 }
 
 fn new_cpu() -> ComputerUnit {
     ComputerUnit {
-        registers: new_registers(),
+        registers: Registers::new(),
         memory: ArrayBasedMemory {
             words: [0xAA; 0xFFFF]
         },
@@ -1000,6 +1146,115 @@ impl MemoryProgramLoader {
             content: input
         }
     }
+}
+
+struct ArithmeticLogicalUnit {}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ArithmeticResult {
+    result: Word,
+    flags: FlagRegister
+}
+
+impl ArithmeticLogicalUnit {
+    fn add(a: Word, b: Word) -> ArithmeticResult {
+        let result = a.wrapping_add(b);
+        ArithmeticResult {
+            result: result,
+            flags: FlagRegister {
+                cy: !ArithmeticLogicalUnit::has_carry(a, b),
+                h: !ArithmeticLogicalUnit::has_half_carry(a, b),
+                zf: result == 0,
+                n: false
+            }
+        }
+    }
+
+    fn sub(a: Word, b: Word) -> ArithmeticResult {
+        let two_complement = (!b).wrapping_add(1);
+        let mut add = ArithmeticLogicalUnit::add(a, two_complement);
+        add.flags.n = true;
+        add
+    }
+
+    fn has_carry(a: Word, b: Word) -> bool {
+        let overflowing_result: u16 = a as u16 + b as u16;
+        (overflowing_result & 0x0100) != 0
+    }
+
+    fn has_half_carry(a: Word, b: Word) -> bool {
+        fn low_nibble(a: Word) -> u8 {
+            a & 0xF
+        }
+
+        let nibble = low_nibble(a) + low_nibble(b);
+        (nibble & 0x10) != 0
+    }
+}
+
+#[test]
+fn should_add() {
+    assert_eq!(ArithmeticLogicalUnit::add(1, 1), ArithmeticResult {
+        result: 0b10,
+        flags: FlagRegister {
+            cy: true,
+            h: true,
+            zf: false,
+            n: false
+        }
+    });
+    assert_eq!(ArithmeticLogicalUnit::add(0b1000, 0b1000), ArithmeticResult {
+        result: 0b10000,
+        flags: FlagRegister {
+            cy: true,
+            h: false,
+            zf: false,
+            n: false
+        }
+    });
+    assert_eq!(ArithmeticLogicalUnit::add(0b1000_0000, 0b1000_0000), ArithmeticResult {
+        result: 0,
+        flags: FlagRegister {
+            cy: false,
+            h: true,
+            zf: true,
+            n: false
+        }
+    });
+    assert_eq!(ArithmeticLogicalUnit::add(0b1111_1000, 0b1000), ArithmeticResult {
+        result: 0,
+        flags: FlagRegister {
+            cy: false,
+            h: false,
+            zf: true,
+            n: false
+        }
+    });
+
+    assert_eq!(ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result, 0xFF);
+}
+
+#[test]
+fn should_sub() {
+    assert_eq!(ArithmeticLogicalUnit::sub(1, 1), ArithmeticResult {
+        result: 0,
+        flags: FlagRegister {
+            cy: false,
+            h: false,
+            zf: true,
+            n: true
+        }
+    });
+    assert_eq!(ArithmeticLogicalUnit::sub(0b01, 0b10).result, ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result);
+    assert_eq!(ArithmeticLogicalUnit::sub(0, 1), ArithmeticResult {
+        result: 0xFF,
+        flags: FlagRegister {
+            cy: true,
+            h: true,
+            zf: false,
+            n: true
+        }
+    });
 }
 
 #[test]
@@ -1567,4 +1822,10 @@ fn should_run_bios() {
     assert_eq! (cpu.get_pc_register(), 350, "bad pc after {}", msg);
     assert_eq! (cpu.get_hl_register(), 0xDFFE, "bad register value after {}", msg);
     assert_eq! (cpu.word_at(0xDFFF), 0, "bad memory value after {}", msg);
+
+    cpu.run_1_instruction(&decoder); // DEC B
+    assert_eq! (cpu.get_pc_register(), 351, "bad pc after {}", msg);
+    assert_eq! (cpu.get_b_register(), 0xFF, "bad register value after {}", msg);
 }
+
+
