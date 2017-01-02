@@ -33,14 +33,6 @@ struct FlagRegister {
 }
 
 impl FlagRegister {
-    fn new() -> FlagRegister {
-        FlagRegister {
-            zf: false,
-            n: false,
-            h: false,
-            cy: false
-        }
-    }
 
     fn zero_flag(&self) -> bool {
         self.zf
@@ -58,20 +50,11 @@ impl FlagRegister {
         self.n
     }
 
-    fn set_zero_flag(&mut self, flag_value: bool) {
-        self.zf = flag_value
-    }
-
-    fn set_carry_flag(&mut self, flag_value: bool) {
-        self.cy = flag_value
-    }
-
-    fn set_half_carry_flag(&mut self, flag_value: bool) {
-        self.h = flag_value
-    }
-
-    fn set_add_sub_flag(&mut self, flag_value: bool) {
-        self.n = flag_value
+    fn set_flags(&self, cpu: &mut ComputerUnit) {
+        cpu.set_zero_flag(self.zero_flag());
+        cpu.set_add_sub_flag(self.add_sub_flag());
+        cpu.set_carry_flag(self.carry_flag());
+        cpu.set_half_carry_flag(self.half_carry_flag());
     }
 }
 
@@ -83,7 +66,6 @@ pub struct Registers {
     hl: Double,
     sp: Double,
     pc: Double,
-    flags: FlagRegister,
 }
 
 impl Registers {
@@ -95,12 +77,15 @@ impl Registers {
             hl: 0x1234,
             sp: 0x1234,
             pc: 0x0000,
-            flags: FlagRegister::new()
         }
     }
 
     fn a(&self) -> Word {
         high_word(self.af)
+    }
+
+    fn set_af(&mut self, double: Double) {
+        self.af = double;
     }
 
     fn b(&self) -> Word {
@@ -111,12 +96,20 @@ impl Registers {
         low_word(self.bc)
     }
 
+    fn set_bc(&mut self, double: Double) {
+        self.bc = double;
+    }
+
     fn d(&self) -> Word {
         high_word(self.de)
     }
 
     fn e(&self) -> Word {
         low_word(self.de)
+    }
+
+    fn set_de(&mut self, double: Double) {
+        self.de = double;
     }
 
     fn h(&self) -> Word {
@@ -127,36 +120,56 @@ impl Registers {
         low_word(self.hl)
     }
 
+    fn set_hl(&mut self, double: Double) {
+        self.hl = double;
+    }
+
     fn zero_flag(&self) -> bool {
-        self.flags.zero_flag()
+        self.af & 0b0000_0000_1000_0000 != 0
     }
 
     fn carry_flag(&self) -> bool {
-        self.flags.carry_flag()
+        self.af & 0b0000_0000_0001_0000 != 0
     }
 
     fn half_carry_flag(&self) -> bool {
-        self.flags.half_carry_flag()
+        self.af & 0b0000_0000_0010_0000 != 0
     }
 
     fn add_sub_flag(&self) -> bool {
-        self.flags.add_sub_flag()
+        self.af & 0b0000_0000_0100_0000 != 0
     }
 
     fn set_zero_flag(&mut self, flag_value: bool) {
-        self.flags.set_zero_flag(flag_value)
+        if flag_value {
+            self.af = self.af | 0b0000_0000_1000_0000
+        } else {
+            self.af = self.af & 0b1111_1111_0111_1111
+        }
     }
 
     fn set_carry_flag(&mut self, flag_value: bool) {
-        self.flags.set_carry_flag(flag_value)
+        if flag_value {
+            self.af = self.af | 0b0000_0000_0001_0000
+        } else {
+            self.af = self.af & 0b1111_1111_1110_1111
+        }
     }
 
     fn set_half_carry_flag(&mut self, flag_value: bool) {
-        self.flags.set_half_carry_flag(flag_value)
+        if flag_value {
+            self.af = self.af | 0b0000_0000_0010_0000
+        } else {
+            self.af = self.af & 0b1111_1111_1101_1111
+        }
     }
 
     fn set_add_sub_flag(&mut self, flag_value: bool) {
-        self.flags.set_add_sub_flag(flag_value)
+        if flag_value {
+            self.af = self.af | 0b0000_0000_0100_0000
+        } else {
+            self.af = self.af & 0b1111_1111_1011_1111
+        }
     }
 }
 
@@ -169,8 +182,7 @@ fn should_get_value_from_registers() {
         de: 0xDDEE,
         hl: 0x4411,
         sp: 0x5678,
-        pc: 0x8765,
-        flags: FlagRegister::new()
+        pc: 0x8765
     };
     assert_eq!(regs.af, 0xAAFF);
     assert_eq!(regs.b(), 0xBB);
@@ -246,6 +258,7 @@ impl RightOperand<Word> for WordRegister {
 }
 
 enum DoubleRegister {
+    AF,
     BC,
     DE,
     HL,
@@ -255,6 +268,7 @@ enum DoubleRegister {
 impl RightOperand<Double> for DoubleRegister {
     fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
         match *self {
+            DoubleRegister::AF => cpu.get_af_register(),
             DoubleRegister::BC => cpu.get_bc_register(),
             DoubleRegister::DE => cpu.get_de_register(),
             DoubleRegister::HL => cpu.get_hl_register(),
@@ -266,6 +280,7 @@ impl RightOperand<Double> for DoubleRegister {
 impl LeftOperand<Double> for DoubleRegister {
     fn alter(&self, cpu: &mut ComputerUnit, double: Double) {
         match *self {
+            DoubleRegister::AF => cpu.set_register_af(double),
             DoubleRegister::BC => cpu.set_register_bc(double),
             DoubleRegister::DE => cpu.set_register_de(double),
             DoubleRegister::HL => cpu.set_register_hl(double),
@@ -1102,18 +1117,22 @@ fn build_decoder() -> Decoder {
     decoder[0xAC] = xor_r(WordRegister::H);
     decoder[0xAD] = xor_r(WordRegister::L);
     decoder[0xC9] = Box::new(UnconditionalReturn::ret());
-    decoder[0xD0] = Box::new(ConditionalReturn::ret_nc());
-    decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
+    decoder[0xAE] = xor_n();
     decoder[0xAF] = xor_r(WordRegister::A);
     decoder[0xB6] = Box::new(ArithmeticOperationOnRegisterA::<RegisterPointer>::or_ptr_hl());
+    decoder[0xC1] = Pop::pop_bc();
     decoder[0xC3] = jmp_nn();
     decoder[0xCD] = Box::new(UnconditionalCall::new());
+    decoder[0xD0] = Box::new(ConditionalReturn::ret_nc());
+    decoder[0xD1] = Pop::pop_de();
     decoder[0xE0] = Box::new(Load::<Word, HighMemoryPointer, WordRegister>::ldh_ptr_a());
+    decoder[0xE1] = Pop::pop_hl();
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
     decoder[0xE6] = Box::new(ArithmeticOperationOnRegisterA::<ImmediateWord>::and_w());
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
-    decoder[0xAE] = xor_n();
+    decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
     decoder[0xF0] = Box::new(Load::<Word, WordRegister, HighMemoryPointer>::ldh_a_ptr());
+    decoder[0xF1] = Pop::pop_af();
     decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
     decoder[0xF3] = di();
     decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
@@ -1144,7 +1163,51 @@ impl<S: RightOperand<Word>> Opcode for CompareA<S> {
         let a = cpu.get_a_register();
         let b = self.source.resolve(cpu);
         let r = ArithmeticLogicalUnit::sub(a, b);
-        cpu.set_flags(r.flags);
+        r.flags.set_flags(cpu);
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        self.cycles
+    }
+}
+
+struct Pop {
+    destination: DoubleRegister,
+    size: Size,
+    cycles: Cycle
+}
+
+impl Pop {
+    fn pop_af() -> Box<Pop> {
+        Box::new(Pop::pop_rr(DoubleRegister::AF))
+    }
+    fn pop_bc() -> Box<Pop> {
+        Box::new(Pop::pop_rr(DoubleRegister::BC))
+    }
+    fn pop_de() -> Box<Pop> {
+        Box::new(Pop::pop_rr(DoubleRegister::DE))
+    }
+    fn pop_hl() -> Box<Pop> {
+        Box::new(Pop::pop_rr(DoubleRegister::HL))
+    }
+
+    fn pop_rr(register: DoubleRegister) -> Pop {
+        Pop {
+            destination: register,
+            size: 1,
+            cycles: 12
+        }
+    }
+}
+
+impl Opcode for Pop {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let value = cpu.pop();
+        self.destination.alter(cpu, value);
     }
 
     fn size(&self) -> Size {
@@ -1191,7 +1254,7 @@ impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
         let a = cpu.get_a_register();
         let r = (self.operation)(a, b);
         cpu.set_register_a(r.result);
-        cpu.set_flags(r.flags);
+        r.flags.set_flags(cpu);
     }
 
     fn size(&self) -> Size {
@@ -1437,6 +1500,10 @@ impl ComputerUnit {
         self.registers.hl
     }
 
+    fn get_af_register(&self) -> Double {
+        self.registers.af
+    }
+
     fn get_bc_register(&self) -> Double {
         self.registers.bc
     }
@@ -1458,7 +1525,11 @@ impl ComputerUnit {
     }
 
     fn set_register_bc(&mut self, double: Double) {
-        self.registers.bc = double
+        self.registers.set_bc(double)
+    }
+
+    fn set_register_af(&mut self, double: Double) {
+        self.registers.set_af(double)
     }
 
     fn set_register_d(&mut self, word: Word) {
@@ -1470,7 +1541,7 @@ impl ComputerUnit {
     }
 
     fn set_register_de(&mut self, double: Double) {
-        self.registers.de = double
+        self.registers.set_de(double)
     }
 
     fn set_register_h(&mut self, word: Word) {
@@ -1482,7 +1553,7 @@ impl ComputerUnit {
     }
 
     fn set_register_hl(&mut self, double: Double) {
-        self.registers.hl = double
+        self.registers.set_hl(double)
     }
 
     fn set_register_sp(&mut self, double: Double) {
@@ -1553,10 +1624,6 @@ impl ComputerUnit {
         self.registers.set_add_sub_flag(flag_value)
     }
 
-    fn set_flags(&mut self, flags: FlagRegister) {
-        self.registers.flags = flags;
-    }
-
     fn push(&mut self, double: Double) {
         let original_sp = self.get_sp_register();
         self.set_register_sp(original_sp - 2);
@@ -1567,7 +1634,7 @@ impl ComputerUnit {
     fn pop(&mut self) -> Double {
         let sp = self.get_sp_register();
         let value = self.double_at(sp);
-        self.set_register_pc(sp + 2);
+        self.set_register_sp(sp + 2);
         value
     }
 }
@@ -1601,6 +1668,7 @@ struct ArithmeticResult {
     result: Word,
     flags: FlagRegister
 }
+
 
 impl ArithmeticLogicalUnit {
     fn add(a: Word, b: Word) -> ArithmeticResult {
@@ -2256,7 +2324,7 @@ fn should_implement_dec_instruction() {
     assert_eq!(cpu.get_b_register(), 0xFF);
     assert_eq!(cpu.get_pc_register(), 1);
     assert!(!cpu.zero_flag());
-    assert!(!cpu.carry_flag());
+    assert!(cpu.add_sub_flag());
     assert_eq!(cpu.cycles, 164);
 }
 
@@ -2438,6 +2506,17 @@ fn should_run_bios() {
     cpu.run_1_instruction(&decoder); // EI
     assert_eq!(cpu.get_pc_register(), 0x01CB);
     assert!(cpu.interrupt_master());
+
+    while cpu.get_pc_register() != 0x57BF {
+        cpu.run_1_instruction(&decoder);
+    }
+
+    assert_eq!(cpu.get_sp_register(), 0xDFFE);
+    assert_eq!(cpu.double_at(0xDFFE), 0x01CE);
+    cpu.run_1_instruction(&decoder); // POP HL
+    assert_eq!(cpu.get_pc_register(), 0x57C0);
+    assert_eq!(cpu.get_hl_register(), 0x01CE);
+    assert_eq!(cpu.get_sp_register(), 0xE000);
 }
 
 
