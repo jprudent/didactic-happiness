@@ -545,7 +545,7 @@ impl Opcode for UnconditionalReturn {
     }
 
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
-       self.cycles
+        self.cycles
     }
 }
 
@@ -1106,11 +1106,12 @@ fn build_decoder() -> Decoder {
     decoder[0xD0] = Box::new(ConditionalReturn::ret_nc());
     decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
     decoder[0xAF] = xor_r(WordRegister::A);
+    decoder[0xB6] = Box::new(ArithmeticOperationOnRegisterA::<RegisterPointer>::or_ptr_hl());
     decoder[0xC3] = jmp_nn();
     decoder[0xCD] = Box::new(UnconditionalCall::new());
     decoder[0xE0] = Box::new(Load::<Word, HighMemoryPointer, WordRegister>::ldh_ptr_a());
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
-    decoder[0xE6] = Box::new(ArithmeticOperationOnRegisterA::<ImmediateWord>::xor_a_w());
+    decoder[0xE6] = Box::new(ArithmeticOperationOnRegisterA::<ImmediateWord>::and_w());
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
     decoder[0xAE] = xor_n();
     decoder[0xF0] = Box::new(Load::<Word, WordRegister, HighMemoryPointer>::ldh_a_ptr());
@@ -1163,7 +1164,7 @@ struct ArithmeticOperationOnRegisterA<S: RightOperand<Word>> {
 }
 
 impl ArithmeticOperationOnRegisterA<ImmediateWord> {
-    fn xor_a_w() -> ArithmeticOperationOnRegisterA<ImmediateWord> {
+    fn and_w() -> ArithmeticOperationOnRegisterA<ImmediateWord> {
         ArithmeticOperationOnRegisterA {
             source: ImmediateWord {},
             operation: ArithmeticLogicalUnit::and,
@@ -1173,6 +1174,16 @@ impl ArithmeticOperationOnRegisterA<ImmediateWord> {
     }
 }
 
+impl ArithmeticOperationOnRegisterA<RegisterPointer> {
+    fn or_ptr_hl() -> ArithmeticOperationOnRegisterA<RegisterPointer> {
+        ArithmeticOperationOnRegisterA {
+            source: RegisterPointer::HL,
+            operation: ArithmeticLogicalUnit::or,
+            size: 1,
+            cycles: 8
+        }
+    }
+}
 
 impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
@@ -1544,6 +1555,19 @@ impl ArithmeticLogicalUnit {
                 zf: r == 0,
                 n: false,
                 h: true,
+                cy: false
+            }
+        }
+    }
+
+    fn or(a: Word, b: Word) -> ArithmeticResult {
+        let r = a | b;
+        ArithmeticResult {
+            result: r,
+            flags: FlagRegister {
+                zf: r == 0,
+                n: false,
+                h: false,
                 cy: false
             }
         }
@@ -2301,7 +2325,20 @@ fn should_run_bios() {
     cpu.run_1_instruction(&decoder); // RET
     assert_eq!(cpu.get_pc_register(), 0x017D);
 
+    while cpu.get_pc_register() != 0x56A2 {
+        cpu.run_1_instruction(&decoder);
+    }
+    assert_eq!(cpu.get_hl_register(), 0xC12D);
+    assert_eq!(cpu.get_a_register(), 0);
+    assert_eq!(cpu.word_at(0xC12D), 0);
 
+    cpu.run_1_instruction(&decoder); // OR (hl)
+    assert_eq!(cpu.get_pc_register(), 0x56A3);
+    assert_eq!(cpu.get_a_register(), 0);
+    assert!(cpu.zero_flag());
+    assert!(!cpu.carry_flag());
+    assert!(!cpu.half_carry_flag());
+    assert!(!cpu.add_sub_flag());
 }
 
 
