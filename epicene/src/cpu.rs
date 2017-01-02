@@ -610,7 +610,6 @@ impl ConditionalJump<Word, ImmediateWord> {
         ConditionalJump::<Word, ImmediateWord>::jr_cond_w(JmpCondition::ZERO)
     }
 
-
     fn jr_cond_w(condition: JmpCondition) -> ConditionalJump<Word, ImmediateWord> {
         ConditionalJump {
             address: ImmediateWord {},
@@ -921,24 +920,6 @@ fn build_decoder() -> Decoder {
         })
     }
 
-    fn dec_r(destination: WordRegister) -> Box<IncDec<WordRegister>> {
-        Box::new(IncDec {
-            destination: destination,
-            operation: ArithmeticLogicalUnit::sub,
-            size: 1,
-            cycles: 4
-        })
-    }
-
-    fn dec_ptr_r(destination: RegisterPointer) -> Box<IncDec<RegisterPointer>> {
-        Box::new(IncDec {
-            destination: destination,
-            operation: ArithmeticLogicalUnit::sub,
-            size: 1,
-            cycles: 12
-        })
-    }
-
     fn add_r(source: WordRegister) -> Box<ArithmeticOperationOnRegisterA<WordRegister>> {
         Box::new(ArithmeticOperationOnRegisterA {
             source: source,
@@ -957,24 +938,6 @@ fn build_decoder() -> Decoder {
         })
     }
 
-    fn inc_r(destination: WordRegister) -> Box<IncDec<WordRegister>> {
-        Box::new(IncDec {
-            destination: destination,
-            operation: ArithmeticLogicalUnit::add,
-            size: 1,
-            cycles: 4
-        })
-    }
-
-    fn inc_ptr_r(destination: RegisterPointer) -> Box<IncDec<RegisterPointer>> {
-        Box::new(IncDec {
-            destination: destination,
-            operation: ArithmeticLogicalUnit::add,
-            size: 1,
-            cycles: 12
-        })
-    }
-
     let mut decoder = Decoder(vec!());
 
     //todo temp loop for growing the vec
@@ -984,44 +947,45 @@ fn build_decoder() -> Decoder {
     decoder[0x00] = nop();
     decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
     decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
-    decoder[0x04] = inc_r(WordRegister::B);
-    decoder[0x05] = dec_r(WordRegister::B);
+    decoder[0x04] = IncDec::<Word, WordRegister>::inc_r(WordRegister::B);
+    decoder[0x05] = IncDec::<Word, WordRegister>::dec_r(WordRegister::B);
     decoder[0x06] = ld_r_from_w(WordRegister::B);
     decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
     decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
-    decoder[0x0C] = inc_r(WordRegister::C);
-    decoder[0x0D] = dec_r(WordRegister::C);
+    decoder[0x0C] = IncDec::<Word, WordRegister>::inc_r(WordRegister::C);
+    decoder[0x0D] = IncDec::<Word, WordRegister>::dec_r(WordRegister::C);
     decoder[0x0E] = ld_r_from_w(WordRegister::C);
     decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
     decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
-    decoder[0x14] = inc_r(WordRegister::D);
-    decoder[0x15] = dec_r(WordRegister::D);
+    decoder[0x14] = IncDec::<Word, WordRegister>::inc_r(WordRegister::D);
+    decoder[0x15] = IncDec::<Word, WordRegister>::dec_r(WordRegister::D);
     decoder[0x16] = ld_r_from_w(WordRegister::D);
     decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
-    decoder[0x1C] = inc_r(WordRegister::E);
-    decoder[0x1D] = dec_r(WordRegister::E);
+    decoder[0x1C] = IncDec::<Word, WordRegister>::inc_r(WordRegister::E);
+    decoder[0x1D] = IncDec::<Word, WordRegister>::dec_r(WordRegister::E);
     decoder[0x1E] = ld_r_from_w(WordRegister::E);
     decoder[0x20] = jr_nz_w();
     decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
     decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
-    decoder[0x24] = inc_r(WordRegister::H);
-    decoder[0x25] = dec_r(WordRegister::H);
+    decoder[0x24] = IncDec::<Word, WordRegister>::inc_r(WordRegister::H);
+    decoder[0x25] = IncDec::<Word, WordRegister>::dec_r(WordRegister::H);
     decoder[0x26] = ld_r_from_w(WordRegister::H);
     decoder[0x28] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_z_w());
     decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
-    decoder[0x2C] = inc_r(WordRegister::L);
-    decoder[0x2D] = dec_r(WordRegister::L);
+    decoder[0x2B] = IncDec::<Double, DoubleRegister>::dec_hl();
+    decoder[0x2C] = IncDec::<Word, WordRegister>::inc_r(WordRegister::L);
+    decoder[0x2D] = IncDec::<Word, WordRegister>::dec_r(WordRegister::L);
     decoder[0x2E] = ld_r_from_w(WordRegister::L);
     decoder[0x30] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_nc_w());
     decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
     decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
-    decoder[0x34] = inc_ptr_r(RegisterPointer::HL);
-    decoder[0x35] = dec_ptr_r(RegisterPointer::HL);
+    decoder[0x34] = IncDec::<Word, RegisterPointer>::inc_ptr_r(RegisterPointer::HL);
+    decoder[0x35] = IncDec::<Word, RegisterPointer>::dec_ptr_r(RegisterPointer::HL);
     decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
     decoder[0x38] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_c_w());
     decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
-    decoder[0x3C] = inc_r(WordRegister::A);
-    decoder[0x3D] = dec_r(WordRegister::A);
+    decoder[0x3C] = IncDec::<Word, WordRegister>::inc_r(WordRegister::A);
+    decoder[0x3D] = IncDec::<Word, WordRegister>::dec_r(WordRegister::A);
     decoder[0x3E] = ld_r_from_w(WordRegister::A);
     decoder[0x40] = ld_r_from_r(WordRegister::B, WordRegister::B);
     decoder[0x41] = ld_r_from_r(WordRegister::B, WordRegister::C);
@@ -1210,14 +1174,88 @@ impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
     }
 }
 
-struct IncDec<D: LeftOperand<Word> + RightOperand<Word>> {
+struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
     destination: D,
     operation: fn(Word, Word) -> ArithmeticResult,
     size: Size,
-    cycles: Cycle
+    cycles: Cycle,
+    operation_type: PhantomData<X>
 }
 
-impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for IncDec<D> {
+impl IncDec<Double, DoubleRegister> {
+    fn dec_hl() -> Box<IncDec<Double, DoubleRegister>> {
+        Box::new(
+            IncDec {
+                destination: DoubleRegister::HL,
+                operation: ArithmeticLogicalUnit::sub,
+                size: 1,
+                cycles: 8,
+                operation_type: PhantomData
+            })
+    }
+}
+
+
+impl IncDec<Word, WordRegister> {
+    fn dec_r(destination: WordRegister) -> Box<IncDec<Word, WordRegister>> {
+        Box::new(IncDec {
+            destination: destination,
+            operation: ArithmeticLogicalUnit::sub,
+            size: 1,
+            cycles: 4,
+            operation_type: PhantomData
+        })
+    }
+
+    fn inc_r(destination: WordRegister) -> Box<IncDec<Word, WordRegister>> {
+        Box::new(IncDec {
+            destination: destination,
+            operation: ArithmeticLogicalUnit::add,
+            size: 1,
+            cycles: 4,
+            operation_type: PhantomData
+        })
+    }
+}
+
+impl IncDec<Word, RegisterPointer> {
+    fn dec_ptr_r(destination: RegisterPointer) -> Box<IncDec<Word, RegisterPointer>> {
+        Box::new(IncDec {
+            destination: destination,
+            operation: ArithmeticLogicalUnit::sub,
+            size: 1,
+            cycles: 12,
+            operation_type: PhantomData
+        })
+    }
+
+    fn inc_ptr_r(destination: RegisterPointer) -> Box<IncDec<Word, RegisterPointer>> {
+        Box::new(IncDec {
+            destination: destination,
+            operation: ArithmeticLogicalUnit::add,
+            size: 1,
+            cycles: 12,
+            operation_type: PhantomData
+        })
+    }
+}
+
+impl<D: LeftOperand<Double> + RightOperand<Double>> Opcode for IncDec<Double, D> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let hl = cpu.get_hl_register();
+        cpu.set_register_hl(hl.wrapping_sub(1));
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        self.cycles
+    }
+}
+
+impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for IncDec<Word, D> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let x = self.destination.resolve(cpu);
         let r = (self.operation)(x, 1);
@@ -2349,6 +2387,16 @@ fn should_run_bios() {
 
     cpu.run_1_instruction(&decoder); // JR Z,0x03
     assert_eq!(cpu.get_pc_register(), 0x56A8, "Jump is taken");
+
+    assert_eq!(cpu.get_b_register(), 0x56);
+    assert_eq!(cpu.get_hl_register(), 0xC12D);
+    cpu.run_1_instruction(&decoder); // LD (HL),B
+    assert_eq!(cpu.get_pc_register(), 0x56A9);
+    assert_eq!(cpu.word_at(0xC12D), 0x56);
+
+    cpu.run_1_instruction(&decoder); // DEC HL
+    assert_eq!(cpu.get_pc_register(), 0x56AA);
+    assert_eq!(cpu.get_hl_register(), 0xC12C);
 }
 
 
