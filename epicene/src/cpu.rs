@@ -674,6 +674,34 @@ impl Opcode for DisableInterrupts {
     }
 }
 
+struct EnableInterrupts {
+    size: Size,
+    cycles: Cycle
+}
+
+impl EnableInterrupts {
+    fn ei() -> Box<EnableInterrupts> {
+        Box::new(EnableInterrupts {
+            size: 1,
+            cycles: 4
+        })
+    }
+}
+
+impl Opcode for EnableInterrupts {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        cpu.enable_interrupt_master()
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        self.cycles
+    }
+}
+
 struct XorWithA<S: RightOperand<Word>> {
     source: S,
     size: Size,
@@ -1090,6 +1118,7 @@ fn build_decoder() -> Decoder {
     decoder[0xF3] = di();
     decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
     decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
+    decoder[0xFB] = EnableInterrupts::ei();
     decoder[0xFE] = Box::new(CompareA::<ImmediateWord>::cp_w());
     decoder
 }
@@ -1486,6 +1515,10 @@ impl ComputerUnit {
 
     fn disable_interrupt_master(&mut self) {
         self.ime = false
+    }
+
+    fn enable_interrupt_master(&mut self) {
+        self.ime = true
     }
 
     fn zero_flag(&self) -> bool {
@@ -2397,6 +2430,14 @@ fn should_run_bios() {
     cpu.run_1_instruction(&decoder); // DEC HL
     assert_eq!(cpu.get_pc_register(), 0x56AA);
     assert_eq!(cpu.get_hl_register(), 0xC12C);
+
+    while cpu.get_pc_register() != 0x01CA {
+        cpu.run_1_instruction(&decoder);
+    }
+
+    cpu.run_1_instruction(&decoder); // EI
+    assert_eq!(cpu.get_pc_register(), 0x01CB);
+    assert!(cpu.interrupt_master());
 }
 
 
