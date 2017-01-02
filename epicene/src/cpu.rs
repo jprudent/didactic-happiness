@@ -717,6 +717,7 @@ impl Opcode for EnableInterrupts {
     }
 }
 
+//TODO use ArithmeticOperationOnRegisterA
 struct XorWithA<S: RightOperand<Word>> {
     source: S,
     size: Size,
@@ -990,6 +991,7 @@ fn build_decoder() -> Decoder {
     decoder[0x00] = nop();
     decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
     decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
+    decoder[0x03] = IncDecDouble::inc_bc();
     decoder[0x04] = IncDec::<Word, WordRegister>::inc_r(WordRegister::B);
     decoder[0x05] = IncDec::<Word, WordRegister>::dec_r(WordRegister::B);
     decoder[0x06] = ld_r_from_w(WordRegister::B);
@@ -1000,6 +1002,7 @@ fn build_decoder() -> Decoder {
     decoder[0x0E] = ld_r_from_w(WordRegister::C);
     decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
     decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
+    decoder[0x13] = IncDecDouble::inc_de();
     decoder[0x14] = IncDec::<Word, WordRegister>::inc_r(WordRegister::D);
     decoder[0x15] = IncDec::<Word, WordRegister>::dec_r(WordRegister::D);
     decoder[0x16] = ld_r_from_w(WordRegister::D);
@@ -1010,18 +1013,20 @@ fn build_decoder() -> Decoder {
     decoder[0x20] = jr_nz_w();
     decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
     decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
+    decoder[0x23] = IncDecDouble::inc_hl();
     decoder[0x24] = IncDec::<Word, WordRegister>::inc_r(WordRegister::H);
     decoder[0x25] = IncDec::<Word, WordRegister>::dec_r(WordRegister::H);
     decoder[0x26] = ld_r_from_w(WordRegister::H);
     decoder[0x28] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_z_w());
     decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
-    decoder[0x2B] = IncDec::<Double, DoubleRegister>::dec_hl();
+    decoder[0x2B] = IncDecDouble::dec_hl();
     decoder[0x2C] = IncDec::<Word, WordRegister>::inc_r(WordRegister::L);
     decoder[0x2D] = IncDec::<Word, WordRegister>::dec_r(WordRegister::L);
     decoder[0x2E] = ld_r_from_w(WordRegister::L);
     decoder[0x30] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_nc_w());
     decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
     decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
+    decoder[0x33] = IncDecDouble::inc_sp();
     decoder[0x34] = IncDec::<Word, RegisterPointer>::inc_ptr_r(RegisterPointer::HL);
     decoder[0x35] = IncDec::<Word, RegisterPointer>::dec_ptr_r(RegisterPointer::HL);
     decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
@@ -1122,12 +1127,15 @@ fn build_decoder() -> Decoder {
     decoder[0xB6] = Box::new(ArithmeticOperationOnRegisterA::<RegisterPointer>::or_ptr_hl());
     decoder[0xC1] = Pop::pop_bc();
     decoder[0xC3] = jmp_nn();
+    decoder[0xC5] = Push::push_bc();
     decoder[0xCD] = Box::new(UnconditionalCall::new());
     decoder[0xD0] = Box::new(ConditionalReturn::ret_nc());
     decoder[0xD1] = Pop::pop_de();
+    decoder[0xD5] = Push::push_de();
     decoder[0xE0] = Box::new(Load::<Word, HighMemoryPointer, WordRegister>::ldh_ptr_a());
     decoder[0xE1] = Pop::pop_hl();
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
+    decoder[0xD5] = Push::push_hl();
     decoder[0xE6] = Box::new(ArithmeticOperationOnRegisterA::<ImmediateWord>::and_w());
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
     decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
@@ -1135,6 +1143,7 @@ fn build_decoder() -> Decoder {
     decoder[0xF1] = Pop::pop_af();
     decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
     decoder[0xF3] = di();
+    decoder[0xF5] = Push::push_af();
     decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
     decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
     decoder[0xFB] = EnableInterrupts::ei();
@@ -1219,6 +1228,50 @@ impl Opcode for Pop {
     }
 }
 
+struct Push {
+    source: DoubleRegister,
+    size: Size,
+    cycles: Cycle
+}
+
+impl Push {
+    fn push_af() -> Box<Push> {
+        Box::new(Push::push_rr(DoubleRegister::AF))
+    }
+    fn push_bc() -> Box<Push> {
+        Box::new(Push::push_rr(DoubleRegister::BC))
+    }
+    fn push_de() -> Box<Push> {
+        Box::new(Push::push_rr(DoubleRegister::DE))
+    }
+    fn push_hl() -> Box<Push> {
+        Box::new(Push::push_rr(DoubleRegister::HL))
+    }
+
+    fn push_rr(register: DoubleRegister) -> Push {
+        Push {
+            source: register,
+            size: 1,
+            cycles: 12
+        }
+    }
+}
+
+impl Opcode for Push {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let value = self.source.resolve(cpu);
+        cpu.push(value);
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        self.cycles
+    }
+}
+
 struct ArithmeticOperationOnRegisterA<S: RightOperand<Word>> {
     source: S,
     operation: fn(Word, Word) -> ArithmeticResult,
@@ -1266,27 +1319,79 @@ impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
     }
 }
 
-struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
-    destination: D,
-    operation: fn(Word, Word) -> ArithmeticResult,
+struct IncDecDouble {
+    destination: DoubleRegister,
+    operation: fn(Double) -> Double,
     size: Size,
     cycles: Cycle,
-    operation_type: PhantomData<X>
 }
 
-impl IncDec<Double, DoubleRegister> {
-    fn dec_hl() -> Box<IncDec<Double, DoubleRegister>> {
+impl IncDecDouble {
+    fn dec_hl() -> Box<IncDecDouble> {
+        IncDecDouble::inc_dec_rr(IncDecDouble::dec, DoubleRegister::HL)
+    }
+
+    fn inc_hl() -> Box<IncDecDouble> {
+        IncDecDouble::inc_dec_rr(IncDecDouble::inc, DoubleRegister::HL)
+    }
+
+    fn inc_bc() -> Box<IncDecDouble> {
+        IncDecDouble::inc_dec_rr(IncDecDouble::inc, DoubleRegister::BC)
+    }
+
+    fn inc_de() -> Box<IncDecDouble> {
+        IncDecDouble::inc_dec_rr(IncDecDouble::inc, DoubleRegister::DE)
+    }
+
+    fn inc_sp() -> Box<IncDecDouble> {
+        IncDecDouble::inc_dec_rr(IncDecDouble::inc, DoubleRegister::SP)
+    }
+
+    fn inc(a: Double) -> Double {
+        a.wrapping_add(1)
+    }
+
+    fn dec(a: Double) -> Double {
+        a.wrapping_sub(1)
+    }
+
+    fn inc_dec_rr(op: fn(Double) -> Double, rr: DoubleRegister) -> Box<IncDecDouble> {
         Box::new(
-            IncDec {
-                destination: DoubleRegister::HL,
-                operation: ArithmeticLogicalUnit::sub,
+            IncDecDouble {
+                destination: rr,
+                operation: op,
                 size: 1,
                 cycles: 8,
-                operation_type: PhantomData
             })
     }
 }
 
+impl Opcode for IncDecDouble {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let original = self.destination.resolve(cpu);
+        let value = (self.operation)(original);
+        self.destination.alter(cpu, value);
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        self.cycles
+    }
+}
+
+
+
+// TODO always Word
+struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
+    destination: D,
+    operation: fn(X, X) -> ArithmeticResult,
+    size: Size,
+    cycles: Cycle,
+    operation_type: PhantomData<X> // TODO can be removed ?
+}
 
 impl IncDec<Word, WordRegister> {
     fn dec_r(destination: WordRegister) -> Box<IncDec<Word, WordRegister>> {
@@ -1329,21 +1434,6 @@ impl IncDec<Word, RegisterPointer> {
             cycles: 12,
             operation_type: PhantomData
         })
-    }
-}
-
-impl<D: LeftOperand<Double> + RightOperand<Double>> Opcode for IncDec<Double, D> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let hl = cpu.get_hl_register();
-        cpu.set_register_hl(hl.wrapping_sub(1));
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
     }
 }
 
@@ -2517,6 +2607,26 @@ fn should_run_bios() {
     assert_eq!(cpu.get_pc_register(), 0x57C0);
     assert_eq!(cpu.get_hl_register(), 0x01CE);
     assert_eq!(cpu.get_sp_register(), 0xE000);
+
+    cpu.run_1_instruction(&decoder); // LD A,(0xC129)
+    assert_eq!(cpu.get_pc_register(), 0x57C3);
+    assert_eq!(cpu.get_a_register(), 0);
+
+    cpu.run_1_instruction(&decoder); // PUSH AF
+    assert_eq!(cpu.get_pc_register(), 0x57C4);
+    assert_eq!(cpu.get_sp_register(), 0xDFFE);
+    assert_eq!(cpu.double_at(0xDFFE), cpu.registers.af);
+
+    cpu.run_1_instruction(&decoder); // LD E,(HL)
+    assert_eq!(cpu.get_pc_register(), 0x57C5);
+
+    cpu.run_1_instruction(&decoder); // INC HL
+    assert_eq!(cpu.get_pc_register(), 0x57C6);
+    assert_eq!(cpu.get_hl_register(), 0x01CF);
+
+    while true {
+        cpu.run_1_instruction(&decoder);
+    }
 }
 
 
