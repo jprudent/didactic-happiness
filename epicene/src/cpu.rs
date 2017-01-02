@@ -486,7 +486,7 @@ impl UnconditionalCall {
 impl Opcode for UnconditionalCall {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let pc = cpu.get_pc_register();
-        cpu.push(pc);
+        cpu.push(pc + self.size());
 
         let address = self.address.resolve(cpu);
         cpu.set_register_pc(address - self.size()); // self.size() is added afterward
@@ -517,6 +517,35 @@ impl JmpCondition {
             JmpCondition::NOCARRY => !cpu.carry_flag(),
             JmpCondition::CARRY => cpu.carry_flag()
         }
+    }
+}
+
+struct UnconditionalReturn {
+    size: Size,
+    cycles: Cycle
+}
+
+impl UnconditionalReturn {
+    fn ret() -> UnconditionalReturn {
+        UnconditionalReturn {
+            size: 1,
+            cycles: 26
+        }
+    }
+}
+
+impl Opcode for UnconditionalReturn {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let address = cpu.pop();
+        cpu.set_register_pc(address - self.size())
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+       self.cycles
     }
 }
 
@@ -1073,6 +1102,7 @@ fn build_decoder() -> Decoder {
     decoder[0xAB] = xor_r(WordRegister::E);
     decoder[0xAC] = xor_r(WordRegister::H);
     decoder[0xAD] = xor_r(WordRegister::L);
+    decoder[0xC9] = Box::new(UnconditionalReturn::ret());
     decoder[0xD0] = Box::new(ConditionalReturn::ret_nc());
     decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
     decoder[0xAF] = xor_r(WordRegister::A);
@@ -2207,7 +2237,7 @@ fn should_run_bios() {
     cpu.run_1_instruction(&decoder); // CALL 0x56D4
     assert_eq!(cpu.get_pc_register(), 0x56D4);
     assert_eq!(cpu.get_sp_register(), 0xE000 - 2, "SP is decremented");
-    assert_eq!(cpu.double_at(cpu.get_sp_register()), 0x017A, "the return address is set on stack");
+    assert_eq!(cpu.double_at(cpu.get_sp_register()), 0x017D, "the return address is set on stack");
 
     cpu.run_1_instruction(&decoder); // LD A, (0xFF00 + 40) [LCD Control]
     assert_eq!(cpu.get_pc_register(), 0x56D6);
@@ -2268,7 +2298,9 @@ fn should_run_bios() {
     assert_eq!(cpu.get_pc_register(), 0x56EA);
     assert_eq!(cpu.word_at(0xFF40), 0x11);
 
-    //cpu.run_1_instruction(&decoder) // RET
+    cpu.run_1_instruction(&decoder); // RET
+    assert_eq!(cpu.get_pc_register(), 0x017D);
+
 
 }
 
