@@ -504,7 +504,7 @@ impl Opcode for UnconditionalCall {
 #[derive(Debug)]
 enum JmpCondition {
     NONZERO,
-    //ZERO,
+    ZERO,
     NOCARRY,
     CARRY
 }
@@ -513,7 +513,7 @@ impl JmpCondition {
     fn matches(&self, cpu: &ComputerUnit) -> bool {
         match *self {
             JmpCondition::NONZERO => !cpu.zero_flag(),
-            //JmpCondition::ZERO => cpu.zero_flag(),
+            JmpCondition::ZERO => cpu.zero_flag(),
             JmpCondition::NOCARRY => !cpu.carry_flag(),
             JmpCondition::CARRY => cpu.carry_flag()
         }
@@ -606,6 +606,11 @@ impl ConditionalJump<Word, ImmediateWord> {
         ConditionalJump::<Word, ImmediateWord>::jr_cond_w(JmpCondition::CARRY)
     }
 
+    fn jr_z_w() -> ConditionalJump<Word, ImmediateWord> {
+        ConditionalJump::<Word, ImmediateWord>::jr_cond_w(JmpCondition::ZERO)
+    }
+
+
     fn jr_cond_w(condition: JmpCondition) -> ConditionalJump<Word, ImmediateWord> {
         ConditionalJump {
             address: ImmediateWord {},
@@ -627,13 +632,14 @@ impl<A: RightOperand<Word>> Opcode for ConditionalJump<Word, A> {
         let relative_address: Word = self.address.resolve(cpu);
         if self.condition.matches(cpu) {
             //don't use ALU because we don't touch flags
-            let address = if is_negative(relative_address) {
+            if is_negative(relative_address) {
                 let negative_address = (!relative_address).wrapping_sub(1);
-                cpu.get_pc_register().wrapping_sub(negative_address as u16)
+                let address = cpu.get_pc_register().wrapping_sub(negative_address as u16);
+                cpu.set_register_pc(address - self.size()); // self.size() is added afterward
             } else {
-                cpu.get_pc_register().wrapping_add(relative_address as u16)
+                let address = cpu.get_pc_register().wrapping_add(relative_address as u16);
+                cpu.set_register_pc(address); // self.size() will be added
             };
-            cpu.set_register_pc(address - self.size()); // self.size() is added afterward
         }
     }
 
@@ -1001,6 +1007,7 @@ fn build_decoder() -> Decoder {
     decoder[0x24] = inc_r(WordRegister::H);
     decoder[0x25] = dec_r(WordRegister::H);
     decoder[0x26] = ld_r_from_w(WordRegister::H);
+    decoder[0x28] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_z_w());
     decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
     decoder[0x2C] = inc_r(WordRegister::L);
     decoder[0x2D] = dec_r(WordRegister::L);
@@ -2251,7 +2258,7 @@ fn should_run_bios() {
     assert!(cpu.half_carry_flag());
 
     cpu.run_1_instruction(&decoder); // JR nz,0xFC
-    assert_eq!(cpu.get_pc_register(), 349, "bad pc after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 349, "jump is taken");
     assert_eq!(cpu.get_b_register(), 0xFF, "bad register value after {}", msg);
 
     while cpu.get_pc_register() != 0x017A {
@@ -2339,6 +2346,9 @@ fn should_run_bios() {
     assert!(!cpu.carry_flag());
     assert!(!cpu.half_carry_flag());
     assert!(!cpu.add_sub_flag());
+
+    cpu.run_1_instruction(&decoder); // JR Z,0x03
+    assert_eq!(cpu.get_pc_register(), 0x56A8, "Jump is taken");
 }
 
 
