@@ -1,7 +1,6 @@
 use std::ops::IndexMut;
 use std::ops::Index;
-use std::marker::PhantomData;
-use self::alu::{ArithmeticLogicalUnit, ArithmeticResult};
+use self::operands::{WordRegister, DoubleRegister, RegisterPointer, HlOp};
 
 type Word = u8;
 type Double = u16;
@@ -24,8 +23,6 @@ fn set_high_word(double: Double, word: Word) -> Double {
 fn set_low_word(double: Double, word: Word) -> Double {
     (double & 0xFF00) | (word as Double)
 }
-
-
 
 
 pub struct Registers {
@@ -158,38 +155,973 @@ fn should_get_value_from_registers() {
     assert_eq!(regs.c(), 0xCC);
 }
 
-struct Load<X, L: LeftOperand<X>, R: RightOperand<X>> {
-    destination: L,
-    source: R,
-    size: Double,
-    cycles: Cycle,
-    operation_type: PhantomData<X>
-}
+mod opcodes {
+    use super::ComputerUnit;
+    
+    pub mod disable_interrupts {
+        use super::super::{Cycle, Size, Opcode, ComputerUnit};
 
-impl<X, L: LeftOperand<X>, R: RightOperand<X>> Load<X, L, R> {
-    fn ldh_ptr_a() -> Load<Word, HighMemoryPointer, WordRegister> {
-        Load {
-            destination: HighMemoryPointer {},
-            source: WordRegister::A,
-            size: 2,
-            cycles: 12,
-            operation_type: PhantomData
+        struct DisableInterrupts {
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn di() -> Box<Opcode> {
+            Box::new(DisableInterrupts {
+                size: 1,
+                cycles: 4
+            })
+        }
+
+        impl Opcode for DisableInterrupts {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                cpu.disable_interrupt_master()
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
         }
     }
 
-    fn ldh_a_ptr() -> Load<Word, WordRegister, HighMemoryPointer> {
-        Load {
-            destination: WordRegister::A,
-            source: HighMemoryPointer {},
-            size: 2,
-            cycles: 12,
-            operation_type: PhantomData
+    pub mod xor {
+        use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
+        use super::super::operands::{ImmediateWord, WordRegister, RegisterPointer, RightOperand};
+
+        //TODO use ArithmeticOperationOnRegisterA
+        struct XorWithA<S: RightOperand<Word>> {
+            source: S,
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn xor_r(r: WordRegister) -> Box<Opcode> {
+            Box::new(XorWithA {
+                source: r,
+                size: 1,
+                cycles: 4
+            })
+        }
+
+        pub fn xor_ptr_r(r: RegisterPointer) -> Box<Opcode> {
+            Box::new(XorWithA {
+                source: r,
+                size: 1,
+                cycles: 8
+            })
+        }
+
+        pub fn xor_n() -> Box<Opcode> {
+            Box::new(XorWithA {
+                source: ImmediateWord {},
+                size: 2,
+                cycles: 8
+            })
+        }
+
+        impl<S: RightOperand<Word>> Opcode for XorWithA<S> {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let n = self.source.resolve(cpu);
+                let a = cpu.get_a_register();
+                let r = a ^ n;
+                cpu.set_register_a(r);
+                cpu.set_zero_flag(r == 0);
+                cpu.set_carry_flag(false);
+                cpu.set_half_carry_flag(false);
+                cpu.set_add_sub_flag(false);
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod jr {
+        use std::marker::PhantomData;
+        use super::JmpCondition;
+        use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
+        use super::super::operands::{ImmediateWord, RightOperand};
+
+        struct ConditionalJump<X, A: RightOperand<X>> {
+            address: A,
+            condition: JmpCondition,
+            size: Size,
+            cycles_when_taken: Cycle,
+            cycles_when_not_taken: Cycle,
+            operation_type: PhantomData<X>
+        }
+
+        pub fn jr_nz_w() -> Box<Opcode> {
+            jr_cond_w(JmpCondition::NONZERO)
+        }
+
+        pub fn jr_nc_w() -> Box<Opcode> {
+            jr_cond_w(JmpCondition::NOCARRY)
+        }
+
+        pub fn jr_c_w() -> Box<Opcode> {
+            jr_cond_w(JmpCondition::CARRY)
+        }
+
+        pub fn jr_z_w() -> Box<Opcode> {
+            jr_cond_w(JmpCondition::ZERO)
+        }
+
+        fn jr_cond_w(condition: JmpCondition) -> Box<Opcode> {
+            Box::new(
+                ConditionalJump {
+                    address: ImmediateWord {},
+                    condition: condition,
+                    size: 2,
+                    cycles_when_taken: 12,
+                    cycles_when_not_taken: 8,
+                    operation_type: PhantomData
+                })
+        }
+
+        fn is_negative(word: Word) -> bool {
+            word & 0x80 != 0
+        }
+
+        impl<A: RightOperand<Word>> Opcode for ConditionalJump<Word, A> {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let relative_address: Word = self.address.resolve(cpu);
+                if self.condition.matches(cpu) {
+                    //don't use ALU because we don't touch flags
+                    if is_negative(relative_address) {
+                        let negative_address = (!relative_address).wrapping_sub(1);
+                        let address = cpu.get_pc_register().wrapping_sub(negative_address as u16);
+                        cpu.set_register_pc(address - self.size()); // self.size() is added afterward
+                    } else {
+                        let address = cpu.get_pc_register().wrapping_add(relative_address as u16);
+                        cpu.set_register_pc(address); // self.size() will be added
+                    };
+                }
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, cpu: &ComputerUnit) -> Cycle {
+                if self.condition.matches(cpu) {
+                    self.cycles_when_taken
+                } else {
+                    self.cycles_when_not_taken
+                }
+            }
+        }
+    }
+
+    pub mod maths {
+        use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
+        use super::super::operands::{WordRegister, RightOperand, ImmediateWord, RegisterPointer};
+        use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
+
+        struct ArithmeticOperationOnRegisterA<S: RightOperand<Word>> {
+            source: S,
+            operation: fn(Word, Word) -> ArithmeticResult,
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn and_w() -> Box<Opcode> {
+            Box::new(
+                ArithmeticOperationOnRegisterA {
+                    source: ImmediateWord {},
+                    operation: ArithmeticLogicalUnit::and,
+                    size: 2,
+                    cycles: 8
+                })
+        }
+
+        pub fn sub_r(source: WordRegister) -> Box<Opcode> {
+            Box::new(ArithmeticOperationOnRegisterA {
+                source: source,
+                operation: ArithmeticLogicalUnit::sub,
+                size: 1,
+                cycles: 4
+            })
+        }
+
+        pub fn sub_ptr_r(source: RegisterPointer) -> Box<Opcode> {
+            Box::new(ArithmeticOperationOnRegisterA {
+                source: source,
+                operation: ArithmeticLogicalUnit::sub,
+                size: 1,
+                cycles: 8
+            })
+        }
+
+        pub fn add_r(source: WordRegister) -> Box<Opcode> {
+            Box::new(ArithmeticOperationOnRegisterA {
+                source: source,
+                operation: ArithmeticLogicalUnit::add,
+                size: 1,
+                cycles: 4
+            })
+        }
+
+        pub fn add_ptr_r(source: RegisterPointer) -> Box<Opcode> {
+            Box::new(ArithmeticOperationOnRegisterA {
+                source: source,
+                operation: ArithmeticLogicalUnit::add,
+                size: 1,
+                cycles: 8
+            })
+        }
+
+        pub fn or_ptr_hl() -> Box<Opcode> {
+            Box::new(
+                ArithmeticOperationOnRegisterA {
+                    source: RegisterPointer::HL,
+                    operation: ArithmeticLogicalUnit::or,
+                    size: 1,
+                    cycles: 8
+                })
+        }
+
+
+        impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let b = self.source.resolve(cpu);
+                let a = cpu.get_a_register();
+                let r = (self.operation)(a, b);
+                cpu.set_register_a(r.result());
+                r.flags().set_flags(cpu);
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod inc_dec_16 {
+        use super::super::{Double, Cycle, Size, Opcode, ComputerUnit};
+        use super::super::operands::{DoubleRegister, RightOperand, LeftOperand};
+
+        struct IncDecDouble {
+            destination: DoubleRegister,
+            operation: fn(Double) -> Double,
+            size: Size,
+            cycles: Cycle,
+        }
+
+        pub fn dec_hl() -> Box<Opcode> {
+            inc_dec_rr(dec, DoubleRegister::HL)
+        }
+
+        pub fn inc_hl() -> Box<Opcode> {
+            inc_dec_rr(inc, DoubleRegister::HL)
+        }
+
+        pub fn inc_bc() -> Box<Opcode> {
+            inc_dec_rr(inc, DoubleRegister::BC)
+        }
+
+        pub fn inc_de() -> Box<Opcode> {
+            inc_dec_rr(inc, DoubleRegister::DE)
+        }
+
+        pub fn inc_sp() -> Box<Opcode> {
+            inc_dec_rr(inc, DoubleRegister::SP)
+        }
+
+        fn inc(a: Double) -> Double {
+            a.wrapping_add(1)
+        }
+
+        fn dec(a: Double) -> Double {
+            a.wrapping_sub(1)
+        }
+
+        fn inc_dec_rr(op: fn(Double) -> Double, rr: DoubleRegister) -> Box<IncDecDouble> {
+            Box::new(
+                IncDecDouble {
+                    destination: rr,
+                    operation: op,
+                    size: 1,
+                    cycles: 8,
+                })
+        }
+
+        impl Opcode for IncDecDouble {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let original = self.destination.resolve(cpu);
+                let value = (self.operation)(original);
+                self.destination.alter(cpu, value);
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod inc_dec {
+        use std::marker::PhantomData;
+        use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
+        use super::super::operands::{WordRegister, RightOperand, LeftOperand, RegisterPointer};
+        use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
+        // TODO always Word
+        struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
+            destination: D,
+            operation: fn(X, X) -> ArithmeticResult,
+            size: Size,
+            cycles: Cycle,
+            operation_type: PhantomData<X> // TODO can be removed ?
+        }
+        // todo factorize those 2
+        pub fn dec_r(destination: WordRegister) -> Box<Opcode> {
+            Box::new(IncDec {
+                destination: destination,
+                operation: ArithmeticLogicalUnit::sub,
+                size: 1,
+                cycles: 4,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn inc_r(destination: WordRegister) -> Box<Opcode> {
+            Box::new(IncDec {
+                destination: destination,
+                operation: ArithmeticLogicalUnit::add,
+                size: 1,
+                cycles: 4,
+                operation_type: PhantomData
+            })
+        }
+        // todo factorize those 2
+        pub fn dec_ptr_r(destination: RegisterPointer) -> Box<Opcode> {
+            Box::new(IncDec {
+                destination: destination,
+                operation: ArithmeticLogicalUnit::sub,
+                size: 1,
+                cycles: 12,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn inc_ptr_r(destination: RegisterPointer) -> Box<Opcode> {
+            Box::new(IncDec {
+                destination: destination,
+                operation: ArithmeticLogicalUnit::add,
+                size: 1,
+                cycles: 12,
+                operation_type: PhantomData
+            })
+        }
+
+        impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for IncDec<Word, D> {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let x = self.destination.resolve(cpu);
+                let r = (self.operation)(x, 1);
+                self.destination.alter(cpu, r.result());
+                //unfortunately this instruction doesn't set the carry flag
+                cpu.set_zero_flag(r.flags().zero_flag());
+                cpu.set_add_sub_flag(r.flags().add_sub_flag());
+                cpu.set_half_carry_flag(r.flags().half_carry_flag());
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod call {
+        use super::super::{Size, Cycle, Opcode, ComputerUnit};
+        use super::super::operands::{RightOperand, ImmediateDouble};
+
+        struct UnconditionalCall {
+            address: ImmediateDouble,
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn call() -> Box<Opcode> {
+            Box::new(
+                UnconditionalCall {
+                    address: ImmediateDouble {},
+                    size: 3,
+                    cycles: 24
+                })
+        }
+
+        impl Opcode for UnconditionalCall {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let pc = cpu.get_pc_register();
+                cpu.push(pc + self.size());
+
+                let address = self.address.resolve(cpu);
+                cpu.set_register_pc(address - self.size()); // self.size() is added afterward
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod jp {
+        use super::super::{Double, Size, Cycle, Opcode, ComputerUnit};
+        use super::super::operands::{RightOperand, ImmediateDouble, DoubleRegister};
+        use std::marker::PhantomData;
+
+        struct UnconditionalJump<X, A: RightOperand<X>> {
+            address: A,
+            size: Size,
+            cycles: Cycle,
+            operation_type: PhantomData<X>
+        }
+
+        pub fn jp_hl() -> Box<Opcode> {
+            Box::new(UnconditionalJump {
+                address: DoubleRegister::HL,
+                size: 1,
+                cycles: 4,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn jp_nn() -> Box<Opcode> {
+            Box::new(UnconditionalJump {
+                address: ImmediateDouble {},
+                size: 3,
+                cycles: 16,
+                operation_type: PhantomData
+            })
+        }
+
+        impl<A: RightOperand<Double>> Opcode for UnconditionalJump<Double, A> {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let address: Double = self.address.resolve(cpu);
+                cpu.set_register_pc(address - self.size()); // self.size() is added afterward
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    //todo mutualize withe disable interrupts
+    pub mod enable_interrupts {
+        use super::super::{Size, Cycle, Opcode, ComputerUnit};
+
+        struct EnableInterrupts {
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn ei() -> Box<Opcode> {
+            Box::new(EnableInterrupts {
+                size: 1,
+                cycles: 4
+            })
+        }
+
+        impl Opcode for EnableInterrupts {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                cpu.enable_interrupt_master()
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod ret_cond {
+        use super::JmpCondition;
+        use super::super::{Size, Cycle, Opcode, ComputerUnit};
+
+        struct ConditionalReturn {
+            condition: JmpCondition,
+            size: Size,
+            cycles_when_taken: Cycle,
+            cycles_when_not_taken: Cycle
+        }
+
+        pub fn ret_nc() -> Box<Opcode> {
+            Box::new(
+                ConditionalReturn {
+                    condition: JmpCondition::NOCARRY,
+                    size: 1,
+                    cycles_when_taken: 20,
+                    cycles_when_not_taken: 8
+                })
+        }
+
+        impl Opcode for ConditionalReturn {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                if self.condition.matches(cpu) {
+                    let address = cpu.pop();
+                    cpu.set_register_pc(address - self.size())
+                }
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, cpu: &ComputerUnit) -> Cycle {
+                if self.condition.matches(cpu) {
+                    self.cycles_when_taken
+                } else {
+                    self.cycles_when_not_taken
+                }
+            }
+        }
+    }
+
+    pub mod nop {
+        use super::super::{Size, Cycle, Opcode, ComputerUnit};
+
+        struct Nop {
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn nop() -> Box<Opcode> {
+            Box::new(Nop {
+                size: 1,
+                cycles: 4
+            })
+        }
+
+        impl Opcode for Nop {
+            fn exec(&self, _: &mut ComputerUnit) {}
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod ret {
+        use super::super::{Size, Cycle, Opcode, ComputerUnit};
+
+        struct UnconditionalReturn {
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn ret() -> Box<Opcode> {
+            Box::new(UnconditionalReturn {
+                size: 1,
+                cycles: 26
+            })
+        }
+
+        impl Opcode for UnconditionalReturn {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let address = cpu.pop();
+                cpu.set_register_pc(address - self.size())
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod push {
+        use super::super::{Size, Cycle, Opcode, ComputerUnit};
+        use super::super::operands::{RightOperand, DoubleRegister};
+
+        struct Push {
+            source: DoubleRegister,
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn push_af() -> Box<Opcode> {
+            Box::new(push_rr(DoubleRegister::AF))
+        }
+
+        pub fn push_bc() -> Box<Opcode> {
+            Box::new(push_rr(DoubleRegister::BC))
+        }
+
+        pub fn push_de() -> Box<Opcode> {
+            Box::new(push_rr(DoubleRegister::DE))
+        }
+
+        pub fn push_hl() -> Box<Opcode> {
+            Box::new(push_rr(DoubleRegister::HL))
+        }
+
+        fn push_rr(register: DoubleRegister) -> Push {
+            Push {
+                source: register,
+                size: 1,
+                cycles: 12
+            }
+        }
+
+        impl Opcode for Push {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let value = self.source.resolve(cpu);
+                cpu.push(value);
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod pop {
+        use super::super::{Size, Cycle, Opcode, ComputerUnit};
+        use super::super::operands::{LeftOperand, DoubleRegister};
+
+        struct Pop {
+            destination: DoubleRegister,
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn pop_af() -> Box<Opcode> {
+            Box::new(pop_rr(DoubleRegister::AF))
+        }
+
+        pub fn pop_bc() -> Box<Opcode> {
+            Box::new(pop_rr(DoubleRegister::BC))
+        }
+
+        pub fn pop_de() -> Box<Opcode> {
+            Box::new(pop_rr(DoubleRegister::DE))
+        }
+
+        pub fn pop_hl() -> Box<Opcode> {
+            Box::new(pop_rr(DoubleRegister::HL))
+        }
+
+        fn pop_rr(register: DoubleRegister) -> Pop {
+            Pop {
+                destination: register,
+                size: 1,
+                cycles: 12
+            }
+        }
+
+        impl Opcode for Pop {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let value = cpu.pop();
+                self.destination.alter(cpu, value);
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod compare {
+        use super::super::{Word, Size, Cycle, Opcode, ComputerUnit};
+        use super::super::operands::{RightOperand, ImmediateWord};
+        use super::super::alu::{ArithmeticLogicalUnit};
+
+        struct CompareA<S: RightOperand<Word>> {
+            source: S,
+            size: Size,
+            cycles: Cycle
+        }
+
+        pub fn cp_w() -> Box<Opcode> {
+            Box::new(
+                CompareA {
+                    source: ImmediateWord {},
+                    size: 2,
+                    cycles: 8
+                })
+        }
+
+        impl<S: RightOperand<Word>> Opcode for CompareA<S> {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let a = cpu.get_a_register();
+                let b = self.source.resolve(cpu);
+                let r = ArithmeticLogicalUnit::sub(a, b);
+                r.flags().set_flags(cpu);
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    pub mod not_implemented {
+        use super::super::{Word, Size, Cycle, Opcode, ComputerUnit};
+
+        struct NotImplemented(Word);
+
+        impl Opcode for NotImplemented {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                panic!("{:02X} not implemented at {:04X}", self.0, cpu.get_pc_register());
+            }
+            fn size(&self) -> Size {
+                unimplemented!()
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                unimplemented!()
+            }
+        }
+
+        pub fn not_implemented(word: Word) -> Box<Opcode> {
+            Box::new(NotImplemented(word))
+        }
+    }
+
+    pub mod load {
+        use std::marker::PhantomData;
+        use super::super::{Word, Double, Cycle, Size, Opcode, ComputerUnit};
+        use super::super::operands::{WordRegister, DoubleRegister, ImmediateDouble, ImmediateWord, RightOperand, LeftOperand, HighMemoryPointer, ImmediatePointer, RegisterPointer, HlOp};
+
+        struct Load<X, L: LeftOperand<X>, R: RightOperand<X>> {
+            destination: L,
+            source: R,
+            size: Double,
+            cycles: Cycle,
+            operation_type: PhantomData<X>
+        }
+
+        pub fn ldh_ptr_a() -> Box<Opcode> {
+            Box::new(Load {
+                destination: HighMemoryPointer {},
+                source: WordRegister::A,
+                size: 2,
+                cycles: 12,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ldh_a_ptr() -> Box<Opcode> {
+            Box::new(
+                Load {
+                    destination: WordRegister::A,
+                    source: HighMemoryPointer {},
+                    size: 2,
+                    cycles: 12,
+                    operation_type: PhantomData
+                })
+        }
+
+        pub fn ld_ptr_r_from_r(destination: RegisterPointer, source: WordRegister) -> Box<Opcode> {
+            Box::new(Load {
+                destination: destination,
+                source: source,
+                size: 1,
+                cycles: 8,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_r_from_w(destination: WordRegister) -> Box<Opcode> {
+            Box::new(Load {
+                destination: destination,
+                source: ImmediateWord {},
+                size: 2,
+                cycles: 8,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_rr_from_ww(destination: DoubleRegister) -> Box<Opcode> {
+            Box::new(Load {
+                destination: destination,
+                source: ImmediateDouble {},
+                size: 3,
+                cycles: 12,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_r_from_ptr_r(destination: WordRegister, source: RegisterPointer) -> Box<Opcode> {
+            Box::new(Load {
+                destination: destination,
+                source: source,
+                size: 1,
+                cycles: 8,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_r_from_r(destination: WordRegister, source: WordRegister) -> Box<Opcode> {
+            Box::new(Load {
+                destination: destination,
+                source: source,
+                size: 1,
+                cycles: 4,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_ptr_nn_from_rr(source: DoubleRegister) -> Box<Opcode> {
+            Box::new(Load {
+                destination: ImmediatePointer::<Double>::new(),
+                source: source,
+                size: 3,
+                cycles: 20,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_ptr_nn_from_r(source: WordRegister) -> Box<Opcode> {
+            Box::new(Load {
+                destination: ImmediatePointer::<Word>::new(),
+                source: source,
+                size: 3,
+                cycles: 16,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_ptr_r_from_w(destination: RegisterPointer) -> Box<Opcode> {
+            Box::new(Load {
+                destination: destination,
+                source: ImmediateWord {},
+                size: 1,
+                cycles: 12,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_rr_from_rr(destination: DoubleRegister, source: DoubleRegister) -> Box<Opcode> {
+            Box::new(Load {
+                destination: destination,
+                source: source,
+                size: 1,
+                cycles: 8,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_r_from_ptr_nn(destination: WordRegister) -> Box<Opcode> {
+            Box::new(Load {
+                destination: destination,
+                source: ImmediatePointer::<Word>::new(),
+                size: 3,
+                cycles: 16,
+                operation_type: PhantomData
+            })
+        }
+
+
+        pub fn ld_ptr_hl_from_a(hlop: HlOp) -> Box<Opcode> {
+            Box::new(Load {
+                source: WordRegister::A,
+                destination: hlop,
+                size: 1,
+                cycles: 8,
+                operation_type: PhantomData
+            })
+        }
+
+        pub fn ld_a_from_ptr_hl(hlop: HlOp) -> Box<Opcode> {
+            Box::new(Load {
+                source: hlop,
+                destination: WordRegister::A,
+                size: 1,
+                cycles: 8,
+                operation_type: PhantomData
+            })
+        }
+
+
+        impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
+            fn exec(&self, cpu: &mut ComputerUnit) {
+                let word = self.source.resolve(cpu);
+                self.destination.alter(cpu, word);
+            }
+
+            fn size(&self) -> Size {
+                self.size
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.cycles
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    enum JmpCondition {
+        NONZERO,
+        ZERO,
+        NOCARRY,
+        CARRY
+    }
+
+    impl JmpCondition {
+        fn matches(&self, cpu: &ComputerUnit) -> bool {
+            match *self {
+                JmpCondition::NONZERO => !cpu.zero_flag(),
+                JmpCondition::ZERO => cpu.zero_flag(),
+                JmpCondition::NOCARRY => !cpu.carry_flag(),
+                JmpCondition::CARRY => cpu.carry_flag()
+            }
         }
     }
 }
 
-use self::operands::{WordRegister, DoubleRegister, ImmediateDouble, ImmediateWord, RightOperand, LeftOperand, HighMemoryPointer, ImmediatePointer, RegisterPointer};
-
+// todo move in opcodes
 mod operands {
     // todo ComputerUnit should be a trait (or not ?). Because struct has fielf visibility, it can be perceived as a type
     use super::{Word, Double, Address, ComputerUnit, set_low_word};
@@ -394,365 +1326,52 @@ mod operands {
             cpu.word_at(address)
         }
     }
+
+    pub enum HlOp {
+        HLI,
+        HLD
+    }
+
+    impl HlOp {
+        fn apply(&self, double: Double) -> Double {
+            match *self {
+                HlOp::HLI => double + 1,
+                HlOp::HLD => double - 1
+            }
+        }
+    }
+
+    impl LeftOperand<Word> for HlOp {
+        fn alter(&self, cpu: &mut ComputerUnit, value: Word) {
+            let hl = cpu.get_hl_register();
+            cpu.set_word_at(hl, value);
+            cpu.set_register_hl(self.apply(hl))
+        }
+    }
+
+    impl RightOperand<Word> for HlOp {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
+            let ret = cpu.word_at(cpu.get_hl_register());
+            let hl = cpu.get_hl_register();
+            //this is the only known case where right operand mut the cpu
+            cpu.set_register_hl(self.apply(hl));
+            ret
+        }
+    }
 }
 
 
-impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let word = self.source.resolve(cpu);
-        self.destination.alter(cpu, word);
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-trait Opcode {
+pub trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
     fn size(&self) -> Size;
     fn cycles(&self, &ComputerUnit) -> Cycle;
 }
 
-struct NotImplemented(Word);
-
-impl Opcode for NotImplemented {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        panic!("{:02X} not implemented at {:04X}", self.0, cpu.get_pc_register());
-    }
-    fn size(&self) -> Size {
-        unimplemented!()
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        unimplemented!()
-    }
-}
-
-struct Nop {
-    size: Size,
-    cycles: Cycle
-}
-
-impl Opcode for Nop {
-    fn exec(&self, _: &mut ComputerUnit) {}
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-
-struct UnconditionalJump<X, A: RightOperand<X>> {
-    address: A,
-    size: Size,
-    cycles: Cycle,
-    operation_type: PhantomData<X>
-}
-
-impl UnconditionalJump<Double, DoubleRegister> {
-    fn jp_hl() -> Box<UnconditionalJump<Double, DoubleRegister>> {
-        Box::new(UnconditionalJump {
-            address: DoubleRegister::HL,
-            size: 1,
-            cycles: 4,
-            operation_type: PhantomData
-        })
-    }
-}
-
-impl<A: RightOperand<Double>> Opcode for UnconditionalJump<Double, A> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let address: Double = self.address.resolve(cpu);
-        cpu.set_register_pc(address - self.size()); // self.size() is added afterward
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-struct UnconditionalCall {
-    address: ImmediateDouble,
-    size: Size,
-    cycles: Cycle
-}
-
-impl UnconditionalCall {
-    fn new() -> UnconditionalCall {
-        UnconditionalCall {
-            address: ImmediateDouble {},
-            size: 3,
-            cycles: 24
-        }
-    }
-}
-
-impl Opcode for UnconditionalCall {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let pc = cpu.get_pc_register();
-        cpu.push(pc + self.size());
-
-        let address = self.address.resolve(cpu);
-        cpu.set_register_pc(address - self.size()); // self.size() is added afterward
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-#[derive(Debug)]
-enum JmpCondition {
-    NONZERO,
-    ZERO,
-    NOCARRY,
-    CARRY
-}
-
-impl JmpCondition {
-    fn matches(&self, cpu: &ComputerUnit) -> bool {
-        match *self {
-            JmpCondition::NONZERO => !cpu.zero_flag(),
-            JmpCondition::ZERO => cpu.zero_flag(),
-            JmpCondition::NOCARRY => !cpu.carry_flag(),
-            JmpCondition::CARRY => cpu.carry_flag()
-        }
-    }
-}
-
-struct UnconditionalReturn {
-    size: Size,
-    cycles: Cycle
-}
-
-impl UnconditionalReturn {
-    fn ret() -> UnconditionalReturn {
-        UnconditionalReturn {
-            size: 1,
-            cycles: 26
-        }
-    }
-}
-
-impl Opcode for UnconditionalReturn {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let address = cpu.pop();
-        cpu.set_register_pc(address - self.size())
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-struct ConditionalReturn {
-    condition: JmpCondition,
-    size: Size,
-    cycles_when_taken: Cycle,
-    cycles_when_not_taken: Cycle
-}
-
-impl ConditionalReturn {
-    fn ret_nc() -> ConditionalReturn {
-        ConditionalReturn {
-            condition: JmpCondition::NOCARRY,
-            size: 1,
-            cycles_when_taken: 20,
-            cycles_when_not_taken: 8
-        }
-    }
-}
-
-impl Opcode for ConditionalReturn {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        if self.condition.matches(cpu) {
-            let address = cpu.pop();
-            cpu.set_register_pc(address - self.size())
-        }
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, cpu: &ComputerUnit) -> Cycle {
-        if self.condition.matches(cpu) {
-            self.cycles_when_taken
-        } else {
-            self.cycles_when_not_taken
-        }
-    }
-}
-
-struct ConditionalJump<X, A: RightOperand<X>> {
-    address: A,
-    condition: JmpCondition,
-    size: Size,
-    cycles_when_taken: Cycle,
-    cycles_when_not_taken: Cycle,
-    operation_type: PhantomData<X>
-}
-
-impl ConditionalJump<Word, ImmediateWord> {
-    fn jr_nc_w() -> ConditionalJump<Word, ImmediateWord> {
-        ConditionalJump::<Word, ImmediateWord>::jr_cond_w(JmpCondition::NOCARRY)
-    }
-
-    fn jr_c_w() -> ConditionalJump<Word, ImmediateWord> {
-        ConditionalJump::<Word, ImmediateWord>::jr_cond_w(JmpCondition::CARRY)
-    }
-
-    fn jr_z_w() -> ConditionalJump<Word, ImmediateWord> {
-        ConditionalJump::<Word, ImmediateWord>::jr_cond_w(JmpCondition::ZERO)
-    }
-
-    fn jr_cond_w(condition: JmpCondition) -> ConditionalJump<Word, ImmediateWord> {
-        ConditionalJump {
-            address: ImmediateWord {},
-            condition: condition,
-            size: 2,
-            cycles_when_taken: 12,
-            cycles_when_not_taken: 8,
-            operation_type: PhantomData
-        }
-    }
-}
-
-fn is_negative(word: Word) -> bool {
-    word & 0x80 != 0
-}
-
-impl<A: RightOperand<Word>> Opcode for ConditionalJump<Word, A> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let relative_address: Word = self.address.resolve(cpu);
-        if self.condition.matches(cpu) {
-            //don't use ALU because we don't touch flags
-            if is_negative(relative_address) {
-                let negative_address = (!relative_address).wrapping_sub(1);
-                let address = cpu.get_pc_register().wrapping_sub(negative_address as u16);
-                cpu.set_register_pc(address - self.size()); // self.size() is added afterward
-            } else {
-                let address = cpu.get_pc_register().wrapping_add(relative_address as u16);
-                cpu.set_register_pc(address); // self.size() will be added
-            };
-        }
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, cpu: &ComputerUnit) -> Cycle {
-        if self.condition.matches(cpu) {
-            self.cycles_when_taken
-        } else {
-            self.cycles_when_not_taken
-        }
-    }
-}
-
-struct DisableInterrupts {
-    size: Size,
-    cycles: Cycle
-}
-
-impl Opcode for DisableInterrupts {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        cpu.disable_interrupt_master()
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-struct EnableInterrupts {
-    size: Size,
-    cycles: Cycle
-}
-
-impl EnableInterrupts {
-    fn ei() -> Box<EnableInterrupts> {
-        Box::new(EnableInterrupts {
-            size: 1,
-            cycles: 4
-        })
-    }
-}
-
-impl Opcode for EnableInterrupts {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        cpu.enable_interrupt_master()
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-//TODO use ArithmeticOperationOnRegisterA
-struct XorWithA<S: RightOperand<Word>> {
-    source: S,
-    size: Size,
-    cycles: Cycle
-}
-
-impl<S: RightOperand<Word>> Opcode for XorWithA<S> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let n = self.source.resolve(cpu);
-        let a = cpu.get_a_register();
-        let r = a ^ n;
-        cpu.set_register_a(r);
-        cpu.set_zero_flag(r == 0);
-        cpu.set_carry_flag(false);
-        cpu.set_half_carry_flag(false);
-        cpu.set_add_sub_flag(false);
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-
 struct Decoder(Vec<Box<Opcode>>);
 
 impl Decoder {
-    fn push<T: 'static + Opcode>(&mut self, opcode: T) {
-        self.0.push(Box::new(opcode))
+    fn push(&mut self, opcode: Box<Opcode>) {
+        self.0.push(opcode)
     }
 }
 
@@ -771,271 +1390,76 @@ impl IndexMut<Word> for Decoder {
 }
 
 fn build_decoder() -> Decoder {
-    fn ld_ptr_r_from_r(destination: RegisterPointer, source: WordRegister) -> Box<Load<Word, RegisterPointer, WordRegister>> {
-        Box::new(Load {
-            destination: destination,
-            source: source,
-            size: 1,
-            cycles: 8,
-            operation_type: PhantomData
-        })
-    }
-
-    fn ld_r_from_w(destination: WordRegister) -> Box<Load<Word, WordRegister, ImmediateWord>> {
-        Box::new(Load {
-            destination: destination,
-            source: ImmediateWord {},
-            size: 2,
-            cycles: 8,
-            operation_type: PhantomData
-        })
-    }
-    fn ld_rr_from_ww(destination: DoubleRegister) -> Box<Load<Double, DoubleRegister, ImmediateDouble>> {
-        Box::new(Load {
-            destination: destination,
-            source: ImmediateDouble {},
-            size: 3,
-            cycles: 12,
-            operation_type: PhantomData
-        })
-    }
-
-    fn ld_r_from_ptr_r(destination: WordRegister, source: RegisterPointer) -> Box<Load<Word, WordRegister, RegisterPointer>> {
-        Box::new(Load {
-            destination: destination,
-            source: source,
-            size: 1,
-            cycles: 8,
-            operation_type: PhantomData
-        })
-    }
-
-    fn ld_r_from_r(destination: WordRegister, source: WordRegister) -> Box<Load<Word, WordRegister, WordRegister>> {
-        Box::new(Load {
-            destination: destination,
-            source: source,
-            size: 1,
-            cycles: 4,
-            operation_type: PhantomData
-        })
-    }
-
-    fn ld_ptr_nn_from_rr(source: DoubleRegister) -> Box<Load<Double, ImmediatePointer<Double>, DoubleRegister>> {
-        Box::new(Load {
-            destination: ImmediatePointer::<Double>::new(),
-            source: source,
-            size: 3,
-            cycles: 20,
-            operation_type: PhantomData
-        })
-    }
-
-    fn ld_ptr_nn_from_r(source: WordRegister) -> Box<Load<Word, ImmediatePointer<Word>, WordRegister>> {
-        Box::new(Load {
-            destination: ImmediatePointer::<Word>::new(),
-            source: source,
-            size: 3,
-            cycles: 16,
-            operation_type: PhantomData
-        })
-    }
-
-    fn ld_ptr_r_from_w(destination: RegisterPointer) -> Box<Load<Word, RegisterPointer, ImmediateWord>> {
-        Box::new(Load {
-            destination: destination,
-            source: ImmediateWord {},
-            size: 1,
-            cycles: 12,
-            operation_type: PhantomData
-        })
-    }
-
-    fn ld_rr_from_rr(destination: DoubleRegister, source: DoubleRegister) -> Box<Load<Double, DoubleRegister, DoubleRegister>> {
-        Box::new(Load {
-            destination: destination,
-            source: source,
-            size: 1,
-            cycles: 8,
-            operation_type: PhantomData
-        })
-    }
-
-    fn ld_r_from_ptr_nn(destination: WordRegister) -> Box<Load<Word, WordRegister, ImmediatePointer<Word>>> {
-        Box::new(Load {
-            destination: destination,
-            source: ImmediatePointer::<Word>::new(),
-            size: 3,
-            cycles: 16,
-            operation_type: PhantomData
-        })
-    }
-
-    fn nop() -> Box<Nop> {
-        Box::new(Nop {
-            size: 1,
-            cycles: 4
-        })
-    }
-
-    fn jmp_nn() -> Box<UnconditionalJump<Double, ImmediateDouble>> {
-        Box::new(UnconditionalJump {
-            address: ImmediateDouble {},
-            size: 3,
-            cycles: 16,
-            operation_type: PhantomData
-        })
-    }
-
-    fn jr_nz_w() -> Box<ConditionalJump<Word, ImmediateWord>> {
-        Box::new(ConditionalJump {
-            address: ImmediateWord {},
-            condition: JmpCondition::NONZERO,
-            size: 2,
-            cycles_when_taken: 12,
-            cycles_when_not_taken: 8,
-            operation_type: PhantomData
-        })
-    }
-
-    fn di() -> Box<DisableInterrupts> {
-        Box::new(DisableInterrupts {
-            size: 1,
-            cycles: 4
-        })
-    }
-
-    fn xor_r(r: WordRegister) -> Box<XorWithA<WordRegister>> {
-        Box::new(XorWithA {
-            source: r,
-            size: 1,
-            cycles: 4
-        })
-    }
-
-    fn xor_ptr_r(r: RegisterPointer) -> Box<XorWithA<RegisterPointer>> {
-        Box::new(XorWithA {
-            source: r,
-            size: 1,
-            cycles: 8
-        })
-    }
-
-    fn xor_n() -> Box<XorWithA<ImmediateWord>> {
-        Box::new(XorWithA {
-            source: ImmediateWord {},
-            size: 2,
-            cycles: 8
-        })
-    }
-
-    fn ld_ptr_hl_from_a(hlop: HlOp) -> Box<Load<Word, HlOp, WordRegister>> {
-        Box::new(Load {
-            source: WordRegister::A,
-            destination: hlop,
-            size: 1,
-            cycles: 8,
-            operation_type: PhantomData
-        })
-    }
-
-    fn ld_a_from_ptr_hl(hlop: HlOp) -> Box<Load<Word, WordRegister, HlOp>> {
-        Box::new(Load {
-            source: hlop,
-            destination: WordRegister::A,
-            size: 1,
-            cycles: 8,
-            operation_type: PhantomData
-        })
-    }
-
-    fn sub_r(source: WordRegister) -> Box<ArithmeticOperationOnRegisterA<WordRegister>> {
-        Box::new(ArithmeticOperationOnRegisterA {
-            source: source,
-            operation: ArithmeticLogicalUnit::sub,
-            size: 1,
-            cycles: 4
-        })
-    }
-
-    fn sub_ptr_r(source: RegisterPointer) -> Box<ArithmeticOperationOnRegisterA<RegisterPointer>> {
-        Box::new(ArithmeticOperationOnRegisterA {
-            source: source,
-            operation: ArithmeticLogicalUnit::sub,
-            size: 1,
-            cycles: 8
-        })
-    }
-
-    fn add_r(source: WordRegister) -> Box<ArithmeticOperationOnRegisterA<WordRegister>> {
-        Box::new(ArithmeticOperationOnRegisterA {
-            source: source,
-            operation: ArithmeticLogicalUnit::add,
-            size: 1,
-            cycles: 4
-        })
-    }
-
-    fn add_ptr_r(source: RegisterPointer) -> Box<ArithmeticOperationOnRegisterA<RegisterPointer>> {
-        Box::new(ArithmeticOperationOnRegisterA {
-            source: source,
-            operation: ArithmeticLogicalUnit::add,
-            size: 1,
-            cycles: 8
-        })
-    }
-
     let mut decoder = Decoder(vec!());
 
     //todo temp loop for growing the vec
     for i in 0..256 {
-        decoder.push(NotImplemented(i as Word))
+        use self::opcodes::not_implemented::not_implemented;
+        decoder.push(not_implemented(i as Word))
     }
+
+    use self::opcodes::load::*;
+    use self::opcodes::compare::*;
+    use self::opcodes::pop::*;
+    use self::opcodes::push::*;
+    use self::opcodes::ret::*;
+    use self::opcodes::ret_cond::*;
+    use self::opcodes::nop::*;
+    use self::opcodes::enable_interrupts::*;
+    use self::opcodes::disable_interrupts::*;
+    use self::opcodes::jp::*;
+    use self::opcodes::call::*;
+    use self::opcodes::inc_dec::*;
+    use self::opcodes::inc_dec_16::*;
+    use self::opcodes::maths::*;
+    use self::opcodes::jr::*;
+    use self::opcodes::xor::*;
     decoder[0x00] = nop();
     decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
     decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
-    decoder[0x03] = IncDecDouble::inc_bc();
-    decoder[0x04] = IncDec::<Word, WordRegister>::inc_r(WordRegister::B);
-    decoder[0x05] = IncDec::<Word, WordRegister>::dec_r(WordRegister::B);
+    decoder[0x03] = inc_bc();
+    decoder[0x04] = inc_r(WordRegister::B);
+    decoder[0x05] = dec_r(WordRegister::B);
     decoder[0x06] = ld_r_from_w(WordRegister::B);
     decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
     decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
-    decoder[0x0C] = IncDec::<Word, WordRegister>::inc_r(WordRegister::C);
-    decoder[0x0D] = IncDec::<Word, WordRegister>::dec_r(WordRegister::C);
+    decoder[0x0C] = inc_r(WordRegister::C);
+    decoder[0x0D] = dec_r(WordRegister::C);
     decoder[0x0E] = ld_r_from_w(WordRegister::C);
     decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
     decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
-    decoder[0x13] = IncDecDouble::inc_de();
-    decoder[0x14] = IncDec::<Word, WordRegister>::inc_r(WordRegister::D);
-    decoder[0x15] = IncDec::<Word, WordRegister>::dec_r(WordRegister::D);
+    decoder[0x13] = inc_de();
+    decoder[0x14] = inc_r(WordRegister::D);
+    decoder[0x15] = dec_r(WordRegister::D);
     decoder[0x16] = ld_r_from_w(WordRegister::D);
     decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
-    decoder[0x1C] = IncDec::<Word, WordRegister>::inc_r(WordRegister::E);
-    decoder[0x1D] = IncDec::<Word, WordRegister>::dec_r(WordRegister::E);
+    decoder[0x1C] = inc_r(WordRegister::E);
+    decoder[0x1D] = dec_r(WordRegister::E);
     decoder[0x1E] = ld_r_from_w(WordRegister::E);
     decoder[0x20] = jr_nz_w();
     decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
     decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
-    decoder[0x23] = IncDecDouble::inc_hl();
-    decoder[0x24] = IncDec::<Word, WordRegister>::inc_r(WordRegister::H);
-    decoder[0x25] = IncDec::<Word, WordRegister>::dec_r(WordRegister::H);
+    decoder[0x23] = inc_hl();
+    decoder[0x24] = inc_r(WordRegister::H);
+    decoder[0x25] = dec_r(WordRegister::H);
     decoder[0x26] = ld_r_from_w(WordRegister::H);
-    decoder[0x28] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_z_w());
+    decoder[0x28] = jr_z_w();
     decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
-    decoder[0x2B] = IncDecDouble::dec_hl();
-    decoder[0x2C] = IncDec::<Word, WordRegister>::inc_r(WordRegister::L);
-    decoder[0x2D] = IncDec::<Word, WordRegister>::dec_r(WordRegister::L);
+    decoder[0x2B] = dec_hl();
+    decoder[0x2C] = inc_r(WordRegister::L);
+    decoder[0x2D] = dec_r(WordRegister::L);
     decoder[0x2E] = ld_r_from_w(WordRegister::L);
-    decoder[0x30] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_nc_w());
+    decoder[0x30] = jr_nc_w();
     decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
     decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
-    decoder[0x33] = IncDecDouble::inc_sp();
-    decoder[0x34] = IncDec::<Word, RegisterPointer>::inc_ptr_r(RegisterPointer::HL);
-    decoder[0x35] = IncDec::<Word, RegisterPointer>::dec_ptr_r(RegisterPointer::HL);
+    decoder[0x33] = inc_sp();
+    decoder[0x34] = inc_ptr_r(RegisterPointer::HL);
+    decoder[0x35] = dec_ptr_r(RegisterPointer::HL);
     decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
-    decoder[0x38] = Box::new(ConditionalJump::<Word, ImmediateWord>::jr_c_w());
+    decoder[0x38] = jr_c_w();
     decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
-    decoder[0x3C] = IncDec::<Word, WordRegister>::inc_r(WordRegister::A);
-    decoder[0x3D] = IncDec::<Word, WordRegister>::dec_r(WordRegister::A);
+    decoder[0x3C] = inc_r(WordRegister::A);
+    decoder[0x3D] = dec_r(WordRegister::A);
     decoder[0x3E] = ld_r_from_w(WordRegister::A);
     decoder[0x40] = ld_r_from_r(WordRegister::B, WordRegister::B);
     decoder[0x41] = ld_r_from_r(WordRegister::B, WordRegister::C);
@@ -1123,373 +1547,37 @@ fn build_decoder() -> Decoder {
     decoder[0xAB] = xor_r(WordRegister::E);
     decoder[0xAC] = xor_r(WordRegister::H);
     decoder[0xAD] = xor_r(WordRegister::L);
-    decoder[0xC9] = Box::new(UnconditionalReturn::ret());
+    decoder[0xC9] = ret();
     decoder[0xAE] = xor_n();
     decoder[0xAF] = xor_r(WordRegister::A);
-    decoder[0xB6] = Box::new(ArithmeticOperationOnRegisterA::<RegisterPointer>::or_ptr_hl());
-    decoder[0xC1] = Pop::pop_bc();
-    decoder[0xC3] = jmp_nn();
-    decoder[0xC5] = Push::push_bc();
-    decoder[0xCD] = Box::new(UnconditionalCall::new());
-    decoder[0xD0] = Box::new(ConditionalReturn::ret_nc());
-    decoder[0xD1] = Pop::pop_de();
-    decoder[0xD5] = Push::push_de();
-    decoder[0xE0] = Box::new(Load::<Word, HighMemoryPointer, WordRegister>::ldh_ptr_a());
-    decoder[0xE1] = Pop::pop_hl();
+    decoder[0xB6] = or_ptr_hl();
+    decoder[0xC1] = pop_bc();
+    decoder[0xC3] = jp_nn();
+    decoder[0xC5] = push_bc();
+    decoder[0xCD] = call();
+    decoder[0xD0] = ret_nc();
+    decoder[0xD1] = pop_de();
+    decoder[0xD5] = push_de();
+    decoder[0xE0] = ldh_ptr_a();
+    decoder[0xE1] = pop_hl();
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
-    decoder[0xE5] = Push::push_hl();
-    decoder[0xE6] = Box::new(ArithmeticOperationOnRegisterA::<ImmediateWord>::and_w());
-    decoder[0xE9] = UnconditionalJump::<Double, DoubleRegister>::jp_hl();
+    decoder[0xE5] = push_hl();
+    decoder[0xE6] = and_w();
+    decoder[0xE9] = jp_hl();
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
     decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
-    decoder[0xF0] = Box::new(Load::<Word, WordRegister, HighMemoryPointer>::ldh_a_ptr());
-    decoder[0xF1] = Pop::pop_af();
+    decoder[0xF0] = ldh_a_ptr();
+    decoder[0xF1] = pop_af();
     decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
     decoder[0xF3] = di();
-    decoder[0xF5] = Push::push_af();
+    decoder[0xF5] = push_af();
     decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
     decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
-    decoder[0xFB] = EnableInterrupts::ei();
-    decoder[0xFE] = Box::new(CompareA::<ImmediateWord>::cp_w());
+    decoder[0xFB] = ei();
+    decoder[0xFE] = cp_w();
     decoder
 }
 
-struct CompareA<S: RightOperand<Word>> {
-    source: S,
-    size: Size,
-    cycles: Cycle
-}
-
-impl CompareA<ImmediateWord> {
-    fn cp_w() -> CompareA<ImmediateWord> {
-        CompareA {
-            source: ImmediateWord {},
-            size: 2,
-            cycles: 8
-        }
-    }
-}
-
-impl<S: RightOperand<Word>> Opcode for CompareA<S> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let a = cpu.get_a_register();
-        let b = self.source.resolve(cpu);
-        let r = ArithmeticLogicalUnit::sub(a, b);
-        r.flags().set_flags(cpu);
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-struct Pop {
-    destination: DoubleRegister,
-    size: Size,
-    cycles: Cycle
-}
-
-impl Pop {
-    fn pop_af() -> Box<Pop> {
-        Box::new(Pop::pop_rr(DoubleRegister::AF))
-    }
-    fn pop_bc() -> Box<Pop> {
-        Box::new(Pop::pop_rr(DoubleRegister::BC))
-    }
-    fn pop_de() -> Box<Pop> {
-        Box::new(Pop::pop_rr(DoubleRegister::DE))
-    }
-    fn pop_hl() -> Box<Pop> {
-        Box::new(Pop::pop_rr(DoubleRegister::HL))
-    }
-
-    fn pop_rr(register: DoubleRegister) -> Pop {
-        Pop {
-            destination: register,
-            size: 1,
-            cycles: 12
-        }
-    }
-}
-
-impl Opcode for Pop {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let value = cpu.pop();
-        self.destination.alter(cpu, value);
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-struct Push {
-    source: DoubleRegister,
-    size: Size,
-    cycles: Cycle
-}
-
-impl Push {
-    fn push_af() -> Box<Push> {
-        Box::new(Push::push_rr(DoubleRegister::AF))
-    }
-    fn push_bc() -> Box<Push> {
-        Box::new(Push::push_rr(DoubleRegister::BC))
-    }
-    fn push_de() -> Box<Push> {
-        Box::new(Push::push_rr(DoubleRegister::DE))
-    }
-    fn push_hl() -> Box<Push> {
-        Box::new(Push::push_rr(DoubleRegister::HL))
-    }
-
-    fn push_rr(register: DoubleRegister) -> Push {
-        Push {
-            source: register,
-            size: 1,
-            cycles: 12
-        }
-    }
-}
-
-impl Opcode for Push {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let value = self.source.resolve(cpu);
-        cpu.push(value);
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-struct ArithmeticOperationOnRegisterA<S: RightOperand<Word>> {
-    source: S,
-    operation: fn(Word, Word) -> ArithmeticResult,
-    size: Size,
-    cycles: Cycle
-}
-
-impl ArithmeticOperationOnRegisterA<ImmediateWord> {
-    fn and_w() -> ArithmeticOperationOnRegisterA<ImmediateWord> {
-        ArithmeticOperationOnRegisterA {
-            source: ImmediateWord {},
-            operation: ArithmeticLogicalUnit::and,
-            size: 2,
-            cycles: 8
-        }
-    }
-}
-
-impl ArithmeticOperationOnRegisterA<RegisterPointer> {
-    fn or_ptr_hl() -> ArithmeticOperationOnRegisterA<RegisterPointer> {
-        ArithmeticOperationOnRegisterA {
-            source: RegisterPointer::HL,
-            operation: ArithmeticLogicalUnit::or,
-            size: 1,
-            cycles: 8
-        }
-    }
-}
-
-impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let b = self.source.resolve(cpu);
-        let a = cpu.get_a_register();
-        let r = (self.operation)(a, b);
-        cpu.set_register_a(r.result());
-        r.flags().set_flags(cpu);
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-struct IncDecDouble {
-    destination: DoubleRegister,
-    operation: fn(Double) -> Double,
-    size: Size,
-    cycles: Cycle,
-}
-
-impl IncDecDouble {
-    fn dec_hl() -> Box<IncDecDouble> {
-        IncDecDouble::inc_dec_rr(IncDecDouble::dec, DoubleRegister::HL)
-    }
-
-    fn inc_hl() -> Box<IncDecDouble> {
-        IncDecDouble::inc_dec_rr(IncDecDouble::inc, DoubleRegister::HL)
-    }
-
-    fn inc_bc() -> Box<IncDecDouble> {
-        IncDecDouble::inc_dec_rr(IncDecDouble::inc, DoubleRegister::BC)
-    }
-
-    fn inc_de() -> Box<IncDecDouble> {
-        IncDecDouble::inc_dec_rr(IncDecDouble::inc, DoubleRegister::DE)
-    }
-
-    fn inc_sp() -> Box<IncDecDouble> {
-        IncDecDouble::inc_dec_rr(IncDecDouble::inc, DoubleRegister::SP)
-    }
-
-    fn inc(a: Double) -> Double {
-        a.wrapping_add(1)
-    }
-
-    fn dec(a: Double) -> Double {
-        a.wrapping_sub(1)
-    }
-
-    fn inc_dec_rr(op: fn(Double) -> Double, rr: DoubleRegister) -> Box<IncDecDouble> {
-        Box::new(
-            IncDecDouble {
-                destination: rr,
-                operation: op,
-                size: 1,
-                cycles: 8,
-            })
-    }
-}
-
-impl Opcode for IncDecDouble {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let original = self.destination.resolve(cpu);
-        let value = (self.operation)(original);
-        self.destination.alter(cpu, value);
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-
-// TODO always Word
-struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
-    destination: D,
-    operation: fn(X, X) -> ArithmeticResult,
-    size: Size,
-    cycles: Cycle,
-    operation_type: PhantomData<X> // TODO can be removed ?
-}
-
-impl IncDec<Word, WordRegister> {
-    fn dec_r(destination: WordRegister) -> Box<IncDec<Word, WordRegister>> {
-        Box::new(IncDec {
-            destination: destination,
-            operation: ArithmeticLogicalUnit::sub,
-            size: 1,
-            cycles: 4,
-            operation_type: PhantomData
-        })
-    }
-
-    fn inc_r(destination: WordRegister) -> Box<IncDec<Word, WordRegister>> {
-        Box::new(IncDec {
-            destination: destination,
-            operation: ArithmeticLogicalUnit::add,
-            size: 1,
-            cycles: 4,
-            operation_type: PhantomData
-        })
-    }
-}
-
-impl IncDec<Word, RegisterPointer> {
-    fn dec_ptr_r(destination: RegisterPointer) -> Box<IncDec<Word, RegisterPointer>> {
-        Box::new(IncDec {
-            destination: destination,
-            operation: ArithmeticLogicalUnit::sub,
-            size: 1,
-            cycles: 12,
-            operation_type: PhantomData
-        })
-    }
-
-    fn inc_ptr_r(destination: RegisterPointer) -> Box<IncDec<Word, RegisterPointer>> {
-        Box::new(IncDec {
-            destination: destination,
-            operation: ArithmeticLogicalUnit::add,
-            size: 1,
-            cycles: 12,
-            operation_type: PhantomData
-        })
-    }
-}
-
-impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for IncDec<Word, D> {
-    fn exec(&self, cpu: &mut ComputerUnit) {
-        let x = self.destination.resolve(cpu);
-        let r = (self.operation)(x, 1);
-        self.destination.alter(cpu, r.result());
-        //unfortunately this instruction doesn't set the carry flag
-        cpu.set_zero_flag(r.flags().zero_flag());
-        cpu.set_add_sub_flag(r.flags().add_sub_flag());
-        cpu.set_half_carry_flag(r.flags().half_carry_flag());
-    }
-
-    fn size(&self) -> Size {
-        self.size
-    }
-
-    fn cycles(&self, _: &ComputerUnit) -> Cycle {
-        self.cycles
-    }
-}
-
-enum HlOp {
-    HLI,
-    HLD
-}
-
-impl HlOp {
-    fn apply(&self, double: Double) -> Double {
-        match *self {
-            HlOp::HLI => double + 1,
-            HlOp::HLD => double - 1
-        }
-    }
-}
-
-impl LeftOperand<Word> for HlOp {
-    fn alter(&self, cpu: &mut ComputerUnit, value: Word) {
-        let hl = cpu.get_hl_register();
-        cpu.set_word_at(hl, value);
-        cpu.set_register_hl(self.apply(hl))
-    }
-}
-
-impl RightOperand<Word> for HlOp {
-    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
-        let ret = cpu.word_at(cpu.get_hl_register());
-        let hl = cpu.get_hl_register();
-        //this is the only known case where right operand mut the cpu
-        cpu.set_register_hl(self.apply(hl));
-        ret
-    }
-}
 
 pub struct ArrayBasedMemory {
     words: [Word; 0xFFFF + 1]
@@ -1752,6 +1840,7 @@ impl MemoryProgramLoader {
         }
     }
 }
+
 mod alu {
     use super::{Word, ComputerUnit};
 
@@ -1771,27 +1860,11 @@ mod alu {
         pub fn flags(&self) -> &FlagRegister {
             &self.flags
         }
-
-        pub fn z(&self) -> bool {
-            self.flags.zero_flag()
-        }
-
-        pub fn c(&self) -> bool {
-            self.flags.carry_flag()
-        }
-
-        pub fn h(&self) -> bool {
-            self.flags.half_carry_flag()
-        }
-
-        pub fn n(&self) -> bool {
-            self.flags.add_sub_flag()
-        }
     }
 
     // todo this struct still needed ? can inline fields in ArithmeticResult
     #[derive(Debug, PartialEq, Eq)]
-    struct FlagRegister {
+    pub struct FlagRegister {
         zf: bool,
         n: bool,
         h: bool,
@@ -1963,7 +2036,6 @@ mod alu {
             }
         })
     }
-
 }
 
 
