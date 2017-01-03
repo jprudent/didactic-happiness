@@ -467,6 +467,17 @@ struct UnconditionalJump<X, A: RightOperand<X>> {
     operation_type: PhantomData<X>
 }
 
+impl UnconditionalJump<Double, DoubleRegister> {
+    fn jp_hl() -> Box<UnconditionalJump<Double, DoubleRegister>> {
+        Box::new(UnconditionalJump {
+            address: DoubleRegister::HL,
+            size: 1,
+            cycles: 4,
+            operation_type: PhantomData
+        })
+    }
+}
+
 impl<A: RightOperand<Double>> Opcode for UnconditionalJump<Double, A> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let address: Double = self.address.resolve(cpu);
@@ -1135,8 +1146,9 @@ fn build_decoder() -> Decoder {
     decoder[0xE0] = Box::new(Load::<Word, HighMemoryPointer, WordRegister>::ldh_ptr_a());
     decoder[0xE1] = Pop::pop_hl();
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
-    decoder[0xD5] = Push::push_hl();
+    decoder[0xE5] = Push::push_hl();
     decoder[0xE6] = Box::new(ArithmeticOperationOnRegisterA::<ImmediateWord>::and_w());
+    decoder[0xE9] = UnconditionalJump::<Double, DoubleRegister>::jp_hl();
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
     decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
     decoder[0xF0] = Box::new(Load::<Word, WordRegister, HighMemoryPointer>::ldh_a_ptr());
@@ -2624,9 +2636,20 @@ fn should_run_bios() {
     assert_eq!(cpu.get_pc_register(), 0x57C6);
     assert_eq!(cpu.get_hl_register(), 0x01CF);
 
+    while cpu.get_pc_register() != 0x57D7 {
+        cpu.run_1_instruction(&decoder);
+    }
+
+    assert_eq!(cpu.get_hl_register(), 0x318D);
+    cpu.run_1_instruction(&decoder);
+    assert_eq!(cpu.get_pc_register(), 0x318D);
+
+
     while true {
         cpu.run_1_instruction(&decoder);
     }
+
+
 }
 
 
