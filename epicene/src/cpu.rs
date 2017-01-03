@@ -1,6 +1,7 @@
 use std::ops::IndexMut;
 use std::ops::Index;
 use std::marker::PhantomData;
+use self::alu::{ArithmeticLogicalUnit, ArithmeticResult};
 
 type Word = u8;
 type Double = u16;
@@ -24,39 +25,7 @@ fn set_low_word(double: Double, word: Word) -> Double {
     (double & 0xFF00) | (word as Double)
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct FlagRegister {
-    zf: bool,
-    n: bool,
-    h: bool,
-    cy: bool
-}
 
-impl FlagRegister {
-
-    fn zero_flag(&self) -> bool {
-        self.zf
-    }
-
-    fn carry_flag(&self) -> bool {
-        self.cy
-    }
-
-    fn half_carry_flag(&self) -> bool {
-        self.h
-    }
-
-    fn add_sub_flag(&self) -> bool {
-        self.n
-    }
-
-    fn set_flags(&self, cpu: &mut ComputerUnit) {
-        cpu.set_zero_flag(self.zero_flag());
-        cpu.set_add_sub_flag(self.add_sub_flag());
-        cpu.set_carry_flag(self.carry_flag());
-        cpu.set_half_carry_flag(self.half_carry_flag());
-    }
-}
 
 
 pub struct Registers {
@@ -219,192 +188,214 @@ impl<X, L: LeftOperand<X>, R: RightOperand<X>> Load<X, L, R> {
     }
 }
 
-enum WordRegister {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-}
+use self::operands::{WordRegister, DoubleRegister, ImmediateDouble, ImmediateWord, RightOperand, LeftOperand, HighMemoryPointer, ImmediatePointer, RegisterPointer};
 
-impl LeftOperand<Word> for WordRegister {
-    fn alter(&self, cpu: &mut ComputerUnit, word: Word) {
-        match *self {
-            WordRegister::A => cpu.set_register_a(word),
-            WordRegister::B => cpu.set_register_b(word),
-            WordRegister::C => cpu.set_register_c(word),
-            WordRegister::D => cpu.set_register_d(word),
-            WordRegister::E => cpu.set_register_e(word),
-            WordRegister::H => cpu.set_register_h(word),
-            WordRegister::L => cpu.set_register_l(word),
+mod operands {
+    // todo ComputerUnit should be a trait (or not ?). Because struct has fielf visibility, it can be perceived as a type
+    use super::{Word, Double, Address, ComputerUnit, set_low_word};
+    use std::marker::PhantomData;
+
+    pub trait RightOperand<R> {
+        // in some very rare case reading a value can mut the cpu
+        // LD A,(HLI) (0x2A)
+        // LD A,(HLD) (0x3A)
+        fn resolve(&self, cpu: &mut ComputerUnit) -> R;
+    }
+
+    pub trait LeftOperand<L> {
+        fn alter(&self, cpu: &mut ComputerUnit, value: L);
+    }
+
+    pub enum WordRegister {
+        A,
+        B,
+        C,
+        D,
+        E,
+        H,
+        L,
+    }
+
+    impl LeftOperand<Word> for WordRegister {
+        fn alter(&self, cpu: &mut ComputerUnit, word: Word) {
+            match *self {
+                WordRegister::A => cpu.set_register_a(word),
+                WordRegister::B => cpu.set_register_b(word),
+                WordRegister::C => cpu.set_register_c(word),
+                WordRegister::D => cpu.set_register_d(word),
+                WordRegister::E => cpu.set_register_e(word),
+                WordRegister::H => cpu.set_register_h(word),
+                WordRegister::L => cpu.set_register_l(word),
+            }
+        }
+    }
+
+    impl RightOperand<Word> for WordRegister {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
+            match *self {
+                WordRegister::A => cpu.get_a_register(),
+                WordRegister::B => cpu.get_b_register(),
+                WordRegister::C => cpu.get_c_register(),
+                WordRegister::D => cpu.get_d_register(),
+                WordRegister::E => cpu.get_e_register(),
+                WordRegister::H => cpu.get_h_register(),
+                WordRegister::L => cpu.get_l_register(),
+            }
+        }
+    }
+
+    pub enum DoubleRegister {
+        AF,
+        BC,
+        DE,
+        HL,
+        SP
+    }
+
+    impl RightOperand<Double> for DoubleRegister {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
+            match *self {
+                DoubleRegister::AF => cpu.get_af_register(),
+                DoubleRegister::BC => cpu.get_bc_register(),
+                DoubleRegister::DE => cpu.get_de_register(),
+                DoubleRegister::HL => cpu.get_hl_register(),
+                DoubleRegister::SP => cpu.get_sp_register(),
+            }
+        }
+    }
+
+    impl LeftOperand<Double> for DoubleRegister {
+        fn alter(&self, cpu: &mut ComputerUnit, double: Double) {
+            match *self {
+                DoubleRegister::AF => cpu.set_register_af(double),
+                DoubleRegister::BC => cpu.set_register_bc(double),
+                DoubleRegister::DE => cpu.set_register_de(double),
+                DoubleRegister::HL => cpu.set_register_hl(double),
+                DoubleRegister::SP => cpu.set_register_sp(double),
+            }
+        }
+    }
+
+
+    // TODO generic ?
+    pub struct ImmediateWord {}
+
+    impl RightOperand<Word> for ImmediateWord {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
+            cpu.word_at(cpu.get_pc_register() + 1)
+        }
+    }
+
+    pub struct ImmediateDouble {}
+
+    impl RightOperand<Double> for ImmediateDouble {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
+            cpu.double_at(cpu.get_pc_register() + 1)
+        }
+    }
+
+    pub struct HighMemoryPointer {}
+
+    impl RightOperand<Word> for HighMemoryPointer {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
+            let relative = cpu.word_at(cpu.get_pc_register() + 1);
+            cpu.word_at(set_low_word(0xFF00, relative))
+        }
+    }
+
+    impl LeftOperand<Word> for HighMemoryPointer {
+        fn alter(&self, cpu: &mut ComputerUnit, value: Word) {
+            let relative = cpu.word_at(cpu.get_pc_register() + 1);
+            cpu.set_word_at(set_low_word(0xFF00, relative), value)
+        }
+    }
+
+    pub struct ImmediatePointer<T> {
+        resource_type: PhantomData<T>,
+    }
+
+    impl ImmediatePointer<Word> {
+        pub fn new() -> ImmediatePointer<Word> {
+            ImmediatePointer {
+                resource_type: PhantomData
+            }
+        }
+
+        fn address(&self, cpu: &ComputerUnit) -> Address {
+            cpu.double_at(cpu.get_pc_register() + 1)
+        }
+    }
+
+    impl LeftOperand<Word> for ImmediatePointer<Word> {
+        fn alter(&self, cpu: &mut ComputerUnit, word: Word) {
+            let address = self.address(cpu);
+            cpu.set_word_at(address, word);
+        }
+    }
+
+    impl RightOperand<Word> for ImmediatePointer<Word> {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
+            cpu.word_at(self.address(cpu))
+        }
+    }
+
+    impl ImmediatePointer<Double> {
+        pub fn new() -> ImmediatePointer<Double> {
+            ImmediatePointer {
+                resource_type: PhantomData
+            }
+        }
+
+        fn address(&self, cpu: &ComputerUnit) -> Address {
+            cpu.double_at(cpu.get_pc_register() + 1)
+        }
+    }
+
+    impl LeftOperand<Double> for ImmediatePointer<Double> {
+        fn alter(&self, cpu: &mut ComputerUnit, double: Double) {
+            let address = self.address(cpu);
+            cpu.set_double_at(address, double);
+        }
+    }
+
+    impl RightOperand<Double> for ImmediatePointer<Double> {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
+            cpu.double_at(self.address(cpu))
+        }
+    }
+
+    pub enum RegisterPointer {
+        HL,
+        BC,
+        DE,
+        C
+    }
+
+    impl LeftOperand<Word> for RegisterPointer {
+        fn alter(&self, cpu: &mut ComputerUnit, word: Word) {
+            let address = match *self {
+                RegisterPointer::HL => cpu.get_hl_register(),
+                RegisterPointer::BC => cpu.get_bc_register(),
+                RegisterPointer::DE => cpu.get_de_register(),
+                RegisterPointer::C => set_low_word(0xFF00, cpu.get_c_register())
+            };
+            cpu.set_word_at(address, word)
+        }
+    }
+
+    impl RightOperand<Word> for RegisterPointer {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
+            let address = match *self {
+                RegisterPointer::HL => cpu.get_hl_register(),
+                RegisterPointer::BC => cpu.get_bc_register(),
+                RegisterPointer::DE => cpu.get_de_register(),
+                RegisterPointer::C => set_low_word(0xFF00, cpu.get_c_register()),
+            };
+            cpu.word_at(address)
         }
     }
 }
 
-impl RightOperand<Word> for WordRegister {
-    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
-        match *self {
-            WordRegister::A => cpu.get_a_register(),
-            WordRegister::B => cpu.get_b_register(),
-            WordRegister::C => cpu.get_c_register(),
-            WordRegister::D => cpu.get_d_register(),
-            WordRegister::E => cpu.get_e_register(),
-            WordRegister::H => cpu.get_h_register(),
-            WordRegister::L => cpu.get_l_register(),
-        }
-    }
-}
-
-enum DoubleRegister {
-    AF,
-    BC,
-    DE,
-    HL,
-    SP
-}
-
-impl RightOperand<Double> for DoubleRegister {
-    fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
-        match *self {
-            DoubleRegister::AF => cpu.get_af_register(),
-            DoubleRegister::BC => cpu.get_bc_register(),
-            DoubleRegister::DE => cpu.get_de_register(),
-            DoubleRegister::HL => cpu.get_hl_register(),
-            DoubleRegister::SP => cpu.get_sp_register(),
-        }
-    }
-}
-
-impl LeftOperand<Double> for DoubleRegister {
-    fn alter(&self, cpu: &mut ComputerUnit, double: Double) {
-        match *self {
-            DoubleRegister::AF => cpu.set_register_af(double),
-            DoubleRegister::BC => cpu.set_register_bc(double),
-            DoubleRegister::DE => cpu.set_register_de(double),
-            DoubleRegister::HL => cpu.set_register_hl(double),
-            DoubleRegister::SP => cpu.set_register_sp(double),
-        }
-    }
-}
-
-trait RightOperand<R> {
-    // in some very rare case reading a value can mut the cpu
-    // LD A,(HLI) (0x2A)
-    // LD A,(HLD) (0x3A)
-    fn resolve(&self, cpu: &mut ComputerUnit) -> R;
-}
-
-trait LeftOperand<L> {
-    fn alter(&self, cpu: &mut ComputerUnit, value: L);
-}
-
-// TODO generic ?
-struct ImmediateWord {}
-
-impl RightOperand<Word> for ImmediateWord {
-    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
-        cpu.word_at(cpu.get_pc_register() + 1)
-    }
-}
-
-struct ImmediateDouble {}
-
-impl RightOperand<Double> for ImmediateDouble {
-    fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
-        cpu.double_at(cpu.get_pc_register() + 1)
-    }
-}
-
-struct HighMemoryPointer {}
-
-impl RightOperand<Word> for HighMemoryPointer {
-    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
-        let relative = cpu.word_at(cpu.get_pc_register() + 1);
-        cpu.word_at(set_low_word(0xFF00, relative))
-    }
-}
-
-impl LeftOperand<Word> for HighMemoryPointer {
-    fn alter(&self, cpu: &mut ComputerUnit, value: Word) {
-        let relative = cpu.word_at(cpu.get_pc_register() + 1);
-        cpu.set_word_at(set_low_word(0xFF00, relative), value)
-    }
-}
-
-struct ImmediatePointer<T> {
-    resource_type: PhantomData<T>,
-}
-
-impl ImmediatePointer<Word> {
-    fn address(&self, cpu: &ComputerUnit) -> Address {
-        cpu.double_at(cpu.get_pc_register() + 1)
-    }
-}
-
-impl LeftOperand<Word> for ImmediatePointer<Word> {
-    fn alter(&self, cpu: &mut ComputerUnit, word: Word) {
-        let address = self.address(cpu);
-        cpu.set_word_at(address, word);
-    }
-}
-
-impl RightOperand<Word> for ImmediatePointer<Word> {
-    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
-        cpu.word_at(self.address(cpu))
-    }
-}
-
-impl ImmediatePointer<Double> {
-    fn address(&self, cpu: &ComputerUnit) -> Address {
-        cpu.double_at(cpu.get_pc_register() + 1)
-    }
-}
-
-impl LeftOperand<Double> for ImmediatePointer<Double> {
-    fn alter(&self, cpu: &mut ComputerUnit, double: Double) {
-        let address = self.address(cpu);
-        cpu.set_double_at(address, double);
-    }
-}
-
-impl RightOperand<Double> for ImmediatePointer<Double> {
-    fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
-        cpu.double_at(self.address(cpu))
-    }
-}
-
-enum RegisterPointer {
-    HL,
-    BC,
-    DE,
-    C
-}
-
-impl LeftOperand<Word> for RegisterPointer {
-    fn alter(&self, cpu: &mut ComputerUnit, word: Word) {
-        let address = match *self {
-            RegisterPointer::HL => cpu.get_hl_register(),
-            RegisterPointer::BC => cpu.get_bc_register(),
-            RegisterPointer::DE => cpu.get_de_register(),
-            RegisterPointer::C => set_low_word(0xFF00, cpu.get_c_register())
-        };
-        cpu.set_word_at(address, word)
-    }
-}
-
-impl RightOperand<Word> for RegisterPointer {
-    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
-        let address = match *self {
-            RegisterPointer::HL => cpu.get_hl_register(),
-            RegisterPointer::BC => cpu.get_bc_register(),
-            RegisterPointer::DE => cpu.get_de_register(),
-            RegisterPointer::C => set_low_word(0xFF00, cpu.get_c_register()),
-        };
-        cpu.word_at(address)
-    }
-}
 
 impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
     fn exec(&self, cpu: &mut ComputerUnit) {
@@ -831,7 +822,7 @@ fn build_decoder() -> Decoder {
 
     fn ld_ptr_nn_from_rr(source: DoubleRegister) -> Box<Load<Double, ImmediatePointer<Double>, DoubleRegister>> {
         Box::new(Load {
-            destination: ImmediatePointer { resource_type: PhantomData },
+            destination: ImmediatePointer::<Double>::new(),
             source: source,
             size: 3,
             cycles: 20,
@@ -841,7 +832,7 @@ fn build_decoder() -> Decoder {
 
     fn ld_ptr_nn_from_r(source: WordRegister) -> Box<Load<Word, ImmediatePointer<Word>, WordRegister>> {
         Box::new(Load {
-            destination: ImmediatePointer { resource_type: PhantomData },
+            destination: ImmediatePointer::<Word>::new(),
             source: source,
             size: 3,
             cycles: 16,
@@ -872,7 +863,7 @@ fn build_decoder() -> Decoder {
     fn ld_r_from_ptr_nn(destination: WordRegister) -> Box<Load<Word, WordRegister, ImmediatePointer<Word>>> {
         Box::new(Load {
             destination: destination,
-            source: ImmediatePointer { resource_type: PhantomData },
+            source: ImmediatePointer::<Word>::new(),
             size: 3,
             cycles: 16,
             operation_type: PhantomData
@@ -1184,7 +1175,7 @@ impl<S: RightOperand<Word>> Opcode for CompareA<S> {
         let a = cpu.get_a_register();
         let b = self.source.resolve(cpu);
         let r = ArithmeticLogicalUnit::sub(a, b);
-        r.flags.set_flags(cpu);
+        r.flags().set_flags(cpu);
     }
 
     fn size(&self) -> Size {
@@ -1318,8 +1309,8 @@ impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
         let b = self.source.resolve(cpu);
         let a = cpu.get_a_register();
         let r = (self.operation)(a, b);
-        cpu.set_register_a(r.result);
-        r.flags.set_flags(cpu);
+        cpu.set_register_a(r.result());
+        r.flags().set_flags(cpu);
     }
 
     fn size(&self) -> Size {
@@ -1395,7 +1386,6 @@ impl Opcode for IncDecDouble {
 }
 
 
-
 // TODO always Word
 struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
     destination: D,
@@ -1453,11 +1443,11 @@ impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for IncDec<Word, D> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let x = self.destination.resolve(cpu);
         let r = (self.operation)(x, 1);
-        self.destination.alter(cpu, r.result);
+        self.destination.alter(cpu, r.result());
         //unfortunately this instruction doesn't set the carry flag
-        cpu.set_zero_flag(r.flags.zero_flag());
-        cpu.set_add_sub_flag(r.flags.add_sub_flag());
-        cpu.set_half_carry_flag(r.flags.half_carry_flag());
+        cpu.set_zero_flag(r.flags().zero_flag());
+        cpu.set_add_sub_flag(r.flags().add_sub_flag());
+        cpu.set_half_carry_flag(r.flags().half_carry_flag());
     }
 
     fn size(&self) -> Size {
@@ -1538,7 +1528,7 @@ struct Program {
     content: Vec<Word>
 }
 
-struct ComputerUnit {
+pub struct ComputerUnit {
     registers: Registers,
     memory: ArrayBasedMemory,
     cycles: Cycle,
@@ -1762,156 +1752,220 @@ impl MemoryProgramLoader {
         }
     }
 }
+mod alu {
+    use super::{Word, ComputerUnit};
 
-struct ArithmeticLogicalUnit {}
+    pub struct ArithmeticLogicalUnit {}
 
-#[derive(Debug, PartialEq, Eq)]
-struct ArithmeticResult {
-    result: Word,
-    flags: FlagRegister
-}
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct ArithmeticResult {
+        result: Word,
+        flags: FlagRegister
+    }
 
+    impl ArithmeticResult {
+        pub fn result(&self) -> Word {
+            self.result
+        }
 
-impl ArithmeticLogicalUnit {
-    fn add(a: Word, b: Word) -> ArithmeticResult {
-        let result = a.wrapping_add(b);
-        ArithmeticResult {
-            result: result,
+        pub fn flags(&self) -> &FlagRegister {
+            &self.flags
+        }
+
+        pub fn z(&self) -> bool {
+            self.flags.zero_flag()
+        }
+
+        pub fn c(&self) -> bool {
+            self.flags.carry_flag()
+        }
+
+        pub fn h(&self) -> bool {
+            self.flags.half_carry_flag()
+        }
+
+        pub fn n(&self) -> bool {
+            self.flags.add_sub_flag()
+        }
+    }
+
+    // todo this struct still needed ? can inline fields in ArithmeticResult
+    #[derive(Debug, PartialEq, Eq)]
+    struct FlagRegister {
+        zf: bool,
+        n: bool,
+        h: bool,
+        cy: bool
+    }
+
+    impl FlagRegister {
+        pub fn zero_flag(&self) -> bool {
+            self.zf
+        }
+
+        pub fn carry_flag(&self) -> bool {
+            self.cy
+        }
+
+        pub fn half_carry_flag(&self) -> bool {
+            self.h
+        }
+
+        pub fn add_sub_flag(&self) -> bool {
+            self.n
+        }
+
+        pub fn set_flags(&self, cpu: &mut ComputerUnit) {
+            cpu.set_zero_flag(self.zero_flag());
+            cpu.set_add_sub_flag(self.add_sub_flag());
+            cpu.set_carry_flag(self.carry_flag());
+            cpu.set_half_carry_flag(self.half_carry_flag());
+        }
+    }
+
+    impl ArithmeticLogicalUnit {
+        pub fn add(a: Word, b: Word) -> ArithmeticResult {
+            let result = a.wrapping_add(b);
+            ArithmeticResult {
+                result: result,
+                flags: FlagRegister {
+                    cy: ArithmeticLogicalUnit::has_carry(a, b),
+                    h: ArithmeticLogicalUnit::has_half_carry(a, b),
+                    zf: result == 0,
+                    n: false
+                }
+            }
+        }
+
+        pub fn sub(a: Word, b: Word) -> ArithmeticResult {
+            let two_complement = (!b).wrapping_add(1);
+            let mut add = ArithmeticLogicalUnit::add(a, two_complement);
+            add.flags.n = true;
+            add.flags.cy = a < b;
+            add.flags.h = ArithmeticLogicalUnit::low_nibble(a) < ArithmeticLogicalUnit::low_nibble(b);
+            add
+        }
+
+        pub fn and(a: Word, b: Word) -> ArithmeticResult {
+            let r = a & b;
+            ArithmeticResult {
+                result: r,
+                flags: FlagRegister {
+                    zf: r == 0,
+                    n: false,
+                    h: true,
+                    cy: false
+                }
+            }
+        }
+
+        pub fn or(a: Word, b: Word) -> ArithmeticResult {
+            let r = a | b;
+            ArithmeticResult {
+                result: r,
+                flags: FlagRegister {
+                    zf: r == 0,
+                    n: false,
+                    h: false,
+                    cy: false
+                }
+            }
+        }
+
+        fn has_carry(a: Word, b: Word) -> bool {
+            let overflowing_result: u16 = a as u16 + b as u16;
+            (overflowing_result & 0x0100) != 0
+        }
+
+        fn has_half_carry(a: Word, b: Word) -> bool {
+            let nibble = ArithmeticLogicalUnit::low_nibble(a) + ArithmeticLogicalUnit::low_nibble(b);
+            (nibble & 0x10) != 0
+        }
+
+        fn low_nibble(a: Word) -> u8 {
+            a & 0xF
+        }
+    }
+
+    #[test]
+    fn should_add() {
+        assert_eq!(ArithmeticLogicalUnit::add(1, 1), ArithmeticResult {
+            result: 0b10,
             flags: FlagRegister {
-                cy: ArithmeticLogicalUnit::has_carry(a, b),
-                h: ArithmeticLogicalUnit::has_half_carry(a, b),
-                zf: result == 0,
+                cy: false,
+                h: false,
+                zf: false,
                 n: false
             }
-        }
-    }
-
-    fn sub(a: Word, b: Word) -> ArithmeticResult {
-        let two_complement = (!b).wrapping_add(1);
-        let mut add = ArithmeticLogicalUnit::add(a, two_complement);
-        add.flags.n = true;
-        add.flags.cy = a < b;
-        add.flags.h = ArithmeticLogicalUnit::low_nibble(a) < ArithmeticLogicalUnit::low_nibble(b);
-        add
-    }
-
-    fn and(a: Word, b: Word) -> ArithmeticResult {
-        let r = a & b;
-        ArithmeticResult {
-            result: r,
+        });
+        assert_eq!(ArithmeticLogicalUnit::add(0b1000, 0b1000), ArithmeticResult {
+            result: 0b10000,
             flags: FlagRegister {
-                zf: r == 0,
-                n: false,
+                cy: false,
                 h: true,
-                cy: false
+                zf: false,
+                n: false
             }
-        }
-    }
-
-    fn or(a: Word, b: Word) -> ArithmeticResult {
-        let r = a | b;
-        ArithmeticResult {
-            result: r,
+        });
+        assert_eq!(ArithmeticLogicalUnit::add(0b1000_0000, 0b1000_0000), ArithmeticResult {
+            result: 0,
             flags: FlagRegister {
-                zf: r == 0,
-                n: false,
+                cy: true,
                 h: false,
-                cy: false
+                zf: true,
+                n: false
             }
-        }
+        });
+        assert_eq!(ArithmeticLogicalUnit::add(0b1111_1000, 0b1000), ArithmeticResult {
+            result: 0,
+            flags: FlagRegister {
+                cy: true,
+                h: true,
+                zf: true,
+                n: false
+            }
+        });
+
+        assert_eq!(ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result, 0xFF);
+
+        assert!(ArithmeticLogicalUnit::add(0xAA, 0xAA).flags.cy);
     }
 
-    fn has_carry(a: Word, b: Word) -> bool {
-        let overflowing_result: u16 = a as u16 + b as u16;
-        (overflowing_result & 0x0100) != 0
+    #[test]
+    fn should_sub() {
+        assert_eq!(ArithmeticLogicalUnit::sub(1, 1), ArithmeticResult {
+            result: 0,
+            flags: FlagRegister {
+                cy: false,
+                h: false,
+                zf: true,
+                n: true
+            }
+        });
+        assert_eq!(ArithmeticLogicalUnit::sub(0b01, 0b10).result, ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result);
+        assert_eq!(ArithmeticLogicalUnit::sub(0, 1), ArithmeticResult {
+            result: 0xFF,
+            flags: FlagRegister {
+                cy: true,
+                h: true,
+                zf: false,
+                n: true
+            }
+        });
+
+        assert_eq!(ArithmeticLogicalUnit::sub(0x90, 0x92), ArithmeticResult {
+            result: 0xFE,
+            flags: FlagRegister {
+                cy: true,
+                h: true,
+                zf: false,
+                n: true
+            }
+        })
     }
 
-    fn has_half_carry(a: Word, b: Word) -> bool {
-        let nibble = ArithmeticLogicalUnit::low_nibble(a) + ArithmeticLogicalUnit::low_nibble(b);
-        (nibble & 0x10) != 0
-    }
-
-    fn low_nibble(a: Word) -> u8 {
-        a & 0xF
-    }
 }
 
-#[test]
-fn should_add() {
-    assert_eq!(ArithmeticLogicalUnit::add(1, 1), ArithmeticResult {
-        result: 0b10,
-        flags: FlagRegister {
-            cy: false,
-            h: false,
-            zf: false,
-            n: false
-        }
-    });
-    assert_eq!(ArithmeticLogicalUnit::add(0b1000, 0b1000), ArithmeticResult {
-        result: 0b10000,
-        flags: FlagRegister {
-            cy: false,
-            h: true,
-            zf: false,
-            n: false
-        }
-    });
-    assert_eq!(ArithmeticLogicalUnit::add(0b1000_0000, 0b1000_0000), ArithmeticResult {
-        result: 0,
-        flags: FlagRegister {
-            cy: true,
-            h: false,
-            zf: true,
-            n: false
-        }
-    });
-    assert_eq!(ArithmeticLogicalUnit::add(0b1111_1000, 0b1000), ArithmeticResult {
-        result: 0,
-        flags: FlagRegister {
-            cy: true,
-            h: true,
-            zf: true,
-            n: false
-        }
-    });
-
-    assert_eq!(ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result, 0xFF);
-
-    assert!(ArithmeticLogicalUnit::add(0xAA, 0xAA).flags.cy);
-}
-
-#[test]
-fn should_sub() {
-    assert_eq!(ArithmeticLogicalUnit::sub(1, 1), ArithmeticResult {
-        result: 0,
-        flags: FlagRegister {
-            cy: false,
-            h: false,
-            zf: true,
-            n: true
-        }
-    });
-    assert_eq!(ArithmeticLogicalUnit::sub(0b01, 0b10).result, ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result);
-    assert_eq!(ArithmeticLogicalUnit::sub(0, 1), ArithmeticResult {
-        result: 0xFF,
-        flags: FlagRegister {
-            cy: true,
-            h: true,
-            zf: false,
-            n: true
-        }
-    });
-
-    assert_eq!(ArithmeticLogicalUnit::sub(0x90, 0x92), ArithmeticResult {
-        result: 0xFE,
-        flags: FlagRegister {
-            cy: true,
-            h: true,
-            zf: false,
-            n: true
-        }
-    })
-}
 
 #[test]
 fn should_load_program() {
@@ -2648,8 +2702,6 @@ fn should_run_bios() {
     while true {
         cpu.run_1_instruction(&decoder);
     }
-
-
 }
 
 
