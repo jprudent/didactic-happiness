@@ -571,11 +571,11 @@ mod opcodes {
     }
 
     pub mod call {
-        use super::super::{Size, Cycle, Opcode, ComputerUnit};
-        use super::super::operands::{RightOperand, ImmediateDouble};
+        use super::super::{Size, Cycle, Opcode, Double, ComputerUnit};
+        use super::super::operands::{RightOperand, ImmediateDouble, ConstantAddress};
 
-        struct UnconditionalCall {
-            address: ImmediateDouble,
+        struct UnconditionalCall<S: RightOperand<Double>> {
+            address: S,
             size: Size,
             cycles: Cycle
         }
@@ -589,7 +589,17 @@ mod opcodes {
                 })
         }
 
-        impl Opcode for UnconditionalCall {
+        pub fn rst_38() -> Box<Opcode> {
+            Box::new(
+                UnconditionalCall {
+                    address: ConstantAddress(0x38),
+                    size: 1,
+                    cycles: 32
+                }
+            )
+        }
+
+        impl<S: RightOperand<Double>> Opcode for UnconditionalCall<S> {
             fn exec(&self, cpu: &mut ComputerUnit) {
                 let pc = cpu.get_pc_register();
                 cpu.push(pc + self.size());
@@ -608,9 +618,9 @@ mod opcodes {
         }
     }
 
-    pub mod jp {
+    pub mod unconditional_jump {
         use super::super::{Double, Size, Cycle, Opcode, ComputerUnit};
-        use super::super::operands::{RightOperand, ImmediateDouble, DoubleRegister};
+        use super::super::operands::{RightOperand, ImmediateDouble, DoubleRegister, RelativeAddress};
         use std::marker::PhantomData;
 
         struct UnconditionalJump<X, A: RightOperand<X>> {
@@ -629,14 +639,23 @@ mod opcodes {
             })
         }
 
-        pub fn jp_nn() -> Box<Opcode> {
+        pub fn jr_w() -> Box<Opcode> {
             Box::new(UnconditionalJump {
-                address: ImmediateDouble {},
-                size: 3,
-                cycles: 16,
+                address: RelativeAddress{},
+                size: 2,
+                cycles: 8,
                 operation_type: PhantomData
             })
         }
+
+        pub fn jp_nn() -> Box<Opcode> {
+                    Box::new(UnconditionalJump {
+                        address: ImmediateDouble {},
+                        size: 3,
+                        cycles: 16,
+                        operation_type: PhantomData
+                    })
+                }
 
         impl<A: RightOperand<Double>> Opcode for UnconditionalJump<Double, A> {
             fn exec(&self, cpu: &mut ComputerUnit) {
@@ -1404,6 +1423,25 @@ mod operands {
             r.result()
         }
     }
+
+    pub struct RelativeAddress {}
+
+    impl RightOperand<Double> for RelativeAddress{
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
+            let pc = cpu.get_pc_register();
+            let word = cpu.word_at(pc + 1);
+            pc.wrapping_add(word as Double)
+        }
+    }
+
+    pub struct ConstantAddress(pub Double);
+
+    impl RightOperand<Double> for ConstantAddress {
+        fn resolve(&self, _: &mut ComputerUnit) -> Double {
+            self.0
+        }
+    }
+
 }
 
 
@@ -1454,7 +1492,7 @@ fn build_decoder() -> Decoder {
     use self::opcodes::nop::*;
     use self::opcodes::enable_interrupts::*;
     use self::opcodes::disable_interrupts::*;
-    use self::opcodes::jp::*;
+    use self::opcodes::unconditional_jump::*;
     use self::opcodes::call::*;
     use self::opcodes::inc_dec::*;
     use self::opcodes::inc_dec_16::*;
@@ -1479,6 +1517,7 @@ fn build_decoder() -> Decoder {
     decoder[0x14] = inc_r(WordRegister::D);
     decoder[0x15] = dec_r(WordRegister::D);
     decoder[0x16] = ld_r_from_w(WordRegister::D);
+    decoder[0x18] = jr_w();
     decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
     decoder[0x1C] = inc_r(WordRegister::E);
     decoder[0x1D] = dec_r(WordRegister::E);
@@ -1624,6 +1663,7 @@ fn build_decoder() -> Decoder {
     decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
     decoder[0xFB] = ei();
     decoder[0xFE] = cp_w();
+    decoder[0xFF] = rst_38();
     decoder
 }
 
@@ -2619,7 +2659,7 @@ fn should_implement_dec_instruction() {
 }
 
 #[test]
-fn should_run_bios() {
+fn should_run_gunsriders() {
     use std::io::prelude::*;
     use std::fs::File;
     let mut f = File::open("roms/gunsriders.gb").unwrap();
@@ -2847,6 +2887,35 @@ fn should_run_bios() {
     assert_eq!(cpu.get_hl_register(), 0xDFF4);
     assert!(!cpu.carry_flag());
     assert!(cpu.half_carry_flag());
+
+    while cpu.get_pc_register() != 0x31B0 {
+        cpu.run_1_instruction(&decoder);
+    }
+
+    //cpu.run_1_instruction(&decoder); // RRCA
+    //assert_eq!(cpu.get_pc_register(), 0x31B1);
+
+    //while true {
+    //    cpu.run_1_instruction(&decoder);
+    //}
+}
+
+#[test]
+fn should_run_testrom() {
+    use std::io::prelude::*;
+    use std::fs::File;
+    let mut f = File::open("roms/cpu_instrs/cpu_instrs.gb").unwrap();
+    let mut s = vec!();
+    f.read_to_end(&mut s).unwrap();
+    let pg = Program {
+        name: "Guns Rider",
+        content: s
+    };
+
+    let mut cpu = new_cpu();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = build_decoder();
 
     while true {
         cpu.run_1_instruction(&decoder);
