@@ -157,7 +157,7 @@ fn should_get_value_from_registers() {
 
 mod opcodes {
     use super::ComputerUnit;
-    
+
     pub mod disable_interrupts {
         use super::super::{Cycle, Size, Opcode, ComputerUnit};
 
@@ -322,61 +322,79 @@ mod opcodes {
         }
     }
 
+
     pub mod maths {
-        use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
-        use super::super::operands::{WordRegister, RightOperand, ImmediateWord, RegisterPointer};
+        use super::super::{Cycle, Size, Opcode, ComputerUnit};
+        use super::super::operands::{LeftOperand, DoubleRegister, WordRegister, RightOperand, ImmediateWord, RegisterPointer};
         use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
 
-        struct ArithmeticOperationOnRegisterA<S: RightOperand<Word>> {
+        struct ArithmeticOperationOnRegisterA<X, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>> {
             source: S,
-            operation: fn(Word, Word) -> ArithmeticResult,
+            destination: D,
+            operation: fn(X, Y) -> ArithmeticResult<X>,
             size: Size,
             cycles: Cycle
+        }
+
+        pub fn add_sp_w() -> Box<Opcode> {
+            Box::new(
+                ArithmeticOperationOnRegisterA {
+                    source: ImmediateWord {},
+                    destination: DoubleRegister::SP,
+                    operation: ArithmeticLogicalUnit::add16,
+                    size: 2,
+                    cycles: 16
+                })
         }
 
         pub fn and_w() -> Box<Opcode> {
             Box::new(
                 ArithmeticOperationOnRegisterA {
                     source: ImmediateWord {},
+                    destination: WordRegister::A,
                     operation: ArithmeticLogicalUnit::and,
                     size: 2,
-                    cycles: 8
+                    cycles: 8,
                 })
         }
 
         pub fn sub_r(source: WordRegister) -> Box<Opcode> {
             Box::new(ArithmeticOperationOnRegisterA {
                 source: source,
+                destination: WordRegister::A,
                 operation: ArithmeticLogicalUnit::sub,
                 size: 1,
-                cycles: 4
+                cycles: 4,
             })
         }
 
         pub fn sub_ptr_r(source: RegisterPointer) -> Box<Opcode> {
             Box::new(ArithmeticOperationOnRegisterA {
                 source: source,
+                destination: WordRegister::A,
                 operation: ArithmeticLogicalUnit::sub,
                 size: 1,
-                cycles: 8
+                cycles: 8,
             })
         }
 
         pub fn add_r(source: WordRegister) -> Box<Opcode> {
             Box::new(ArithmeticOperationOnRegisterA {
                 source: source,
+                destination: WordRegister::A,
                 operation: ArithmeticLogicalUnit::add,
                 size: 1,
-                cycles: 4
+                cycles: 4,
             })
         }
 
         pub fn add_ptr_r(source: RegisterPointer) -> Box<Opcode> {
             Box::new(ArithmeticOperationOnRegisterA {
                 source: source,
+                destination: WordRegister::A,
                 operation: ArithmeticLogicalUnit::add,
                 size: 1,
-                cycles: 8
+                cycles: 8,
             })
         }
 
@@ -384,19 +402,20 @@ mod opcodes {
             Box::new(
                 ArithmeticOperationOnRegisterA {
                     source: RegisterPointer::HL,
+                    destination: WordRegister::A,
                     operation: ArithmeticLogicalUnit::or,
                     size: 1,
-                    cycles: 8
+                    cycles: 8,
                 })
         }
 
 
-        impl<S: RightOperand<Word>> Opcode for ArithmeticOperationOnRegisterA<S> {
+        impl<X: Copy, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>> Opcode for ArithmeticOperationOnRegisterA<X, Y, D, S> {
             fn exec(&self, cpu: &mut ComputerUnit) {
                 let b = self.source.resolve(cpu);
-                let a = cpu.get_a_register();
+                let a = self.destination.resolve(cpu);
                 let r = (self.operation)(a, b);
-                cpu.set_register_a(r.result());
+                self.destination.alter(cpu, r.result());
                 r.flags().set_flags(cpu);
             }
 
@@ -484,7 +503,7 @@ mod opcodes {
         // TODO always Word
         struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
             destination: D,
-            operation: fn(X, X) -> ArithmeticResult,
+            operation: fn(X, X) -> ArithmeticResult<X>,
             size: Size,
             cycles: Cycle,
             operation_type: PhantomData<X> // TODO can be removed ?
@@ -932,7 +951,7 @@ mod opcodes {
     pub mod load {
         use std::marker::PhantomData;
         use super::super::{Word, Double, Cycle, Size, Opcode, ComputerUnit};
-        use super::super::operands::{WordRegister, DoubleRegister, ImmediateDouble, ImmediateWord, RightOperand, LeftOperand, HighMemoryPointer, ImmediatePointer, RegisterPointer, HlOp};
+        use super::super::operands::{WordRegister, DoubleRegister, ImmediateDouble, ImmediateWord, RightOperand, LeftOperand, HighMemoryPointer, ImmediatePointer, RegisterPointer, HlOp, SpRelative};
 
         struct Load<X, L: LeftOperand<X>, R: RightOperand<X>> {
             destination: L,
@@ -940,6 +959,18 @@ mod opcodes {
             size: Double,
             cycles: Cycle,
             operation_type: PhantomData<X>
+        }
+
+        pub fn ld_hl_sp_plus_w() -> Box<Opcode> {
+            Box::new(
+                Load {
+                    destination: DoubleRegister::HL,
+                    source: SpRelative {},
+                    size: 2,
+                    cycles: 12,
+                    operation_type: PhantomData
+                }
+            )
         }
 
         pub fn ldh_ptr_a() -> Box<Opcode> {
@@ -1129,8 +1160,9 @@ mod operands {
 
     pub trait RightOperand<R> {
         // in some very rare case reading a value can mut the cpu
-        // LD A,(HLI) (0x2A)
-        // LD A,(HLD) (0x3A)
+        // LD A,(HLI) (0x2A) mut HL
+        // LD A,(HLD) (0x3A) mut HL
+        // LD HL, SP+WW (0xF8) mut the flag register
         fn resolve(&self, cpu: &mut ComputerUnit) -> R;
     }
 
@@ -1358,6 +1390,20 @@ mod operands {
             ret
         }
     }
+
+    pub struct SpRelative {}
+
+    impl RightOperand<Double> for SpRelative {
+        fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
+            use super::alu::ArithmeticLogicalUnit;
+            let sp = cpu.get_sp_register();
+            let pc = cpu.get_pc_register();
+            let word = cpu.word_at(pc + 1);
+            let r = ArithmeticLogicalUnit::add16(sp, word);
+            r.flags().set_flags(cpu); // mut the CPU
+            r.result()
+        }
+    }
 }
 
 
@@ -1389,6 +1435,7 @@ impl IndexMut<Word> for Decoder {
     }
 }
 
+//todo rename new() and put it in Decoder impl
 fn build_decoder() -> Decoder {
     let mut decoder = Decoder(vec!());
 
@@ -1563,6 +1610,7 @@ fn build_decoder() -> Decoder {
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
     decoder[0xE5] = push_hl();
     decoder[0xE6] = and_w();
+    decoder[0xE8] = add_sp_w();
     decoder[0xE9] = jp_hl();
     decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
     decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
@@ -1571,6 +1619,7 @@ fn build_decoder() -> Decoder {
     decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
     decoder[0xF3] = di();
     decoder[0xF5] = push_af();
+    decoder[0xF8] = ld_hl_sp_plus_w();
     decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
     decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
     decoder[0xFB] = ei();
@@ -1842,18 +1891,18 @@ impl MemoryProgramLoader {
 }
 
 mod alu {
-    use super::{Word, ComputerUnit};
+    use super::{Word, Double, ComputerUnit, low_word, set_low_word};
 
     pub struct ArithmeticLogicalUnit {}
 
     #[derive(Debug, PartialEq, Eq)]
-    pub struct ArithmeticResult {
-        result: Word,
+    pub struct ArithmeticResult<X> {
+        result: X,
         flags: FlagRegister
     }
 
-    impl ArithmeticResult {
-        pub fn result(&self) -> Word {
+    impl<X: Copy> ArithmeticResult<X> {
+        pub fn result(&self) -> X {
             self.result
         }
 
@@ -1897,7 +1946,7 @@ mod alu {
     }
 
     impl ArithmeticLogicalUnit {
-        pub fn add(a: Word, b: Word) -> ArithmeticResult {
+        pub fn add(a: Word, b: Word) -> ArithmeticResult<Word> {
             let result = a.wrapping_add(b);
             ArithmeticResult {
                 result: result,
@@ -1910,7 +1959,20 @@ mod alu {
             }
         }
 
-        pub fn sub(a: Word, b: Word) -> ArithmeticResult {
+        pub fn add16(a: Double, b: Word) -> ArithmeticResult<Double> {
+            let result = set_low_word(a, low_word(a).wrapping_add(b));
+            ArithmeticResult {
+                result: result,
+                flags: FlagRegister {
+                    cy: ArithmeticLogicalUnit::has_carry(low_word(a), b),
+                    h: ArithmeticLogicalUnit::has_half_carry(low_word(a), b),
+                    zf: false,
+                    n: false
+                }
+            }
+        }
+
+        pub fn sub(a: Word, b: Word) -> ArithmeticResult<Word> {
             let two_complement = (!b).wrapping_add(1);
             let mut add = ArithmeticLogicalUnit::add(a, two_complement);
             add.flags.n = true;
@@ -1919,7 +1981,7 @@ mod alu {
             add
         }
 
-        pub fn and(a: Word, b: Word) -> ArithmeticResult {
+        pub fn and(a: Word, b: Word) -> ArithmeticResult<Word> {
             let r = a & b;
             ArithmeticResult {
                 result: r,
@@ -1932,7 +1994,7 @@ mod alu {
             }
         }
 
-        pub fn or(a: Word, b: Word) -> ArithmeticResult {
+        pub fn or(a: Word, b: Word) -> ArithmeticResult<Word> {
             let r = a | b;
             ArithmeticResult {
                 result: r,
@@ -2770,6 +2832,21 @@ fn should_run_bios() {
     cpu.run_1_instruction(&decoder);
     assert_eq!(cpu.get_pc_register(), 0x318D);
 
+    cpu.run_1_instruction(&decoder); // PUSH BC
+    assert_eq!(cpu.get_pc_register(), 0x318E);
+    assert_eq!(cpu.get_sp_register(), 0xDFF8);
+    assert_eq!(cpu.double_at(0xDFF8), cpu.registers.bc);
+
+    cpu.run_1_instruction(&decoder); // ADD SP,0xB0
+    assert_eq!(cpu.get_pc_register(), 0x3190);
+    assert_eq!(cpu.get_sp_register(), 0xDFA8);
+    assert!(cpu.carry_flag());
+    assert!(!cpu.half_carry_flag());
+
+    cpu.run_1_instruction(&decoder); // ld HL, SP+0x4C
+    assert_eq!(cpu.get_hl_register(), 0xDFF4);
+    assert!(!cpu.carry_flag());
+    assert!(cpu.half_carry_flag());
 
     while true {
         cpu.run_1_instruction(&decoder);
