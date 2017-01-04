@@ -1,0 +1,20 @@
+use super::super::{Word, Size, Cycle, Opcode, ComputerUnit};
+
+struct NotImplemented(Word);
+
+impl Opcode for NotImplemented {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        panic!("{:02X} not implemented at {:04X}", self.0, cpu.get_pc_register());
+    }
+    fn size(&self) -> Size {
+        unimplemented!()
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        unimplemented!()
+    }
+}
+
+pub fn not_implemented(word: Word) -> Box<Opcode> {
+    Box::new(NotImplemented(word))
+}
