@@ -276,6 +276,10 @@ mod opcodes {
             jr_cond_w(JmpCondition::ZERO)
         }
 
+        pub fn jr_w() -> Box<Opcode> {
+            jr_cond_w(JmpCondition::ALWAYS)
+        }
+
         fn jr_cond_w(condition: JmpCondition) -> Box<Opcode> {
             Box::new(
                 ConditionalJump {
@@ -407,6 +411,18 @@ mod opcodes {
                     size: 1,
                     cycles: 8,
                 })
+        }
+
+        pub fn or_c() -> Box<Opcode> {
+            Box::new(
+                ArithmeticOperationOnRegisterA {
+                    source: WordRegister::C,
+                    destination: WordRegister::A,
+                    operation: ArithmeticLogicalUnit::or,
+                    size: 1,
+                    cycles: 4,
+                }
+            )
         }
 
 
@@ -620,7 +636,7 @@ mod opcodes {
 
     pub mod unconditional_jump {
         use super::super::{Double, Size, Cycle, Opcode, ComputerUnit};
-        use super::super::operands::{RightOperand, ImmediateDouble, DoubleRegister, RelativeAddress};
+        use super::super::operands::{RightOperand, ImmediateDouble, DoubleRegister};
         use std::marker::PhantomData;
 
         struct UnconditionalJump<X, A: RightOperand<X>> {
@@ -639,23 +655,14 @@ mod opcodes {
             })
         }
 
-        pub fn jr_w() -> Box<Opcode> {
+        pub fn jp_nn() -> Box<Opcode> {
             Box::new(UnconditionalJump {
-                address: RelativeAddress{},
-                size: 2,
-                cycles: 8,
+                address: ImmediateDouble {},
+                size: 3,
+                cycles: 16,
                 operation_type: PhantomData
             })
         }
-
-        pub fn jp_nn() -> Box<Opcode> {
-                    Box::new(UnconditionalJump {
-                        address: ImmediateDouble {},
-                        size: 3,
-                        cycles: 16,
-                        operation_type: PhantomData
-                    })
-                }
 
         impl<A: RightOperand<Double>> Opcode for UnconditionalJump<Double, A> {
             fn exec(&self, cpu: &mut ComputerUnit) {
@@ -1153,6 +1160,7 @@ mod opcodes {
 
     #[derive(Debug)]
     enum JmpCondition {
+        ALWAYS,
         NONZERO,
         ZERO,
         NOCARRY,
@@ -1162,6 +1170,7 @@ mod opcodes {
     impl JmpCondition {
         fn matches(&self, cpu: &ComputerUnit) -> bool {
             match *self {
+                JmpCondition::ALWAYS => true,
                 JmpCondition::NONZERO => !cpu.zero_flag(),
                 JmpCondition::ZERO => cpu.zero_flag(),
                 JmpCondition::NOCARRY => !cpu.carry_flag(),
@@ -1424,16 +1433,6 @@ mod operands {
         }
     }
 
-    pub struct RelativeAddress {}
-
-    impl RightOperand<Double> for RelativeAddress{
-        fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
-            let pc = cpu.get_pc_register();
-            let word = cpu.word_at(pc + 1);
-            pc.wrapping_add(word as Double)
-        }
-    }
-
     pub struct ConstantAddress(pub Double);
 
     impl RightOperand<Double> for ConstantAddress {
@@ -1441,7 +1440,6 @@ mod operands {
             self.0
         }
     }
-
 }
 
 
@@ -1636,6 +1634,7 @@ fn build_decoder() -> Decoder {
     decoder[0xC9] = ret();
     decoder[0xAE] = xor_n();
     decoder[0xAF] = xor_r(WordRegister::A);
+    decoder[0xB1] = or_c();
     decoder[0xB6] = or_ptr_hl();
     decoder[0xC1] = pop_bc();
     decoder[0xC3] = jp_nn();
@@ -2917,9 +2916,12 @@ fn should_run_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = build_decoder();
 
-    while true {
+    for i in 0..10000 {
+        println!("@{:04X} {:02X} {:02X}", cpu.get_pc_register(), cpu.word_at(cpu.get_pc_register()), cpu.word_at(cpu.get_pc_register() + 1));
         cpu.run_1_instruction(&decoder);
     }
+
+    assert!(false);
 }
 
 
