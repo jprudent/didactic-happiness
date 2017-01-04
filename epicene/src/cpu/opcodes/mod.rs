@@ -36,6 +36,8 @@ pub mod not_implemented;
 
 pub mod load;
 
+pub mod prefix_cb;
+
 #[derive(Debug)]
 enum JmpCondition {
     ALWAYS,

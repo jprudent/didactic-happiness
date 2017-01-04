@@ -114,6 +114,32 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    pub fn rlc(a: Word, b: Word) -> ArithmeticResult<Word> {
+        let r = a.rotate_left(b as u32);
+        ArithmeticResult {
+            result: r,
+            flags: FlagRegister {
+                zf: r == 0,
+                n: false,
+                h: false,
+                cy: (r & 0x80) == 1
+            }
+        }
+    }
+
+    pub fn rrc(a: Word, b: Word) -> ArithmeticResult<Word> {
+            let r = a.rotate_right(b as u32);
+            ArithmeticResult {
+                result: r,
+                flags: FlagRegister {
+                    zf: r == 0,
+                    n: false,
+                    h: false,
+                    cy: (r & 1) == 1
+                }
+            }
+        }
+
     fn has_carry(a: Word, b: Word) -> bool {
         let overflowing_result: u16 = a as u16 + b as u16;
         (overflowing_result & 0x0100) != 0
