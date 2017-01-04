@@ -588,14 +588,14 @@ fn build_decoder() -> Decoder {
     decoder[0x7C] = ld_r_from_r(WordRegister::A, WordRegister::H);
     decoder[0x7D] = ld_r_from_r(WordRegister::A, WordRegister::L);
     decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
-    decoder[0x80] = add_r(WordRegister::B);
-    decoder[0x81] = add_r(WordRegister::C);
-    decoder[0x82] = add_r(WordRegister::D);
-    decoder[0x83] = add_r(WordRegister::E);
-    decoder[0x84] = add_r(WordRegister::H);
-    decoder[0x85] = add_r(WordRegister::L);
+    decoder[0x80] = add_a_r(WordRegister::B);
+    decoder[0x81] = add_a_r(WordRegister::C);
+    decoder[0x82] = add_a_r(WordRegister::D);
+    decoder[0x83] = add_a_r(WordRegister::E);
+    decoder[0x84] = add_a_r(WordRegister::H);
+    decoder[0x85] = add_a_r(WordRegister::L);
     decoder[0x86] = add_ptr_r(RegisterPointer::HL);
-    decoder[0x87] = add_r(WordRegister::A);
+    decoder[0x87] = add_a_r(WordRegister::A);
     decoder[0x90] = sub_r(WordRegister::B);
     decoder[0x91] = sub_r(WordRegister::C);
     decoder[0x92] = sub_r(WordRegister::D);
@@ -613,18 +613,26 @@ fn build_decoder() -> Decoder {
     decoder[0xC9] = ret();
     decoder[0xAE] = xor_n();
     decoder[0xAF] = xor_r(WordRegister::A);
+    decoder[0xB0] = or_b();
     decoder[0xB1] = or_c();
+    decoder[0xB2] = or_d();
+    decoder[0xB3] = or_e();
+    decoder[0xB4] = or_h();
+    decoder[0xB5] = or_l();
     decoder[0xB6] = or_ptr_hl();
+    decoder[0xB7] = or_a();
     decoder[0xC1] = pop_bc();
     decoder[0xC3] = jp_nn();
     decoder[0xC4] = call_nz_a16();
     decoder[0xC5] = push_bc();
+    decoder[0xC6] = add_a_d8();
     decoder[0xCC] = call_z_a16();
     decoder[0xCD] = call_a16();
     decoder[0xD0] = ret_nc();
     decoder[0xD1] = pop_de();
     decoder[0xD4] = call_nc_a16();
     decoder[0xD5] = push_de();
+    decoder[0xD6] = sub_d8();
     decoder[0xDC] = call_c_a16();
     decoder[0xE0] = ldh_ptr_a();
     decoder[0xE1] = pop_hl();
@@ -1690,7 +1698,7 @@ fn should_run_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = build_decoder();
 
-    for i in 0..10000 {
+    for i in 0..100000 {
         println!("@{:04X} {:02X} {:02X}", cpu.get_pc_register(), cpu.word_at(cpu.get_pc_register()), cpu.word_at(cpu.get_pc_register() + 1));
         cpu.run_1_instruction(&decoder);
     }
