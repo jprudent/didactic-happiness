@@ -617,11 +617,15 @@ fn build_decoder() -> Decoder {
     decoder[0xB6] = or_ptr_hl();
     decoder[0xC1] = pop_bc();
     decoder[0xC3] = jp_nn();
+    decoder[0xC4] = call_nz_a16();
     decoder[0xC5] = push_bc();
-    decoder[0xCD] = call();
+    decoder[0xCC] = call_z_a16();
+    decoder[0xCD] = call_a16();
     decoder[0xD0] = ret_nc();
     decoder[0xD1] = pop_de();
+    decoder[0xD4] = call_nc_a16();
     decoder[0xD5] = push_de();
+    decoder[0xDC] = call_c_a16();
     decoder[0xE0] = ldh_ptr_a();
     decoder[0xE1] = pop_hl();
     decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
