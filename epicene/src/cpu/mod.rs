@@ -208,6 +208,7 @@ impl Decoder {
         decoder[0x06] = ld_r_from_w(WordRegister::B);
         decoder[0x07] = rlc_a();
         decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
+        decoder[0x09] = add_hl_bc();
         decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
         decoder[0x0C] = inc_r(WordRegister::C);
         decoder[0x0D] = dec_r(WordRegister::C);
@@ -221,6 +222,7 @@ impl Decoder {
         decoder[0x16] = ld_r_from_w(WordRegister::D);
         decoder[0x17] = rl_a();
         decoder[0x18] = jr_w();
+        decoder[0x19] = add_hl_de();
         decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
         decoder[0x1C] = inc_r(WordRegister::E);
         decoder[0x1D] = dec_r(WordRegister::E);
@@ -234,6 +236,7 @@ impl Decoder {
         decoder[0x25] = dec_r(WordRegister::H);
         decoder[0x26] = ld_r_from_w(WordRegister::H);
         decoder[0x28] = jr_z_w();
+        decoder[0x29] = add_hl_hl();
         decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
         decoder[0x2B] = dec_hl();
         decoder[0x2C] = inc_r(WordRegister::L);
@@ -247,6 +250,7 @@ impl Decoder {
         decoder[0x35] = dec_ptr_r(RegisterPointer::HL);
         decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
         decoder[0x38] = jr_c_w();
+        decoder[0x39] = add_hl_sp();
         decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
         decoder[0x3C] = inc_r(WordRegister::A);
         decoder[0x3D] = dec_r(WordRegister::A);
@@ -1459,7 +1463,7 @@ fn should_run_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..100000 {
+    for i in 0..1000000 {
         println!("@{:04X} {:02X} {:02X}", cpu.get_pc_register(), cpu.word_at(cpu.get_pc_register()), cpu.word_at(cpu.get_pc_register() + 1));
         cpu.run_1_instruction(&decoder);
     }

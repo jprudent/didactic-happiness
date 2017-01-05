@@ -66,7 +66,32 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    pub fn add16(a: Double, b: Word, _: Word) -> ArithmeticResult<Double> {
+    pub fn add_16_16(a: Double, b: Double, _: Word) -> ArithmeticResult<Double> {
+        let result = a.wrapping_add(b);
+        ArithmeticResult {
+            result: result,
+            flags: FlagRegister {
+                cy: ArithmeticLogicalUnit::has_carry_16(a,b),
+                h: ArithmeticLogicalUnit::has_half_carry_16(a,b),
+                zf: false,
+                n: false
+            }
+        }
+    }
+
+    fn has_carry_16(a: Double, b: Double) -> bool {
+        let overflowing_result: u32 = a as u32 + b as u32;
+        (overflowing_result & 0x10000) != 0
+    }
+
+    fn has_half_carry_16(a: Double, b: Double) -> bool {
+        let ah = a & 0x0FFF;
+        let bh = b & 0x0FFF;
+        let add = a + b;
+        (add & 0x1000) != 0
+    }
+
+    pub fn add_16_8(a: Double, b: Word, _: Word) -> ArithmeticResult<Double> {
         let result = set_low_word(a, low_word(a).wrapping_add(b));
         ArithmeticResult {
             result: result,

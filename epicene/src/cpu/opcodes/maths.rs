@@ -1,4 +1,4 @@
-use super::super::{Cycle, Word, Size, Opcode, ComputerUnit};
+use super::super::{Cycle, Word, Double, Size, Opcode, ComputerUnit};
 use super::super::operands::{LeftOperand, Carry, Constant, DoubleRegister, WordRegister, RightOperand, ImmediateWord, RegisterPointer};
 use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
 
@@ -10,12 +10,39 @@ struct ArithmeticOperation<X, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOp
     cycles: Cycle
 }
 
+pub fn add_hl_bc() -> Box<Opcode> {
+    add_hl_rr(DoubleRegister::BC)
+}
+
+pub fn add_hl_de() -> Box<Opcode> {
+    add_hl_rr(DoubleRegister::DE)
+}
+
+pub fn add_hl_hl() -> Box<Opcode> {
+    add_hl_rr(DoubleRegister::HL)
+}
+
+pub fn add_hl_sp() -> Box<Opcode> {
+    add_hl_rr(DoubleRegister::SP)
+}
+
+fn add_hl_rr(rr: DoubleRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: rr,
+            destination: DoubleRegister::HL,
+            operation: ArithmeticLogicalUnit::add_16_16,
+            size: 1,
+            cycles: 8
+        })
+}
+
 pub fn add_sp_w() -> Box<Opcode> {
     Box::new(
         ArithmeticOperation {
             source: ImmediateWord {},
             destination: DoubleRegister::SP,
-            operation: ArithmeticLogicalUnit::add16,
+            operation: ArithmeticLogicalUnit::add_16_8,
             size: 2,
             cycles: 16
         })
@@ -454,7 +481,7 @@ pub fn adc_a_ptr_hl() -> Box<Opcode> {
 pub fn adc_a_w() -> Box<Opcode> {
     Box::new(
         ArithmeticOperation {
-            source: ImmediateWord{} ,
+            source: ImmediateWord {},
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::add_carry,
             size: 2,
@@ -467,13 +494,39 @@ fn bool_to_word(b: bool) -> Word {
     if b { 1 } else { 0 }
 }
 
-impl<X: Copy, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>> Opcode for ArithmeticOperation<X, Y, D, S> {
+fn compute<X: Copy, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>>(operation: &ArithmeticOperation<X, Y, D, S>, cpu: &mut ComputerUnit) -> ArithmeticResult<X> {
+    let a = operation.destination.resolve(cpu);
+    let b = operation.source.resolve(cpu);
+    let c = bool_to_word(cpu.carry_flag());
+    let r = (operation.operation)(a, b, c);
+    operation.destination.alter(cpu, r.result());
+    r
+}
+
+// special implementation where z flag is left untouched
+// TODO maybe if FlagRegister values were SET,UNSET,UNTOUCHED we could have a generic implementation
+// TODO ... an option could do the trick too!
+impl Opcode for ArithmeticOperation<Double, Double, DoubleRegister, DoubleRegister> {
     fn exec(&self, cpu: &mut ComputerUnit) {
-        let a = self.destination.resolve(cpu);
-        let b = self.source.resolve(cpu);
-        let c = bool_to_word(cpu.carry_flag());
-        let r = (self.operation)(a, b, c);
-        self.destination.alter(cpu, r.result());
+        let r = compute(self, cpu);
+        let z_backup = cpu.zero_flag();
+        r.flags().set_flags(cpu);
+        //override z flag with backup
+        cpu.set_zero_flag(z_backup);
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        self.cycles
+    }
+}
+
+impl<X: Copy, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Word>> Opcode for ArithmeticOperation<X, Word, D, S> {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let r = compute(self, cpu);
         r.flags().set_flags(cpu);
     }
 
