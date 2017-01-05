@@ -169,6 +169,19 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    pub fn shift_right(a: Word, shift: Word) -> ArithmeticResult<Word> {
+        let r = a.wrapping_shr(shift as u32);
+        ArithmeticResult {
+            result: r,
+            flags: FlagRegister {
+                zf: r == 0,
+                n: false,
+                h: false,
+                cy: a & 1 != 0
+            }
+        }
+    }
+
     fn has_carry(a: Word, b: Word) -> bool {
         let overflowing_result: u16 = a as u16 + b as u16;
         (overflowing_result & 0x0100) != 0

@@ -55,6 +55,15 @@ fn build_decoder() -> Decoder {
     decoder[0x1E] = rr_ptr_hl();
     decoder[0x1F] = rr_a();
 
+    decoder[0x38] = srl_b();
+    decoder[0x39] = srl_c();
+    decoder[0x3A] = srl_d();
+    decoder[0x3B] = srl_e();
+    decoder[0x3C] = srl_h();
+    decoder[0x3D] = srl_l();
+    decoder[0x3E] = srl_ptr_hl();
+    decoder[0x3F] = srl_a();
+
     decoder
 }
 

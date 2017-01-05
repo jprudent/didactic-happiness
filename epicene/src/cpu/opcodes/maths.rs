@@ -347,6 +347,58 @@ pub fn rl_ptr_hl() -> Box<Opcode> {
         })
 }
 
+pub fn srl_a() -> Box<Opcode> {
+    srl_r(WordRegister::A)
+}
+
+pub fn srl_b() -> Box<Opcode> {
+    srl_r(WordRegister::B)
+}
+
+pub fn srl_c() -> Box<Opcode> {
+    srl_r(WordRegister::C)
+}
+
+pub fn srl_d() -> Box<Opcode> {
+    srl_r(WordRegister::D)
+}
+
+pub fn srl_e() -> Box<Opcode> {
+    srl_r(WordRegister::E)
+}
+
+pub fn srl_h() -> Box<Opcode> {
+    srl_r(WordRegister::H)
+}
+
+pub fn srl_l() -> Box<Opcode> {
+    srl_r(WordRegister::L)
+}
+
+fn srl_r(sd: WordRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Constant(1),
+            destination: sd,
+            operation: ArithmeticLogicalUnit::shift_right,
+            size: 1,
+            cycles: 4,
+        }
+    )
+}
+
+pub fn srl_ptr_hl() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Constant(1),
+            destination: RegisterPointer::HL,
+            operation: ArithmeticLogicalUnit::shift_right,
+            size: 1,
+            cycles: 12,
+        }
+    )
+}
+
 
 impl<X: Copy, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>> Opcode for ArithmeticOperation<X, Y, D, S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
