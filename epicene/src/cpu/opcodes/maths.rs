@@ -170,6 +170,18 @@ fn or_r(op: fn(Word, Word, Word) -> ArithmeticResult<Word>, r: WordRegister) -> 
     )
 }
 
+pub fn or_a_w() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: ImmediateWord{},
+            destination: WordRegister::A,
+            operation: ArithmeticLogicalUnit::or,
+            size: 2,
+            cycles: 8,
+        }
+    )
+}
+
 pub fn rlc_a() -> Box<Opcode> {
     rlc_r(WordRegister::A)
 }

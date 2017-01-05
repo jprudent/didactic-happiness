@@ -392,6 +392,7 @@ impl Decoder {
         decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
         decoder[0xF3] = di();
         decoder[0xF5] = push_af();
+        decoder[0xF6] = or_a_w();
         decoder[0xF8] = ld_hl_sp_plus_w();
         decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
         decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
@@ -1464,11 +1465,9 @@ fn should_run_testrom() {
     let decoder = &Decoder::new_basic();
 
     for i in 0..1000000 {
-        //println!("@{:04X} {:02X} {:02X}", cpu.get_pc_register(), cpu.word_at(cpu.get_pc_register()), cpu.word_at(cpu.get_pc_register() + 1));
+        println!("@{:04X} {:02X} {:02X}", cpu.get_pc_register(), cpu.word_at(cpu.get_pc_register()), cpu.word_at(cpu.get_pc_register() + 1));
         cpu.run_1_instruction(&decoder);
     }
 
     assert!(false);
 }
-
-
