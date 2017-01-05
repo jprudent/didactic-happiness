@@ -169,9 +169,219 @@ pub trait Opcode {
     fn cycles(&self, &ComputerUnit) -> Cycle;
 }
 
+
 struct Decoder(Vec<Box<Opcode>>);
 
 impl Decoder {
+    fn new_basic() -> Decoder {
+        let mut decoder = Decoder(vec!());
+
+        //todo temp loop for growing the vec
+        for i in 0..256 {
+            use self::opcodes::not_implemented::not_implemented;
+            decoder.push(not_implemented(i as Word))
+        }
+
+        use self::opcodes::load::*;
+        use self::opcodes::compare::*;
+        use self::opcodes::pop::*;
+        use self::opcodes::push::*;
+        use self::opcodes::ret::*;
+        use self::opcodes::ret_cond::*;
+        use self::opcodes::nop::*;
+        use self::opcodes::enable_interrupts::*;
+        use self::opcodes::disable_interrupts::*;
+        use self::opcodes::unconditional_jump::*;
+        use self::opcodes::call::*;
+        use self::opcodes::inc_dec::*;
+        use self::opcodes::inc_dec_16::*;
+        use self::opcodes::maths::*;
+        use self::opcodes::jr::*;
+        use self::opcodes::xor::*;
+        use self::opcodes::prefix_cb::*;
+        decoder[0x00] = nop();
+        decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
+        decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
+        decoder[0x03] = inc_bc();
+        decoder[0x04] = inc_r(WordRegister::B);
+        decoder[0x05] = dec_r(WordRegister::B);
+        decoder[0x06] = ld_r_from_w(WordRegister::B);
+        decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
+        decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
+        decoder[0x0C] = inc_r(WordRegister::C);
+        decoder[0x0D] = dec_r(WordRegister::C);
+        decoder[0x0E] = ld_r_from_w(WordRegister::C);
+        decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
+        decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
+        decoder[0x13] = inc_de();
+        decoder[0x14] = inc_r(WordRegister::D);
+        decoder[0x15] = dec_r(WordRegister::D);
+        decoder[0x16] = ld_r_from_w(WordRegister::D);
+        decoder[0x18] = jr_w();
+        decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
+        decoder[0x1C] = inc_r(WordRegister::E);
+        decoder[0x1D] = dec_r(WordRegister::E);
+        decoder[0x1E] = ld_r_from_w(WordRegister::E);
+        decoder[0x20] = jr_nz_w();
+        decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
+        decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
+        decoder[0x23] = inc_hl();
+        decoder[0x24] = inc_r(WordRegister::H);
+        decoder[0x25] = dec_r(WordRegister::H);
+        decoder[0x26] = ld_r_from_w(WordRegister::H);
+        decoder[0x28] = jr_z_w();
+        decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
+        decoder[0x2B] = dec_hl();
+        decoder[0x2C] = inc_r(WordRegister::L);
+        decoder[0x2D] = dec_r(WordRegister::L);
+        decoder[0x2E] = ld_r_from_w(WordRegister::L);
+        decoder[0x30] = jr_nc_w();
+        decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
+        decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
+        decoder[0x33] = inc_sp();
+        decoder[0x34] = inc_ptr_r(RegisterPointer::HL);
+        decoder[0x35] = dec_ptr_r(RegisterPointer::HL);
+        decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
+        decoder[0x38] = jr_c_w();
+        decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
+        decoder[0x3C] = inc_r(WordRegister::A);
+        decoder[0x3D] = dec_r(WordRegister::A);
+        decoder[0x3E] = ld_r_from_w(WordRegister::A);
+        decoder[0x40] = ld_r_from_r(WordRegister::B, WordRegister::B);
+        decoder[0x41] = ld_r_from_r(WordRegister::B, WordRegister::C);
+        decoder[0x42] = ld_r_from_r(WordRegister::B, WordRegister::D);
+        decoder[0x43] = ld_r_from_r(WordRegister::B, WordRegister::E);
+        decoder[0x44] = ld_r_from_r(WordRegister::B, WordRegister::H);
+        decoder[0x45] = ld_r_from_r(WordRegister::B, WordRegister::L);
+        decoder[0x46] = ld_r_from_ptr_r(WordRegister::B, RegisterPointer::HL);
+        decoder[0x47] = ld_r_from_r(WordRegister::B, WordRegister::A);
+        decoder[0x48] = ld_r_from_r(WordRegister::C, WordRegister::B);
+        decoder[0x49] = ld_r_from_r(WordRegister::C, WordRegister::C);
+        decoder[0x4A] = ld_r_from_r(WordRegister::C, WordRegister::D);
+        decoder[0x4B] = ld_r_from_r(WordRegister::C, WordRegister::E);
+        decoder[0x4C] = ld_r_from_r(WordRegister::C, WordRegister::H);
+        decoder[0x4D] = ld_r_from_r(WordRegister::C, WordRegister::L);
+        decoder[0x4E] = ld_r_from_ptr_r(WordRegister::C, RegisterPointer::HL);
+        decoder[0x4F] = ld_r_from_r(WordRegister::C, WordRegister::A);
+        decoder[0x50] = ld_r_from_r(WordRegister::D, WordRegister::B);
+        decoder[0x51] = ld_r_from_r(WordRegister::D, WordRegister::C);
+        decoder[0x52] = ld_r_from_r(WordRegister::D, WordRegister::D);
+        decoder[0x53] = ld_r_from_r(WordRegister::D, WordRegister::E);
+        decoder[0x54] = ld_r_from_r(WordRegister::D, WordRegister::H);
+        decoder[0x55] = ld_r_from_r(WordRegister::D, WordRegister::L);
+        decoder[0x56] = ld_r_from_ptr_r(WordRegister::D, RegisterPointer::HL);
+        decoder[0x57] = ld_r_from_r(WordRegister::D, WordRegister::A);
+        decoder[0x58] = ld_r_from_r(WordRegister::E, WordRegister::B);
+        decoder[0x59] = ld_r_from_r(WordRegister::E, WordRegister::C);
+        decoder[0x5A] = ld_r_from_r(WordRegister::E, WordRegister::D);
+        decoder[0x5B] = ld_r_from_r(WordRegister::E, WordRegister::E);
+        decoder[0x5C] = ld_r_from_r(WordRegister::E, WordRegister::H);
+        decoder[0x5D] = ld_r_from_r(WordRegister::E, WordRegister::L);
+        decoder[0x5E] = ld_r_from_ptr_r(WordRegister::E, RegisterPointer::HL);
+        decoder[0x5F] = ld_r_from_r(WordRegister::E, WordRegister::A);
+        decoder[0x60] = ld_r_from_r(WordRegister::H, WordRegister::B);
+        decoder[0x61] = ld_r_from_r(WordRegister::H, WordRegister::C);
+        decoder[0x62] = ld_r_from_r(WordRegister::H, WordRegister::D);
+        decoder[0x63] = ld_r_from_r(WordRegister::H, WordRegister::E);
+        decoder[0x64] = ld_r_from_r(WordRegister::H, WordRegister::H);
+        decoder[0x65] = ld_r_from_r(WordRegister::H, WordRegister::L);
+        decoder[0x67] = ld_r_from_r(WordRegister::H, WordRegister::A);
+        decoder[0x68] = ld_r_from_r(WordRegister::L, WordRegister::B);
+        decoder[0x69] = ld_r_from_r(WordRegister::L, WordRegister::C);
+        decoder[0x6A] = ld_r_from_r(WordRegister::L, WordRegister::D);
+        decoder[0x6B] = ld_r_from_r(WordRegister::L, WordRegister::E);
+        decoder[0x6C] = ld_r_from_r(WordRegister::L, WordRegister::H);
+        decoder[0x6D] = ld_r_from_r(WordRegister::L, WordRegister::L);
+        decoder[0x6F] = ld_r_from_r(WordRegister::L, WordRegister::A);
+        decoder[0x66] = ld_r_from_ptr_r(WordRegister::H, RegisterPointer::HL);
+        decoder[0x6E] = ld_r_from_ptr_r(WordRegister::L, RegisterPointer::HL);
+        decoder[0x70] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::B);
+        decoder[0x71] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::C);
+        decoder[0x72] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::D);
+        decoder[0x73] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::E);
+        decoder[0x74] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::H);
+        decoder[0x75] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::L);
+        decoder[0x77] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::A);
+        decoder[0x7E] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::HL);
+        decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
+        decoder[0x78] = ld_r_from_r(WordRegister::A, WordRegister::B);
+        decoder[0x79] = ld_r_from_r(WordRegister::A, WordRegister::C);
+        decoder[0x7A] = ld_r_from_r(WordRegister::A, WordRegister::D);
+        decoder[0x7B] = ld_r_from_r(WordRegister::A, WordRegister::E);
+        decoder[0x7C] = ld_r_from_r(WordRegister::A, WordRegister::H);
+        decoder[0x7D] = ld_r_from_r(WordRegister::A, WordRegister::L);
+        decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
+        decoder[0x80] = add_a_r(WordRegister::B);
+        decoder[0x81] = add_a_r(WordRegister::C);
+        decoder[0x82] = add_a_r(WordRegister::D);
+        decoder[0x83] = add_a_r(WordRegister::E);
+        decoder[0x84] = add_a_r(WordRegister::H);
+        decoder[0x85] = add_a_r(WordRegister::L);
+        decoder[0x86] = add_ptr_r(RegisterPointer::HL);
+        decoder[0x87] = add_a_r(WordRegister::A);
+        decoder[0x90] = sub_r(WordRegister::B);
+        decoder[0x91] = sub_r(WordRegister::C);
+        decoder[0x92] = sub_r(WordRegister::D);
+        decoder[0x93] = sub_r(WordRegister::E);
+        decoder[0x94] = sub_r(WordRegister::H);
+        decoder[0x95] = sub_r(WordRegister::L);
+        decoder[0x96] = sub_ptr_r(RegisterPointer::HL);
+        decoder[0x97] = sub_r(WordRegister::A);
+        decoder[0xA8] = xor_r(WordRegister::B);
+        decoder[0xA9] = xor_r(WordRegister::C);
+        decoder[0xAA] = xor_r(WordRegister::D);
+        decoder[0xAB] = xor_r(WordRegister::E);
+        decoder[0xAC] = xor_r(WordRegister::H);
+        decoder[0xAD] = xor_r(WordRegister::L);
+        decoder[0xC9] = ret();
+        decoder[0xAE] = xor_n();
+        decoder[0xAF] = xor_r(WordRegister::A);
+        decoder[0xB0] = or_b();
+        decoder[0xB1] = or_c();
+        decoder[0xB2] = or_d();
+        decoder[0xB3] = or_e();
+        decoder[0xB4] = or_h();
+        decoder[0xB5] = or_l();
+        decoder[0xB6] = or_ptr_hl();
+        decoder[0xB7] = or_a();
+        decoder[0xC1] = pop_bc();
+        decoder[0xC3] = jp_nn();
+        decoder[0xC4] = call_nz_a16();
+        decoder[0xC5] = push_bc();
+        decoder[0xC6] = add_a_d8();
+        decoder[0xCB] = prefix_cb();
+        decoder[0xCC] = call_z_a16();
+        decoder[0xCD] = call_a16();
+        decoder[0xD0] = ret_nc();
+        decoder[0xD1] = pop_de();
+        decoder[0xD4] = call_nc_a16();
+        decoder[0xD5] = push_de();
+        decoder[0xD6] = sub_d8();
+        decoder[0xDC] = call_c_a16();
+        decoder[0xE0] = ldh_ptr_a();
+        decoder[0xE1] = pop_hl();
+        decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
+        decoder[0xE5] = push_hl();
+        decoder[0xE6] = and_w();
+        decoder[0xE8] = add_sp_w();
+        decoder[0xE9] = jp_hl();
+        decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
+        decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
+        decoder[0xF0] = ldh_a_ptr();
+        decoder[0xF1] = pop_af();
+        decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
+        decoder[0xF3] = di();
+        decoder[0xF5] = push_af();
+        decoder[0xF8] = ld_hl_sp_plus_w();
+        decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
+        decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
+        decoder[0xFB] = ei();
+        decoder[0xFE] = cp_w();
+        decoder[0xFF] = rst_38();
+        decoder
+    }
+
+
     fn push(&mut self, opcode: Box<Opcode>) {
         self.0.push(opcode)
     }
@@ -191,214 +401,6 @@ impl IndexMut<Word> for Decoder {
     }
 }
 
-//todo rename new() and put it in Decoder impl
-fn build_decoder() -> Decoder {
-    let mut decoder = Decoder(vec!());
-
-    //todo temp loop for growing the vec
-    for i in 0..256 {
-        use self::opcodes::not_implemented::not_implemented;
-        decoder.push(not_implemented(i as Word))
-    }
-
-    use self::opcodes::load::*;
-    use self::opcodes::compare::*;
-    use self::opcodes::pop::*;
-    use self::opcodes::push::*;
-    use self::opcodes::ret::*;
-    use self::opcodes::ret_cond::*;
-    use self::opcodes::nop::*;
-    use self::opcodes::enable_interrupts::*;
-    use self::opcodes::disable_interrupts::*;
-    use self::opcodes::unconditional_jump::*;
-    use self::opcodes::call::*;
-    use self::opcodes::inc_dec::*;
-    use self::opcodes::inc_dec_16::*;
-    use self::opcodes::maths::*;
-    use self::opcodes::jr::*;
-    use self::opcodes::xor::*;
-    use self::opcodes::prefix_cb::*;
-    decoder[0x00] = nop();
-    decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
-    decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
-    decoder[0x03] = inc_bc();
-    decoder[0x04] = inc_r(WordRegister::B);
-    decoder[0x05] = dec_r(WordRegister::B);
-    decoder[0x06] = ld_r_from_w(WordRegister::B);
-    decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
-    decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
-    decoder[0x0C] = inc_r(WordRegister::C);
-    decoder[0x0D] = dec_r(WordRegister::C);
-    decoder[0x0E] = ld_r_from_w(WordRegister::C);
-    decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
-    decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
-    decoder[0x13] = inc_de();
-    decoder[0x14] = inc_r(WordRegister::D);
-    decoder[0x15] = dec_r(WordRegister::D);
-    decoder[0x16] = ld_r_from_w(WordRegister::D);
-    decoder[0x18] = jr_w();
-    decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
-    decoder[0x1C] = inc_r(WordRegister::E);
-    decoder[0x1D] = dec_r(WordRegister::E);
-    decoder[0x1E] = ld_r_from_w(WordRegister::E);
-    decoder[0x20] = jr_nz_w();
-    decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
-    decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
-    decoder[0x23] = inc_hl();
-    decoder[0x24] = inc_r(WordRegister::H);
-    decoder[0x25] = dec_r(WordRegister::H);
-    decoder[0x26] = ld_r_from_w(WordRegister::H);
-    decoder[0x28] = jr_z_w();
-    decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
-    decoder[0x2B] = dec_hl();
-    decoder[0x2C] = inc_r(WordRegister::L);
-    decoder[0x2D] = dec_r(WordRegister::L);
-    decoder[0x2E] = ld_r_from_w(WordRegister::L);
-    decoder[0x30] = jr_nc_w();
-    decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
-    decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
-    decoder[0x33] = inc_sp();
-    decoder[0x34] = inc_ptr_r(RegisterPointer::HL);
-    decoder[0x35] = dec_ptr_r(RegisterPointer::HL);
-    decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
-    decoder[0x38] = jr_c_w();
-    decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
-    decoder[0x3C] = inc_r(WordRegister::A);
-    decoder[0x3D] = dec_r(WordRegister::A);
-    decoder[0x3E] = ld_r_from_w(WordRegister::A);
-    decoder[0x40] = ld_r_from_r(WordRegister::B, WordRegister::B);
-    decoder[0x41] = ld_r_from_r(WordRegister::B, WordRegister::C);
-    decoder[0x42] = ld_r_from_r(WordRegister::B, WordRegister::D);
-    decoder[0x43] = ld_r_from_r(WordRegister::B, WordRegister::E);
-    decoder[0x44] = ld_r_from_r(WordRegister::B, WordRegister::H);
-    decoder[0x45] = ld_r_from_r(WordRegister::B, WordRegister::L);
-    decoder[0x46] = ld_r_from_ptr_r(WordRegister::B, RegisterPointer::HL);
-    decoder[0x47] = ld_r_from_r(WordRegister::B, WordRegister::A);
-    decoder[0x48] = ld_r_from_r(WordRegister::C, WordRegister::B);
-    decoder[0x49] = ld_r_from_r(WordRegister::C, WordRegister::C);
-    decoder[0x4A] = ld_r_from_r(WordRegister::C, WordRegister::D);
-    decoder[0x4B] = ld_r_from_r(WordRegister::C, WordRegister::E);
-    decoder[0x4C] = ld_r_from_r(WordRegister::C, WordRegister::H);
-    decoder[0x4D] = ld_r_from_r(WordRegister::C, WordRegister::L);
-    decoder[0x4E] = ld_r_from_ptr_r(WordRegister::C, RegisterPointer::HL);
-    decoder[0x4F] = ld_r_from_r(WordRegister::C, WordRegister::A);
-    decoder[0x50] = ld_r_from_r(WordRegister::D, WordRegister::B);
-    decoder[0x51] = ld_r_from_r(WordRegister::D, WordRegister::C);
-    decoder[0x52] = ld_r_from_r(WordRegister::D, WordRegister::D);
-    decoder[0x53] = ld_r_from_r(WordRegister::D, WordRegister::E);
-    decoder[0x54] = ld_r_from_r(WordRegister::D, WordRegister::H);
-    decoder[0x55] = ld_r_from_r(WordRegister::D, WordRegister::L);
-    decoder[0x56] = ld_r_from_ptr_r(WordRegister::D, RegisterPointer::HL);
-    decoder[0x57] = ld_r_from_r(WordRegister::D, WordRegister::A);
-    decoder[0x58] = ld_r_from_r(WordRegister::E, WordRegister::B);
-    decoder[0x59] = ld_r_from_r(WordRegister::E, WordRegister::C);
-    decoder[0x5A] = ld_r_from_r(WordRegister::E, WordRegister::D);
-    decoder[0x5B] = ld_r_from_r(WordRegister::E, WordRegister::E);
-    decoder[0x5C] = ld_r_from_r(WordRegister::E, WordRegister::H);
-    decoder[0x5D] = ld_r_from_r(WordRegister::E, WordRegister::L);
-    decoder[0x5E] = ld_r_from_ptr_r(WordRegister::E, RegisterPointer::HL);
-    decoder[0x5F] = ld_r_from_r(WordRegister::E, WordRegister::A);
-    decoder[0x60] = ld_r_from_r(WordRegister::H, WordRegister::B);
-    decoder[0x61] = ld_r_from_r(WordRegister::H, WordRegister::C);
-    decoder[0x62] = ld_r_from_r(WordRegister::H, WordRegister::D);
-    decoder[0x63] = ld_r_from_r(WordRegister::H, WordRegister::E);
-    decoder[0x64] = ld_r_from_r(WordRegister::H, WordRegister::H);
-    decoder[0x65] = ld_r_from_r(WordRegister::H, WordRegister::L);
-    decoder[0x67] = ld_r_from_r(WordRegister::H, WordRegister::A);
-    decoder[0x68] = ld_r_from_r(WordRegister::L, WordRegister::B);
-    decoder[0x69] = ld_r_from_r(WordRegister::L, WordRegister::C);
-    decoder[0x6A] = ld_r_from_r(WordRegister::L, WordRegister::D);
-    decoder[0x6B] = ld_r_from_r(WordRegister::L, WordRegister::E);
-    decoder[0x6C] = ld_r_from_r(WordRegister::L, WordRegister::H);
-    decoder[0x6D] = ld_r_from_r(WordRegister::L, WordRegister::L);
-    decoder[0x6F] = ld_r_from_r(WordRegister::L, WordRegister::A);
-    decoder[0x66] = ld_r_from_ptr_r(WordRegister::H, RegisterPointer::HL);
-    decoder[0x6E] = ld_r_from_ptr_r(WordRegister::L, RegisterPointer::HL);
-    decoder[0x70] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::B);
-    decoder[0x71] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::C);
-    decoder[0x72] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::D);
-    decoder[0x73] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::E);
-    decoder[0x74] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::H);
-    decoder[0x75] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::L);
-    decoder[0x77] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::A);
-    decoder[0x7E] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::HL);
-    decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
-    decoder[0x78] = ld_r_from_r(WordRegister::A, WordRegister::B);
-    decoder[0x79] = ld_r_from_r(WordRegister::A, WordRegister::C);
-    decoder[0x7A] = ld_r_from_r(WordRegister::A, WordRegister::D);
-    decoder[0x7B] = ld_r_from_r(WordRegister::A, WordRegister::E);
-    decoder[0x7C] = ld_r_from_r(WordRegister::A, WordRegister::H);
-    decoder[0x7D] = ld_r_from_r(WordRegister::A, WordRegister::L);
-    decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
-    decoder[0x80] = add_a_r(WordRegister::B);
-    decoder[0x81] = add_a_r(WordRegister::C);
-    decoder[0x82] = add_a_r(WordRegister::D);
-    decoder[0x83] = add_a_r(WordRegister::E);
-    decoder[0x84] = add_a_r(WordRegister::H);
-    decoder[0x85] = add_a_r(WordRegister::L);
-    decoder[0x86] = add_ptr_r(RegisterPointer::HL);
-    decoder[0x87] = add_a_r(WordRegister::A);
-    decoder[0x90] = sub_r(WordRegister::B);
-    decoder[0x91] = sub_r(WordRegister::C);
-    decoder[0x92] = sub_r(WordRegister::D);
-    decoder[0x93] = sub_r(WordRegister::E);
-    decoder[0x94] = sub_r(WordRegister::H);
-    decoder[0x95] = sub_r(WordRegister::L);
-    decoder[0x96] = sub_ptr_r(RegisterPointer::HL);
-    decoder[0x97] = sub_r(WordRegister::A);
-    decoder[0xA8] = xor_r(WordRegister::B);
-    decoder[0xA9] = xor_r(WordRegister::C);
-    decoder[0xAA] = xor_r(WordRegister::D);
-    decoder[0xAB] = xor_r(WordRegister::E);
-    decoder[0xAC] = xor_r(WordRegister::H);
-    decoder[0xAD] = xor_r(WordRegister::L);
-    decoder[0xC9] = ret();
-    decoder[0xAE] = xor_n();
-    decoder[0xAF] = xor_r(WordRegister::A);
-    decoder[0xB0] = or_b();
-    decoder[0xB1] = or_c();
-    decoder[0xB2] = or_d();
-    decoder[0xB3] = or_e();
-    decoder[0xB4] = or_h();
-    decoder[0xB5] = or_l();
-    decoder[0xB6] = or_ptr_hl();
-    decoder[0xB7] = or_a();
-    decoder[0xC1] = pop_bc();
-    decoder[0xC3] = jp_nn();
-    decoder[0xC4] = call_nz_a16();
-    decoder[0xC5] = push_bc();
-    decoder[0xC6] = add_a_d8();
-    decoder[0xCB] = prefix_cb();
-    decoder[0xCC] = call_z_a16();
-    decoder[0xCD] = call_a16();
-    decoder[0xD0] = ret_nc();
-    decoder[0xD1] = pop_de();
-    decoder[0xD4] = call_nc_a16();
-    decoder[0xD5] = push_de();
-    decoder[0xD6] = sub_d8();
-    decoder[0xDC] = call_c_a16();
-    decoder[0xE0] = ldh_ptr_a();
-    decoder[0xE1] = pop_hl();
-    decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
-    decoder[0xE5] = push_hl();
-    decoder[0xE6] = and_w();
-    decoder[0xE8] = add_sp_w();
-    decoder[0xE9] = jp_hl();
-    decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
-    decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
-    decoder[0xF0] = ldh_a_ptr();
-    decoder[0xF1] = pop_af();
-    decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
-    decoder[0xF3] = di();
-    decoder[0xF5] = push_af();
-    decoder[0xF8] = ld_hl_sp_plus_w();
-    decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
-    decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
-    decoder[0xFB] = ei();
-    decoder[0xFE] = cp_w();
-    decoder[0xFF] = rst_38();
-    decoder
-}
 
 
 pub struct ArrayBasedMemory {
@@ -673,7 +675,7 @@ fn should_load_program() {
     let program = program_loader.load(vec![0x06, 0xBA]); // LD B, 0xBA
 
     cpu.load(&program);
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
 
     assert_eq!(cpu.get_b_register(), 0xBA);
     assert_eq!(cpu.get_pc_register(), 0x02);
@@ -827,7 +829,7 @@ fn should_implement_every_ld_r_w_instructions() {
     for case in cases {
         let mut cpu = new_cpu();
         cpu.load(&case.program());
-        cpu.run_1_instruction(&build_decoder());
+        cpu.run_1_instruction(&Decoder::new_basic());
         case.assert(cpu);
         // (case.assertions)(cpu, case.program.name.to_string());
     }
@@ -845,12 +847,12 @@ fn should_implement_ld_b_a_instructions() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_b_register(), 0xBB, "bad right register value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_a_register(), 0xBB, "bad left register value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 172, "bad cycles count after {}", msg);
@@ -870,7 +872,7 @@ fn should_implement_ld_c_prt_hl_instructions() {
     cpu.memory.words[0xABCD] = 0xEF;
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_c_register(), 0xEF, "bad register value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -890,7 +892,7 @@ fn should_implement_ld_a_prt_bc_instructions() {
     cpu.memory.words[0xABCD] = 0xEF;
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_a_register(), 0xEF, "bad register value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -911,7 +913,7 @@ fn should_implement_ld_a_prt_de_instructions() {
     cpu.memory.words[0xABCD] = 0xEF;
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_a_register(), 0xEF, "bad register value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -932,7 +934,7 @@ fn should_implement_ld_prt_hl_d_instruction() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -953,7 +955,7 @@ fn should_implement_ld_prt_c_a_instruction() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.word_at(0xFFCD), 0xEF, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -974,7 +976,7 @@ fn should_implement_ld_a_ptr_c_instruction() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_a_register(), 0xEF, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -995,7 +997,7 @@ fn should_implement_ld_a_hli_instruction() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_a_register(), 0xEF, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -1015,7 +1017,7 @@ fn should_implement_ld_prt_nn_a_instruction() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.word_at(0xABCD), 0xEF, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 176, "bad cycles count after {}", msg);
@@ -1036,7 +1038,7 @@ fn should_implement_ld_prt_hl_a_instruction() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.word_at(cpu.get_hl_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -1057,7 +1059,7 @@ fn should_implement_ld_prt_bc_a_instruction() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.word_at(cpu.get_bc_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -1078,7 +1080,7 @@ fn should_implement_ld_prt_de_a_instruction() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.word_at(cpu.get_de_register()), 0xEF, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -1098,7 +1100,7 @@ fn should_implement_prt_hl_n_instruction() {
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.word_at(cpu.get_hl_register()), 0x66, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 172, "bad cycles count after {}", msg);
@@ -1118,7 +1120,7 @@ fn should_implement_ld_a_prt_nn_instruction() {
     cpu.memory.words[0xABCD] = 0x66;
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_a_register(), 0x66, "bad register value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 176, "bad cycles count after {}", msg);
@@ -1137,7 +1139,7 @@ fn should_implement_ld_sp_hl_instruction() {
     cpu.set_register_hl(0xABCD);
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_sp_register(), 0xABCD, "bad register value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 168, "bad cycles count after {}", msg);
@@ -1156,7 +1158,7 @@ fn should_implement_ld_ptr_nn_sp_instruction() {
     cpu.set_register_sp(0x1234);
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.double_at(0xABCD), 0x1234, "bad memory value after {}", msg);
     assert_eq!(cpu.get_pc_register(), 0x03, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 180, "bad cycles count after {}", msg);
@@ -1174,7 +1176,7 @@ fn should_implement_dec_instruction() {
     cpu.set_register_b(0);
     assert_eq!(cpu.cycles, 160);
 
-    cpu.run_1_instruction(&build_decoder());
+    cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.get_b_register(), 0xFF);
     assert_eq!(cpu.get_pc_register(), 1);
     assert!(!cpu.zero_flag());
@@ -1198,7 +1200,7 @@ fn should_run_gunsriders() {
     let mut cpu = new_cpu();
     cpu.load(&pg);
     cpu.registers.pc = 0x100;
-    let decoder = build_decoder();
+    let decoder = &Decoder::new_basic();
 
     cpu.run_1_instruction(&decoder); // NOP
     assert_eq!(cpu.get_pc_register(), 0x101, "bad pc after {}", msg);
@@ -1439,7 +1441,7 @@ fn should_run_testrom() {
     let mut cpu = new_cpu();
     cpu.load(&pg);
     cpu.registers.pc = 0x100;
-    let decoder = build_decoder();
+    let decoder = &Decoder::new_basic();
 
     for i in 0..100000 {
         println!("@{:04X} {:02X} {:02X}", cpu.get_pc_register(), cpu.word_at(cpu.get_pc_register()), cpu.word_at(cpu.get_pc_register() + 1));
