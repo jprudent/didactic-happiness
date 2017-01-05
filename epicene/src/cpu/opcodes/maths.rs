@@ -490,6 +490,59 @@ pub fn adc_a_w() -> Box<Opcode> {
     )
 }
 
+pub fn swap_a() -> Box<Opcode> {
+    swap_r(WordRegister::A)
+}
+
+pub fn swap_b() -> Box<Opcode> {
+    swap_r(WordRegister::B)
+}
+
+pub fn swap_c() -> Box<Opcode> {
+    swap_r(WordRegister::C)
+}
+
+pub fn swap_d() -> Box<Opcode> {
+    swap_r(WordRegister::D)
+}
+
+pub fn swap_e() -> Box<Opcode> {
+    swap_r(WordRegister::E)
+}
+
+pub fn swap_h() -> Box<Opcode> {
+    swap_r(WordRegister::H)
+}
+
+pub fn swap_l() -> Box<Opcode> {
+    swap_r(WordRegister::L)
+}
+
+fn swap_r(destination: WordRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Constant(1), // unused
+            destination: destination,
+            operation: ArithmeticLogicalUnit::swap,
+            size: 1,
+            cycles: 4,
+        }
+    )
+}
+
+pub fn swap_ptr_hl() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Constant(1), // unused
+            destination: RegisterPointer::HL,
+            operation: ArithmeticLogicalUnit::swap,
+            size: 1,
+            cycles: 4,
+        }
+    )
+}
+
+
 fn bool_to_word(b: bool) -> Word {
     if b { 1 } else { 0 }
 }

@@ -258,6 +258,7 @@ impl RightOperand<Double> for ConstantAddress {
 }
 
 //todo factorize with ContantAddress ?
+//todo rename to Whatever
 pub struct Constant(pub Word);
 
 impl RightOperand<Word> for Constant {

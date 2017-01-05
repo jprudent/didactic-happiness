@@ -87,7 +87,7 @@ impl ArithmeticLogicalUnit {
     fn has_half_carry_16(a: Double, b: Double) -> bool {
         let ah = a & 0x0FFF;
         let bh = b & 0x0FFF;
-        let add = a + b;
+        let add = ah + bh;
         (add & 0x1000) != 0
     }
 
@@ -203,6 +203,19 @@ impl ArithmeticLogicalUnit {
                 n: false,
                 h: false,
                 cy: a & 1 != 0
+            }
+        }
+    }
+
+    pub fn swap(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
+        let r = a.rotate_right(4);
+        ArithmeticResult {
+            result: r,
+            flags: FlagRegister {
+                zf: r == 0,
+                n: false,
+                h: false,
+                cy: false
             }
         }
     }

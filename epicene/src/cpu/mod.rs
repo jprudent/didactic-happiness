@@ -1464,7 +1464,7 @@ fn should_run_testrom() {
     let decoder = &Decoder::new_basic();
 
     for i in 0..1000000 {
-        println!("@{:04X} {:02X} {:02X}", cpu.get_pc_register(), cpu.word_at(cpu.get_pc_register()), cpu.word_at(cpu.get_pc_register() + 1));
+        //println!("@{:04X} {:02X} {:02X}", cpu.get_pc_register(), cpu.word_at(cpu.get_pc_register()), cpu.word_at(cpu.get_pc_register() + 1));
         cpu.run_1_instruction(&decoder);
     }
 

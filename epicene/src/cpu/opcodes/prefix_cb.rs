@@ -55,6 +55,15 @@ fn build_decoder() -> Decoder {
     decoder[0x1E] = rr_ptr_hl();
     decoder[0x1F] = rr_a();
 
+    decoder[0x30] = swap_b();
+    decoder[0x31] = swap_c();
+    decoder[0x32] = swap_d();
+    decoder[0x33] = swap_e();
+    decoder[0x34] = swap_h();
+    decoder[0x35] = swap_l();
+    decoder[0x36] = swap_ptr_hl();
+    decoder[0x37] = swap_a();
+
     decoder[0x38] = srl_b();
     decoder[0x39] = srl_c();
     decoder[0x3A] = srl_d();
