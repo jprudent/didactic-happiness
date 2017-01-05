@@ -19,7 +19,7 @@ pub fn xor_r(r: WordRegister) -> Box<Opcode> {
 pub fn xor_ptr_r(r: RegisterPointer) -> Box<Opcode> {
     Box::new(XorWithA {
         source: r,
-        size: 1,
+        size: 2,
         cycles: 8
     })
 }
