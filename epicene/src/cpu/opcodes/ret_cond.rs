@@ -8,10 +8,26 @@ struct ConditionalReturn {
     cycles_when_not_taken: Cycle
 }
 
+pub fn ret_z() -> Box<Opcode> {
+    ret_cond(JmpCondition::ZERO)
+}
+
+pub fn ret_nz() -> Box<Opcode> {
+    ret_cond(JmpCondition::NONZERO)
+}
+
+pub fn ret_c() -> Box<Opcode> {
+    ret_cond(JmpCondition::CARRY)
+}
+
 pub fn ret_nc() -> Box<Opcode> {
+    ret_cond(JmpCondition::NOCARRY)
+}
+
+fn ret_cond(condition: JmpCondition) -> Box<Opcode> {
     Box::new(
         ConditionalReturn {
-            condition: JmpCondition::NOCARRY,
+            condition: condition,
             size: 1,
             cycles_when_taken: 20,
             cycles_when_not_taken: 8

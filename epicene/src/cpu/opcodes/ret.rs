@@ -1,5 +1,6 @@
 use super::super::{Size, Cycle, Opcode, ComputerUnit};
 
+// TODO use the same structure as ret_cond using JmpCondition::ALWAYS
 struct UnconditionalReturn {
     size: Size,
     cycles: Cycle

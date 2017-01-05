@@ -356,11 +356,13 @@ impl Decoder {
         decoder[0xB5] = or_l();
         decoder[0xB6] = or_ptr_hl();
         decoder[0xB7] = or_a();
+        decoder[0xC0] = ret_nz();
         decoder[0xC1] = pop_bc();
         decoder[0xC3] = jp_nn();
         decoder[0xC4] = call_nz_a16();
         decoder[0xC5] = push_bc();
         decoder[0xC6] = add_a_d8();
+        decoder[0xC8] = ret_z();
         decoder[0xCB] = prefix_cb();
         decoder[0xCC] = call_z_a16();
         decoder[0xCD] = call_a16();
@@ -370,6 +372,7 @@ impl Decoder {
         decoder[0xD4] = call_nc_a16();
         decoder[0xD5] = push_de();
         decoder[0xD6] = sub_d8();
+        decoder[0xD8] = ret_c();
         decoder[0xDC] = call_c_a16();
         decoder[0xE0] = ldh_ptr_a();
         decoder[0xE1] = pop_hl();

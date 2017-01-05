@@ -36,6 +36,7 @@ little pet project for this purpose.
 - [A tutorial](http://gameboy.mongenel.com/asmschool.html) for writing programs on GameBoy
 - [Test Roms](http://gbdev.gg8.se/files/roms/blargg-gb-tests/) to test your implementation. Priceless.
 - [Z80 syntax](http://www.z80.info/z80syntx.htm) with useful diagrams.
+- [Z80 user guide](http://www.zilog.com/appnotes_download.php?FromPage=DirectLink&dn=UM0080&ft=User%20Manual&f=YUhSMGNEb3ZMM2QzZHk1NmFXeHZaeTVqYjIwdlpHOWpjeTk2T0RBdlZVMHdNRGd3TG5Ca1pnPT0=) describes each instruction in length. Not enough example though.
 
 # Struggling with Rust :
 
