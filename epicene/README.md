@@ -34,7 +34,8 @@ little pet project for this purpose.
 - [GameBoy Z80 CPU Opcodes cheat sheet](http://goldencrystal.free.fr/GBZ80Opcodes.pdf)
 - [Awake]() is a decompiles ROMS in pseudo code, very useful !!
 - [A tutorial](http://gameboy.mongenel.com/asmschool.html) for writing programs on GameBoy
-- [Test Roms](http://gbdev.gg8.se/files/roms/blargg-gb-tests/)
+- [Test Roms](http://gbdev.gg8.se/files/roms/blargg-gb-tests/) to test your implementation. Priceless.
+- [Z80 syntax](http://www.z80.info/z80syntx.htm) with useful diagrams.
 
 # Struggling with Rust :
 
