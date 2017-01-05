@@ -5,7 +5,7 @@ use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
 // TODO always Word
 struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
     destination: D,
-    operation: fn(X, X) -> ArithmeticResult<X>,
+    operation: fn(X, X, Word) -> ArithmeticResult<X>,
     size: Size,
     cycles: Cycle,
     operation_type: PhantomData<X> // TODO can be removed ?
@@ -51,10 +51,11 @@ pub fn inc_ptr_r(destination: RegisterPointer) -> Box<Opcode> {
     })
 }
 
+// todo : inc or dec should not rely on add or sub. inc/dec should be functions in the ALU
 impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for IncDec<Word, D> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let x = self.destination.resolve(cpu);
-        let r = (self.operation)(x, 1);
+        let r = (self.operation)(x, 1, 0);
         self.destination.alter(cpu, r.result());
         //unfortunately this instruction doesn't set the carry flag
         cpu.set_zero_flag(r.flags().zero_flag());

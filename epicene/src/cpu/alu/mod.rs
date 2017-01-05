@@ -53,7 +53,7 @@ impl FlagRegister {
 }
 
 impl ArithmeticLogicalUnit {
-    pub fn add(a: Word, b: Word) -> ArithmeticResult<Word> {
+    pub fn add(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
         let result = a.wrapping_add(b);
         ArithmeticResult {
             result: result,
@@ -66,7 +66,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    pub fn add16(a: Double, b: Word) -> ArithmeticResult<Double> {
+    pub fn add16(a: Double, b: Word, _: Word) -> ArithmeticResult<Double> {
         let result = set_low_word(a, low_word(a).wrapping_add(b));
         ArithmeticResult {
             result: result,
@@ -79,16 +79,16 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    pub fn sub(a: Word, b: Word) -> ArithmeticResult<Word> {
+    pub fn sub(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
         let two_complement = (!b).wrapping_add(1);
-        let mut add = ArithmeticLogicalUnit::add(a, two_complement);
+        let mut add = ArithmeticLogicalUnit::add(a, two_complement, 0);
         add.flags.n = true;
         add.flags.cy = a < b;
         add.flags.h = ArithmeticLogicalUnit::low_nibble(a) < ArithmeticLogicalUnit::low_nibble(b);
         add
     }
 
-    pub fn and(a: Word, b: Word) -> ArithmeticResult<Word> {
+    pub fn and(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a & b;
         ArithmeticResult {
             result: r,
@@ -101,7 +101,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    pub fn or(a: Word, b: Word) -> ArithmeticResult<Word> {
+    pub fn or(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a | b;
         ArithmeticResult {
             result: r,
@@ -114,8 +114,8 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    pub fn rlc(a: Word, b: Word) -> ArithmeticResult<Word> {
-        let r = a.rotate_left(b as u32);
+    pub fn rotate_left(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
+        let r = a.rotate_left(1);
         ArithmeticResult {
             result: r,
             flags: FlagRegister {
@@ -127,8 +127,8 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    pub fn rrc(a: Word, b: Word) -> ArithmeticResult<Word> {
-        let r = a.rotate_right(b as u32);
+    pub fn rotate_right(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
+        let r = a.rotate_right(1);
         ArithmeticResult {
             result: r,
             flags: FlagRegister {
@@ -140,7 +140,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    pub fn rr(a: Word, carry: Word) -> ArithmeticResult<Word> {
+    pub fn rotate_right_through_carry(a: Word, _: Word, carry: Word) -> ArithmeticResult<Word> {
         assert!(carry <= 1, "Carry should be 1 or 0");
         let c = carry.wrapping_shl(7);
         let r = (a.rotate_right(1) & 0x7F) | c;
@@ -155,7 +155,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    pub fn rl(a: Word, carry: Word) -> ArithmeticResult<Word> {
+    pub fn rotate_left_through_carry(a: Word, _: Word, carry: Word) -> ArithmeticResult<Word> {
         assert!(carry <= 1, "Carry should be 1 or 0");
         let r = (a.rotate_left(1) & 0xFE) | carry;
         ArithmeticResult {
@@ -169,8 +169,8 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    pub fn shift_right(a: Word, shift: Word) -> ArithmeticResult<Word> {
-        let r = a.wrapping_shr(shift as u32);
+    pub fn shift_right(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
+        let r = a.wrapping_shr(1);
         ArithmeticResult {
             result: r,
             flags: FlagRegister {
@@ -180,6 +180,13 @@ impl ArithmeticLogicalUnit {
                 cy: a & 1 != 0
             }
         }
+    }
+
+    // TODO check implementation, really not sure about it
+    pub fn add_carry(a: Word, b: Word, carry: Word) -> ArithmeticResult<Word> {
+        assert!(carry <= 1, "carry should be 0 or 1");
+        let r1 = ArithmeticLogicalUnit::add(b, carry, 0);
+        ArithmeticLogicalUnit::add(a, r1.result(), 0)
     }
 
     fn has_carry(a: Word, b: Word) -> bool {
@@ -199,7 +206,7 @@ impl ArithmeticLogicalUnit {
 
 #[test]
 fn should_add() {
-    assert_eq!(ArithmeticLogicalUnit::add(1, 1), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::add(1, 1, 0), ArithmeticResult {
         result: 0b10,
         flags: FlagRegister {
             cy: false,
@@ -208,7 +215,7 @@ fn should_add() {
             n: false
         }
     });
-    assert_eq!(ArithmeticLogicalUnit::add(0b1000, 0b1000), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::add(0b1000, 0b1000, 0), ArithmeticResult {
         result: 0b10000,
         flags: FlagRegister {
             cy: false,
@@ -217,7 +224,7 @@ fn should_add() {
             n: false
         }
     });
-    assert_eq!(ArithmeticLogicalUnit::add(0b1000_0000, 0b1000_0000), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::add(0b1000_0000, 0b1000_0000, 0), ArithmeticResult {
         result: 0,
         flags: FlagRegister {
             cy: true,
@@ -226,7 +233,7 @@ fn should_add() {
             n: false
         }
     });
-    assert_eq!(ArithmeticLogicalUnit::add(0b1111_1000, 0b1000), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::add(0b1111_1000, 0b1000, 0), ArithmeticResult {
         result: 0,
         flags: FlagRegister {
             cy: true,
@@ -236,14 +243,14 @@ fn should_add() {
         }
     });
 
-    assert_eq!(ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result, 0xFF);
+    assert_eq!(ArithmeticLogicalUnit::add(0b01, 0b1111_1110, 0).result, 0xFF);
 
-    assert!(ArithmeticLogicalUnit::add(0xAA, 0xAA).flags.cy);
+    assert!(ArithmeticLogicalUnit::add(0xAA, 0xAA, 0).flags.cy);
 }
 
 #[test]
 fn should_sub() {
-    assert_eq!(ArithmeticLogicalUnit::sub(1, 1), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::sub(1, 1, 0), ArithmeticResult {
         result: 0,
         flags: FlagRegister {
             cy: false,
@@ -252,8 +259,8 @@ fn should_sub() {
             n: true
         }
     });
-    assert_eq!(ArithmeticLogicalUnit::sub(0b01, 0b10).result, ArithmeticLogicalUnit::add(0b01, 0b1111_1110).result);
-    assert_eq!(ArithmeticLogicalUnit::sub(0, 1), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::sub(0b01, 0b10, 0).result, ArithmeticLogicalUnit::add(0b01, 0b1111_1110, 0).result);
+    assert_eq!(ArithmeticLogicalUnit::sub(0, 1, 0), ArithmeticResult {
         result: 0xFF,
         flags: FlagRegister {
             cy: true,
@@ -263,7 +270,7 @@ fn should_sub() {
         }
     });
 
-    assert_eq!(ArithmeticLogicalUnit::sub(0x90, 0x92), ArithmeticResult {
+    assert_eq!(ArithmeticLogicalUnit::sub(0x90, 0x92, 0), ArithmeticResult {
         result: 0xFE,
         flags: FlagRegister {
             cy: true,

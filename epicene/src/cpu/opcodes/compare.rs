@@ -21,7 +21,7 @@ impl<S: RightOperand<Word>> Opcode for CompareA<S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let a = cpu.get_a_register();
         let b = self.source.resolve(cpu);
-        let r = ArithmeticLogicalUnit::sub(a, b);
+        let r = ArithmeticLogicalUnit::sub(a, b, 0);
         r.flags().set_flags(cpu);
     }
 

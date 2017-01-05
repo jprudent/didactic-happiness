@@ -5,7 +5,7 @@ use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
 struct ArithmeticOperation<X, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>> {
     source: S,
     destination: D,
-    operation: fn(X, Y) -> ArithmeticResult<X>,
+    operation: fn(X, Y, Word) -> ArithmeticResult<X>,
     size: Size,
     cycles: Cycle
 }
@@ -131,7 +131,7 @@ pub fn or_l() -> Box<Opcode> {
     or_r(ArithmeticLogicalUnit::or, WordRegister::H)
 }
 
-fn or_r(op: fn(Word, Word) -> ArithmeticResult<Word>, r: WordRegister) -> Box<Opcode> {
+fn or_r(op: fn(Word, Word, Word) -> ArithmeticResult<Word>, r: WordRegister) -> Box<Opcode> {
     Box::new(
         ArithmeticOperation {
             source: r,
@@ -176,7 +176,7 @@ fn rlc_r(sd: WordRegister) -> Box<Opcode> {
         ArithmeticOperation {
             source: Constant(1),
             destination: sd,
-            operation: ArithmeticLogicalUnit::rlc,
+            operation: ArithmeticLogicalUnit::rotate_left,
             size: 1,
             cycles: 4,
         }
@@ -188,7 +188,7 @@ pub fn rlc_ptr_hl() -> Box<Opcode> {
         ArithmeticOperation {
             source: Constant(1),
             destination: RegisterPointer::HL,
-            operation: ArithmeticLogicalUnit::rlc,
+            operation: ArithmeticLogicalUnit::rotate_left,
             size: 1,
             cycles: 12,
         }
@@ -228,8 +228,8 @@ fn rrc_r(r: WordRegister) -> Box<Opcode> {
         ArithmeticOperation {
             source: Constant(1),
             destination: r,
-            operation: ArithmeticLogicalUnit::rrc,
-            size:1,
+            operation: ArithmeticLogicalUnit::rotate_right,
+            size: 1,
             cycles: 4,
         }
     )
@@ -240,7 +240,7 @@ pub fn rrc_ptr_hl() -> Box<Opcode> {
         ArithmeticOperation {
             source: Constant(1),
             destination: RegisterPointer::HL,
-            operation: ArithmeticLogicalUnit::rrc,
+            operation: ArithmeticLogicalUnit::rotate_right,
             size: 1,
             cycles: 12,
         }
@@ -280,7 +280,7 @@ fn rr_r(register: WordRegister) -> Box<Opcode> {
         ArithmeticOperation {
             source: Carry {},
             destination: register,
-            operation: ArithmeticLogicalUnit::rr,
+            operation: ArithmeticLogicalUnit::rotate_right_through_carry,
             size: 1,
             cycles: 4
         })
@@ -291,7 +291,7 @@ pub fn rr_ptr_hl() -> Box<Opcode> {
         ArithmeticOperation {
             source: Carry {},
             destination: RegisterPointer::HL,
-            operation: ArithmeticLogicalUnit::rr,
+            operation: ArithmeticLogicalUnit::rotate_right_through_carry,
             size: 1,
             cycles: 12
         })
@@ -328,9 +328,9 @@ pub fn rl_l() -> Box<Opcode> {
 fn rl_r(register: WordRegister) -> Box<Opcode> {
     Box::new(
         ArithmeticOperation {
-            source: Carry{},
+            source: Carry {},
             destination: register,
-            operation: ArithmeticLogicalUnit::rl,
+            operation: ArithmeticLogicalUnit::rotate_left_through_carry,
             size: 1,
             cycles: 4
         })
@@ -341,7 +341,7 @@ pub fn rl_ptr_hl() -> Box<Opcode> {
         ArithmeticOperation {
             source: Carry {},
             destination: RegisterPointer::HL,
-            operation: ArithmeticLogicalUnit::rl,
+            operation: ArithmeticLogicalUnit::rotate_left_through_carry,
             size: 1,
             cycles: 12
         })
@@ -399,12 +399,80 @@ pub fn srl_ptr_hl() -> Box<Opcode> {
     )
 }
 
+pub fn adc_a_a() -> Box<Opcode> {
+    adc_a_r(WordRegister::A)
+}
+
+pub fn adc_a_b() -> Box<Opcode> {
+    adc_a_r(WordRegister::B)
+}
+
+pub fn adc_a_c() -> Box<Opcode> {
+    adc_a_r(WordRegister::C)
+}
+
+pub fn adc_a_d() -> Box<Opcode> {
+    adc_a_r(WordRegister::D)
+}
+
+pub fn adc_a_e() -> Box<Opcode> {
+    adc_a_r(WordRegister::E)
+}
+
+pub fn adc_a_h() -> Box<Opcode> {
+    adc_a_r(WordRegister::H)
+}
+
+pub fn adc_a_l() -> Box<Opcode> {
+    adc_a_r(WordRegister::L)
+}
+
+fn adc_a_r(source: WordRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: source,
+            destination: WordRegister::A,
+            operation: ArithmeticLogicalUnit::add_carry,
+            size: 1,
+            cycles: 4,
+        }
+    )
+}
+
+pub fn adc_a_ptr_hl() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: RegisterPointer::HL,
+            destination: WordRegister::A,
+            operation: ArithmeticLogicalUnit::add_carry,
+            size: 1,
+            cycles: 8,
+        }
+    )
+}
+
+pub fn adc_a_w() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: ImmediateWord{} ,
+            destination: WordRegister::A,
+            operation: ArithmeticLogicalUnit::add_carry,
+            size: 2,
+            cycles: 8,
+        }
+    )
+}
+
+fn bool_to_word(b: bool) -> Word {
+    if b { 1 } else { 0 }
+}
 
 impl<X: Copy, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>> Opcode for ArithmeticOperation<X, Y, D, S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let a = self.destination.resolve(cpu);
         let b = self.source.resolve(cpu);
-        let r = (self.operation)(a, b);
+        let c = bool_to_word(cpu.carry_flag());
+        let r = (self.operation)(a, b, c);
         self.destination.alter(cpu, r.result());
         r.flags().set_flags(cpu);
     }
