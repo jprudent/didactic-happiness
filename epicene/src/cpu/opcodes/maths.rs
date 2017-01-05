@@ -1,5 +1,5 @@
 use super::super::{Cycle, Word, Size, Opcode, ComputerUnit};
-use super::super::operands::{LeftOperand, Constant, DoubleRegister, WordRegister, RightOperand, ImmediateWord, RegisterPointer};
+use super::super::operands::{LeftOperand, Carry, Constant, DoubleRegister, WordRegister, RightOperand, ImmediateWord, RegisterPointer};
 use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
 
 struct ArithmeticOperation<X, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>> {
@@ -177,20 +177,20 @@ fn rlc_r(sd: WordRegister) -> Box<Opcode> {
             source: Constant(1),
             destination: sd,
             operation: ArithmeticLogicalUnit::rlc,
-            size: 2,
-            cycles: 8,
+            size: 1,
+            cycles: 4,
         }
     )
 }
 
-pub fn rlc_hl() -> Box<Opcode> {
+pub fn rlc_ptr_hl() -> Box<Opcode> {
     Box::new(
         ArithmeticOperation {
             source: Constant(1),
             destination: RegisterPointer::HL,
             operation: ArithmeticLogicalUnit::rlc,
-            size: 2,
-            cycles: 16,
+            size: 1,
+            cycles: 12,
         }
     )
 }
@@ -229,22 +229,122 @@ fn rrc_r(r: WordRegister) -> Box<Opcode> {
             source: Constant(1),
             destination: r,
             operation: ArithmeticLogicalUnit::rrc,
-            size: 2,
-            cycles: 8,
+            size:1,
+            cycles: 4,
         }
     )
 }
 
-pub fn rrc_hl() -> Box<Opcode> {
+pub fn rrc_ptr_hl() -> Box<Opcode> {
     Box::new(
         ArithmeticOperation {
             source: Constant(1),
             destination: RegisterPointer::HL,
             operation: ArithmeticLogicalUnit::rrc,
-            size: 2,
-            cycles: 16,
+            size: 1,
+            cycles: 12,
         }
     )
+}
+
+pub fn rr_a() -> Box<Opcode> {
+    rr_r(WordRegister::A)
+}
+
+pub fn rr_b() -> Box<Opcode> {
+    rr_r(WordRegister::B)
+}
+
+pub fn rr_c() -> Box<Opcode> {
+    rr_r(WordRegister::C)
+}
+
+pub fn rr_d() -> Box<Opcode> {
+    rr_r(WordRegister::D)
+}
+
+pub fn rr_e() -> Box<Opcode> {
+    rr_r(WordRegister::E)
+}
+
+pub fn rr_h() -> Box<Opcode> {
+    rr_r(WordRegister::H)
+}
+
+pub fn rr_l() -> Box<Opcode> {
+    rr_r(WordRegister::L)
+}
+
+fn rr_r(register: WordRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Carry {},
+            destination: register,
+            operation: ArithmeticLogicalUnit::rr,
+            size: 1,
+            cycles: 4
+        })
+}
+
+pub fn rr_ptr_hl() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Carry {},
+            destination: RegisterPointer::HL,
+            operation: ArithmeticLogicalUnit::rr,
+            size: 1,
+            cycles: 12
+        })
+}
+
+pub fn rl_a() -> Box<Opcode> {
+    rl_r(WordRegister::A)
+}
+
+pub fn rl_b() -> Box<Opcode> {
+    rl_r(WordRegister::B)
+}
+
+pub fn rl_c() -> Box<Opcode> {
+    rl_r(WordRegister::C)
+}
+
+pub fn rl_d() -> Box<Opcode> {
+    rl_r(WordRegister::D)
+}
+
+pub fn rl_e() -> Box<Opcode> {
+    rl_r(WordRegister::E)
+}
+
+pub fn rl_h() -> Box<Opcode> {
+    rl_r(WordRegister::H)
+}
+
+pub fn rl_l() -> Box<Opcode> {
+    rl_r(WordRegister::L)
+}
+
+fn rl_r(register: WordRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Carry{},
+            destination: register,
+            operation: ArithmeticLogicalUnit::rl,
+            size: 1,
+            cycles: 4
+        })
+}
+
+pub fn rl_ptr_hl() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Carry {},
+            destination: RegisterPointer::HL,
+            operation: ArithmeticLogicalUnit::rl,
+            size: 1,
+            cycles: 12
+        })
 }
 
 

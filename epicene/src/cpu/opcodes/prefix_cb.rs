@@ -25,7 +25,7 @@ fn build_decoder() -> Decoder {
     decoder[0x03] = rlc_e();
     decoder[0x04] = rlc_h();
     decoder[0x05] = rlc_l();
-    decoder[0x06] = rlc_hl();
+    decoder[0x06] = rlc_ptr_hl();
     decoder[0x07] = rlc_a();
 
     decoder[0x08] = rrc_b();
@@ -34,8 +34,26 @@ fn build_decoder() -> Decoder {
     decoder[0x0B] = rrc_e();
     decoder[0x0C] = rrc_h();
     decoder[0x0D] = rrc_l();
-    decoder[0x0E] = rrc_hl();
+    decoder[0x0E] = rrc_ptr_hl();
     decoder[0x0F] = rrc_a();
+
+    decoder[0x10] = rl_b();
+    decoder[0x11] = rl_c();
+    decoder[0x12] = rl_d();
+    decoder[0x13] = rl_e();
+    decoder[0x14] = rl_h();
+    decoder[0x15] = rl_l();
+    decoder[0x16] = rl_ptr_hl();
+    decoder[0x17] = rl_a();
+
+    decoder[0x18] = rr_b();
+    decoder[0x19] = rr_c();
+    decoder[0x1A] = rr_d();
+    decoder[0x1B] = rr_e();
+    decoder[0x1C] = rr_h();
+    decoder[0x1D] = rr_l();
+    decoder[0x1E] = rr_ptr_hl();
+    decoder[0x1F] = rr_a();
 
     decoder
 }

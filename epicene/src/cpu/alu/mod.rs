@@ -128,17 +128,46 @@ impl ArithmeticLogicalUnit {
     }
 
     pub fn rrc(a: Word, b: Word) -> ArithmeticResult<Word> {
-            let r = a.rotate_right(b as u32);
-            ArithmeticResult {
-                result: r,
-                flags: FlagRegister {
-                    zf: r == 0,
-                    n: false,
-                    h: false,
-                    cy: (r & 1) == 1
-                }
+        let r = a.rotate_right(b as u32);
+        ArithmeticResult {
+            result: r,
+            flags: FlagRegister {
+                zf: r == 0,
+                n: false,
+                h: false,
+                cy: (r & 1) == 1
             }
         }
+    }
+
+    pub fn rr(a: Word, carry: Word) -> ArithmeticResult<Word> {
+        assert!(carry <= 1, "Carry should be 1 or 0");
+        let c = carry.wrapping_shl(7);
+        let r = (a.rotate_right(1) & 0x7F) | c;
+        ArithmeticResult {
+            result: r,
+            flags: FlagRegister {
+                zf: r == 0,
+                n: false,
+                h: false,
+                cy: a & 1 != 0
+            }
+        }
+    }
+
+    pub fn rl(a: Word, carry: Word) -> ArithmeticResult<Word> {
+        assert!(carry <= 1, "Carry should be 1 or 0");
+        let r = (a.rotate_left(1) & 0xFE) | carry;
+        ArithmeticResult {
+            result: r,
+            flags: FlagRegister {
+                zf: r == 0,
+                n: false,
+                h: false,
+                cy: (a & 0x80) != 0
+            }
+        }
+    }
 
     fn has_carry(a: Word, b: Word) -> bool {
         let overflowing_result: u16 = a as u16 + b as u16;

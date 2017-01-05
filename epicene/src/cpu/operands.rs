@@ -265,3 +265,15 @@ impl RightOperand<Word> for Constant {
         self.0
     }
 }
+
+pub struct Carry {}
+
+impl RightOperand<Word> for Carry {
+    fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
+        if cpu.carry_flag() {
+            1
+        } else {
+            0
+        }
+    }
+}
