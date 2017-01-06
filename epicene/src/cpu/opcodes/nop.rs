@@ -12,6 +12,14 @@ pub fn nop() -> Box<Opcode> {
     })
 }
 
+// stop is implemented as Nop, like in BGB
+pub fn stop() -> Box<Opcode> {
+    Box::new(Nop {
+        size: 2,
+        cycles: 8
+    })
+}
+
 impl Opcode for Nop {
     fn exec(&self, _: &mut ComputerUnit) {}
 

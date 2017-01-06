@@ -214,6 +214,7 @@ impl Decoder {
         decoder[0x0D] = dec_r(WordRegister::C);
         decoder[0x0E] = ld_r_from_w(WordRegister::C);
         decoder[0x0F] = rrc_a();
+        decoder[0x10] = stop();
         decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
         decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
         decoder[0x13] = inc_de();
@@ -727,11 +728,6 @@ impl MemoryProgramLoader {
         }
     }
 }
-
-pub mod logger {
-    use super::{ComputerUnit, Opcode};
-}
-
 
 #[test]
 fn should_load_program() {
@@ -1525,7 +1521,7 @@ fn should_run_testrom() {
                  address);
     };
 
-    let log_cpu_state = |cpu: &ComputerUnit, opcode: &Box<Opcode>| -> () {
+    let log_cpu_state = |cpu: &ComputerUnit, _: &Box<Opcode>| -> () {
         println!("@{:04X} {:02X} {:02X}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
                  cpu.get_pc_register(),
                  cpu.word_at(cpu.get_pc_register()),
