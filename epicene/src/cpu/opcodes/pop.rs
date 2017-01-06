@@ -1,5 +1,5 @@
 use super::super::{Size, Cycle, Opcode, ComputerUnit};
-use super::super::operands::{LeftOperand, DoubleRegister};
+use super::super::operands::{AsString, LeftOperand, DoubleRegister};
 
 struct Pop {
     destination: DoubleRegister,
@@ -43,5 +43,10 @@ impl Opcode for Pop {
 
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
+    }
+
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {}", "pop", self.destination.to_string(cpu))
+
     }
 }

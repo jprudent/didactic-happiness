@@ -1,5 +1,5 @@
 use super::super::{Size, Cycle, Opcode, ComputerUnit};
-use super::super::operands::{RightOperand, DoubleRegister};
+use super::super::operands::{AsString, RightOperand, DoubleRegister};
 
 struct Push {
     source: DoubleRegister,
@@ -43,5 +43,10 @@ impl Opcode for Push {
 
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
+    }
+
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {}", "dec", self.source.to_string(cpu))
+
     }
 }

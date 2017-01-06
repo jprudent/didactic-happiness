@@ -92,5 +92,9 @@ impl Opcode for PrefixCb {
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         4
     }
+
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        "--".to_string()
+    }
 }
 

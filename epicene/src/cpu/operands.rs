@@ -10,6 +10,10 @@ pub trait RightOperand<R> {
     fn resolve(&self, cpu: &mut ComputerUnit) -> R;
 }
 
+pub trait AsString {
+    fn to_string(&self, &ComputerUnit) -> String;
+}
+
 pub trait LeftOperand<L> {
     fn alter(&self, cpu: &mut ComputerUnit, value: L);
 }
@@ -52,12 +56,38 @@ impl RightOperand<Word> for WordRegister {
     }
 }
 
+impl AsString for WordRegister {
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        match *self {
+            WordRegister::A => "a".to_string(),
+            WordRegister::B => "b".to_string(),
+            WordRegister::C => "c".to_string(),
+            WordRegister::D => "d".to_string(),
+            WordRegister::E => "e".to_string(),
+            WordRegister::H => "h".to_string(),
+            WordRegister::L => "l".to_string(),
+        }
+    }
+}
+
 pub enum DoubleRegister {
     AF,
     BC,
     DE,
     HL,
     SP
+}
+
+impl AsString for DoubleRegister {
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        match *self {
+            DoubleRegister::AF => "af".to_string(),
+            DoubleRegister::BC => "bc".to_string(),
+            DoubleRegister::DE => "de".to_string(),
+            DoubleRegister::HL => "hl".to_string(),
+            DoubleRegister::SP => "sp".to_string(),
+        }
+    }
 }
 
 impl RightOperand<Double> for DoubleRegister {
@@ -88,6 +118,12 @@ impl LeftOperand<Double> for DoubleRegister {
 // TODO generic ?
 pub struct ImmediateWord {}
 
+impl AsString for ImmediateWord {
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:02X}", cpu.word_at(cpu.get_pc_register() + 1))
+    }
+}
+
 impl RightOperand<Word> for ImmediateWord {
     fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
         cpu.word_at(cpu.get_pc_register() + 1)
@@ -95,6 +131,12 @@ impl RightOperand<Word> for ImmediateWord {
 }
 
 pub struct ImmediateDouble {}
+
+impl AsString for ImmediateDouble {
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:04X}", cpu.double_at(cpu.get_pc_register() + 1))
+    }
+}
 
 impl RightOperand<Double> for ImmediateDouble {
     fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
@@ -104,17 +146,28 @@ impl RightOperand<Double> for ImmediateDouble {
 
 pub struct HighMemoryPointer {}
 
+impl HighMemoryPointer {
+    fn relative(&self, cpu: &ComputerUnit) -> Word {
+        cpu.word_at(cpu.get_pc_register() + 1)
+    }
+}
+
 impl RightOperand<Word> for HighMemoryPointer {
     fn resolve(&self, cpu: &mut ComputerUnit) -> Word {
-        let relative = cpu.word_at(cpu.get_pc_register() + 1);
-        cpu.word_at(set_low_word(0xFF00, relative))
+        cpu.word_at(set_low_word(0xFF00, self.relative(cpu)))
     }
 }
 
 impl LeftOperand<Word> for HighMemoryPointer {
     fn alter(&self, cpu: &mut ComputerUnit, value: Word) {
-        let relative = cpu.word_at(cpu.get_pc_register() + 1);
+        let relative = self.relative(cpu);
         cpu.set_word_at(set_low_word(0xFF00, relative), value)
+    }
+}
+
+impl AsString for HighMemoryPointer {
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("(ff00 + {:02X})", self.relative(cpu))
     }
 }
 
@@ -131,6 +184,12 @@ impl ImmediatePointer<Word> {
 
     fn address(&self, cpu: &ComputerUnit) -> Address {
         cpu.double_at(cpu.get_pc_register() + 1)
+    }
+}
+
+impl AsString for ImmediatePointer<Word> {
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:02X}", self.address(cpu))
     }
 }
 
@@ -159,6 +218,12 @@ impl ImmediatePointer<Double> {
     }
 }
 
+impl AsString for ImmediatePointer<Double> {
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:04X}", self.address(cpu))
+    }
+}
+
 impl LeftOperand<Double> for ImmediatePointer<Double> {
     fn alter(&self, cpu: &mut ComputerUnit, double: Double) {
         let address = self.address(cpu);
@@ -177,6 +242,17 @@ pub enum RegisterPointer {
     BC,
     DE,
     C
+}
+
+impl AsString for RegisterPointer {
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        match *self {
+            RegisterPointer::HL => "(hl)".to_string(),
+            RegisterPointer::BC => "(bc)".to_string(),
+            RegisterPointer::DE => "(de)".to_string(),
+            RegisterPointer::C => "(ff00 + c)".to_string()
+        }
+    }
 }
 
 impl LeftOperand<Word> for RegisterPointer {
@@ -208,6 +284,15 @@ pub enum HlOp {
     HLD
 }
 
+impl AsString for HlOp {
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        match *self {
+            HlOp::HLI => "(HLI)".to_string(),
+            HlOp::HLD => "(HLD)".to_string()
+        }
+    }
+}
+
 impl HlOp {
     fn apply(&self, double: Double) -> Double {
         match *self {
@@ -237,6 +322,12 @@ impl RightOperand<Word> for HlOp {
 
 pub struct SpRelative {}
 
+impl AsString for SpRelative {
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("(sp + {:02X})", cpu.word_at(cpu.get_pc_register() + 1))
+    }
+}
+
 impl RightOperand<Double> for SpRelative {
     fn resolve(&self, cpu: &mut ComputerUnit) -> Double {
         use super::alu::ArithmeticLogicalUnit;
@@ -257,6 +348,12 @@ impl RightOperand<Double> for ConstantAddress {
     }
 }
 
+impl AsString for ConstantAddress {
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        format!("{:04X}", self.0)
+    }
+}
+
 //todo factorize with ContantAddress ?
 //todo rename to Whatever
 pub struct Constant(pub Word);
@@ -267,7 +364,19 @@ impl RightOperand<Word> for Constant {
     }
 }
 
+impl AsString for Constant {
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        format!("{:02X}", self.0)
+    }
+}
+
 pub struct Carry {}
+
+impl AsString for Carry {
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        "".to_string()
+    }
+}
 
 impl RightOperand<Word> for Carry {
     fn resolve(&self, cpu: &mut ComputerUnit) -> Word {

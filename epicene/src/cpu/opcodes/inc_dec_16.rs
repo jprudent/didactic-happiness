@@ -1,67 +1,42 @@
-use super::super::{Double, Cycle, Size, Opcode, ComputerUnit};
-use super::super::operands::{DoubleRegister, RightOperand, LeftOperand};
+use super::super::{Cycle, Size, Opcode, ComputerUnit};
+use super::super::operands::{AsString, DoubleRegister, RightOperand, LeftOperand};
 
-struct IncDecDouble {
+
+struct Dec {
     destination: DoubleRegister,
-    operation: fn(Double) -> Double,
     size: Size,
     cycles: Cycle,
 }
 
 pub fn dec_bc() -> Box<Opcode> {
-    inc_dec_rr(dec, DoubleRegister::BC)
+    dec_rr(DoubleRegister::BC)
 }
 
 pub fn dec_de() -> Box<Opcode> {
-    inc_dec_rr(dec, DoubleRegister::DE)
+    dec_rr(DoubleRegister::DE)
 }
 
 pub fn dec_hl() -> Box<Opcode> {
-    inc_dec_rr(dec, DoubleRegister::HL)
+    dec_rr(DoubleRegister::HL)
 }
 
 pub fn dec_sp() -> Box<Opcode> {
-    inc_dec_rr(dec, DoubleRegister::SP)
+    dec_rr(DoubleRegister::SP)
 }
 
-pub fn inc_hl() -> Box<Opcode> {
-    inc_dec_rr(inc, DoubleRegister::HL)
-}
-
-pub fn inc_bc() -> Box<Opcode> {
-    inc_dec_rr(inc, DoubleRegister::BC)
-}
-
-pub fn inc_de() -> Box<Opcode> {
-    inc_dec_rr(inc, DoubleRegister::DE)
-}
-
-pub fn inc_sp() -> Box<Opcode> {
-    inc_dec_rr(inc, DoubleRegister::SP)
-}
-
-fn inc(a: Double) -> Double {
-    a.wrapping_add(1)
-}
-
-fn dec(a: Double) -> Double {
-    a.wrapping_sub(1)
-}
-
-fn inc_dec_rr(op: fn(Double) -> Double, rr: DoubleRegister) -> Box<IncDecDouble> {
+fn dec_rr(rr: DoubleRegister) -> Box<Dec> {
     Box::new(
-        IncDecDouble {
+        Dec {
             destination: rr,
-            operation: op,
             size: 1,
             cycles: 8,
         })
 }
 
-impl Opcode for IncDecDouble {
+impl Opcode for Dec {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let original = self.destination.resolve(cpu);
-        let value = (self.operation)(original);
+        let value = original.wrapping_sub(1);
         self.destination.alter(cpu, value);
     }
 
@@ -71,5 +46,60 @@ impl Opcode for IncDecDouble {
 
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
+    }
+
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {}", "dec", self.destination.to_string(cpu))
+    }
+}
+
+struct Inc {
+    destination: DoubleRegister,
+    size: Size,
+    cycles: Cycle,
+}
+
+pub fn inc_hl() -> Box<Opcode> {
+    inc_rr(DoubleRegister::HL)
+}
+
+pub fn inc_bc() -> Box<Opcode> {
+    inc_rr(DoubleRegister::BC)
+}
+
+pub fn inc_de() -> Box<Opcode> {
+    inc_rr(DoubleRegister::DE)
+}
+
+pub fn inc_sp() -> Box<Opcode> {
+    inc_rr(DoubleRegister::SP)
+}
+
+fn inc_rr(rr: DoubleRegister) -> Box<Opcode> {
+    Box::new(
+        Inc {
+            destination: rr,
+            size: 1,
+            cycles: 8,
+        })
+}
+
+impl Opcode for Inc {
+    fn exec(&self, cpu: &mut ComputerUnit) {
+        let original = self.destination.resolve(cpu);
+        let value = original.wrapping_add(1);
+        self.destination.alter(cpu, value);
+    }
+
+    fn size(&self) -> Size {
+        self.size
+    }
+
+    fn cycles(&self, _: &ComputerUnit) -> Cycle {
+        self.cycles
+    }
+
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {}", "inc", self.destination.to_string(cpu))
     }
 }

@@ -53,4 +53,9 @@ impl Opcode for ConditionalReturn {
             self.cycles_when_not_taken
         }
     }
+
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        format!("{:<4} {}", "ret", self.condition.to_string())
+
+    }
 }

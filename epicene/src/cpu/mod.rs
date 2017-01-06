@@ -167,6 +167,7 @@ pub trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
     fn size(&self) -> Size;
     fn cycles(&self, &ComputerUnit) -> Cycle;
+    fn to_string(&self, cpu: &ComputerUnit) -> String;
 }
 
 
@@ -1547,9 +1548,10 @@ fn should_run_testrom() {
             }
             s
         }
-        println!("@{:04X} {:<6}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
+        println!("@{:04X} {:<6}|{:<10}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
                  cpu.get_pc_register(),
                  hex(cpu, opcode),
+                 opcode.to_string(cpu),
                  cpu.get_af_register(),
                  cpu.get_bc_register(),
                  cpu.get_de_register(),
@@ -1564,7 +1566,7 @@ fn should_run_testrom() {
 
     let mut exec_hooks: Vec<(Box<Fn(&ComputerUnit, &Box<Opcode>) -> ()>)> = vec!();
     //exec_hooks.push(BreakpointFactory::on_exec_addr(0xC302, log_cpu_state));
-    exec_hooks.push(Box::new(log_cpu_state));
+    //exec_hooks.push(Box::new(log_cpu_state));
     let mut write_hooks = vec!();
     //write_hooks.push(BreakpointFactory::on_write_addr(0xC302, print_memory_write));
 
@@ -1576,7 +1578,7 @@ fn should_run_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..300000 {
+    for i in 0..500000 {
         cpu.run_1_instruction(&decoder);
     };
 

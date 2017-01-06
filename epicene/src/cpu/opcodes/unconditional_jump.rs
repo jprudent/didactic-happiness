@@ -1,9 +1,9 @@
 use super::super::{Double, Size, Cycle, Opcode, ComputerUnit};
-use super::super::operands::{RightOperand, ImmediateDouble, DoubleRegister};
+use super::super::operands::{AsString, RightOperand, ImmediateDouble, DoubleRegister};
 use super::JmpCondition;
 use std::marker::PhantomData;
 
-struct AbsoluteJump<X, A: RightOperand<X>> {
+struct AbsoluteJump<X, A: RightOperand<X> + AsString> {
     address: A,
     size: Size,
     condition: JmpCondition,
@@ -15,7 +15,7 @@ struct AbsoluteJump<X, A: RightOperand<X>> {
 pub fn jp_hl() -> Box<Opcode> {
     Box::new(AbsoluteJump {
         address: DoubleRegister::HL,
-        condition:JmpCondition::ALWAYS,
+        condition: JmpCondition::ALWAYS,
         size: 1,
         cycles_when_taken: 4,
         cycles_when_not_taken: 4,
@@ -45,16 +45,16 @@ pub fn jp_c_nn() -> Box<Opcode> {
 
 fn jp_cond_nn(condition: JmpCondition) -> Box<Opcode> {
     Box::new(AbsoluteJump {
-           address: ImmediateDouble {},
-           condition: condition,
-           size: 3,
-           cycles_when_taken: 16,
-           cycles_when_not_taken: 12,
-           operation_type: PhantomData
-       })
+        address: ImmediateDouble {},
+        condition: condition,
+        size: 3,
+        cycles_when_taken: 16,
+        cycles_when_not_taken: 12,
+        operation_type: PhantomData
+    })
 }
 
-impl<A: RightOperand<Double>> Opcode for AbsoluteJump<Double, A> {
+impl<A: RightOperand<Double> + AsString> Opcode for AbsoluteJump<Double, A> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         if self.condition.matches(cpu) {
             let address: Double = self.address.resolve(cpu);
@@ -72,5 +72,9 @@ impl<A: RightOperand<Double>> Opcode for AbsoluteJump<Double, A> {
         } else {
             self.cycles_when_not_taken
         }
+    }
+
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {} {}", "jp", self.condition.to_string(), self.address.to_string(cpu))
     }
 }

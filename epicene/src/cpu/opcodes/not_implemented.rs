@@ -13,6 +13,9 @@ impl Opcode for NotImplemented {
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         unimplemented!()
     }
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        "extermiiiinaaaaate".to_string()
+    }
 }
 
 pub fn not_implemented(word: Word) -> Box<Opcode> {

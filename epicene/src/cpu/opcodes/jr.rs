@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 use super::JmpCondition;
 use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
-use super::super::operands::{ImmediateWord, RightOperand};
+use super::super::operands::{AsString, ImmediateWord, RightOperand};
 
-struct ConditionalJump<X, A: RightOperand<X>> {
+struct ConditionalJump<X, A: RightOperand<X> + AsString> {
     address: A,
     condition: JmpCondition,
     size: Size,
@@ -48,7 +48,7 @@ fn is_negative(word: Word) -> bool {
     word & 0x80 != 0
 }
 
-impl<A: RightOperand<Word>> Opcode for ConditionalJump<Word, A> {
+impl<A: RightOperand<Word> + AsString> Opcode for ConditionalJump<Word, A> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let relative_address: Word = self.address.resolve(cpu);
         if self.condition.matches(cpu) {
@@ -74,5 +74,8 @@ impl<A: RightOperand<Word>> Opcode for ConditionalJump<Word, A> {
         } else {
             self.cycles_when_not_taken
         }
+    }
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {} {}", "jr", self.condition.to_string(), self.address.to_string(cpu) )
     }
 }

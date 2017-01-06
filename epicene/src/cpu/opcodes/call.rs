@@ -1,8 +1,8 @@
 use super::super::{Size, Cycle, Opcode, Double, ComputerUnit};
-use super::super::operands::{RightOperand, ImmediateDouble, ConstantAddress};
+use super::super::operands::{AsString, RightOperand, ImmediateDouble, ConstantAddress};
 use super::{JmpCondition};
 
-struct UnconditionalCall<S: RightOperand<Double>> {
+struct Call<S: RightOperand<Double> + AsString> {
     address: S,
     condition: JmpCondition,
     size: Size,
@@ -32,7 +32,7 @@ pub fn call_c_a16() -> Box<Opcode> {
 
 fn call(condition: JmpCondition) -> Box<Opcode> {
     Box::new(
-        UnconditionalCall {
+        Call {
             address: ImmediateDouble {},
             condition: condition,
             size: 3,
@@ -43,7 +43,7 @@ fn call(condition: JmpCondition) -> Box<Opcode> {
 
 pub fn rst_38() -> Box<Opcode> {
     Box::new(
-        UnconditionalCall {
+        Call {
             address: ConstantAddress(0x38),
             condition: JmpCondition::ALWAYS,
             size: 1,
@@ -53,7 +53,7 @@ pub fn rst_38() -> Box<Opcode> {
     )
 }
 
-impl<S: RightOperand<Double>> Opcode for UnconditionalCall<S> {
+impl<S: RightOperand<Double> + AsString> Opcode for Call<S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         if self.condition.matches(cpu) {
             let pc = cpu.get_pc_register();
@@ -74,5 +74,8 @@ impl<S: RightOperand<Double>> Opcode for UnconditionalCall<S> {
         } else {
             self.cycles_when_not_taken
         }
+    }
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {}", "call", self.address.to_string(cpu))
     }
 }

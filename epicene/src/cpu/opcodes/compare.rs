@@ -1,8 +1,8 @@
 use super::super::{Word, Size, Cycle, Opcode, ComputerUnit};
-use super::super::operands::{RightOperand, ImmediateWord, WordRegister, RegisterPointer};
+use super::super::operands::{AsString, RightOperand, ImmediateWord, WordRegister, RegisterPointer};
 use super::super::alu::{ArithmeticLogicalUnit};
 
-struct CompareA<S: RightOperand<Word>> {
+struct CompareA<S: RightOperand<Word> + AsString> {
     source: S,
     size: Size,
     cycles: Cycle
@@ -63,7 +63,7 @@ pub fn cp_a_ptr_hl() -> Box<Opcode> {
         })
 }
 
-impl<S: RightOperand<Word>> Opcode for CompareA<S> {
+impl<S: RightOperand<Word> + AsString> Opcode for CompareA<S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let a = cpu.get_a_register();
         let b = self.source.resolve(cpu);
@@ -77,5 +77,10 @@ impl<S: RightOperand<Word>> Opcode for CompareA<S> {
 
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
+    }
+
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {},{}", "cp", WordRegister::A.to_string(cpu), self.source.to_string(cpu))
+
     }
 }

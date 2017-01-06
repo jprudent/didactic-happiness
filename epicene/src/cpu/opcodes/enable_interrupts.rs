@@ -24,4 +24,8 @@ impl Opcode for EnableInterrupts {
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
+
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        "ei".to_string()
+    }
 }

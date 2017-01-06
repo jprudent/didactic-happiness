@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 use super::super::{Word, Double, Cycle, Size, Opcode, ComputerUnit};
-use super::super::operands::{WordRegister, DoubleRegister, ImmediateDouble, ImmediateWord, RightOperand, LeftOperand, HighMemoryPointer, ImmediatePointer, RegisterPointer, HlOp, SpRelative};
+use super::super::operands::{AsString, WordRegister, DoubleRegister, ImmediateDouble, ImmediateWord, RightOperand, LeftOperand, HighMemoryPointer, ImmediatePointer, RegisterPointer, HlOp, SpRelative};
 
-struct Load<X, L: LeftOperand<X>, R: RightOperand<X>> {
+struct Load<X, L: LeftOperand<X> + AsString, R: RightOperand<X> + AsString> {
     destination: L,
     source: R,
     size: Double,
@@ -165,7 +165,7 @@ pub fn ld_a_from_ptr_hl(hlop: HlOp) -> Box<Opcode> {
 }
 
 
-impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
+impl<X, L: LeftOperand<X> + AsString, R: RightOperand<X> + AsString> Opcode for Load<X, L, R> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let word = self.source.resolve(cpu);
         self.destination.alter(cpu, word);
@@ -177,5 +177,10 @@ impl<X, L: LeftOperand<X>, R: RightOperand<X>> Opcode for Load<X, L, R> {
 
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
+    }
+
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {} {}", "ld", self.destination.to_string(cpu), self.source.to_string(cpu))
+
     }
 }

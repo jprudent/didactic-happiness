@@ -1,8 +1,7 @@
 use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
-use super::super::operands::{ImmediateWord, WordRegister, RegisterPointer, RightOperand};
-
+use super::super::operands::{AsString, ImmediateWord, WordRegister, RegisterPointer, RightOperand};
 //TODO use ArithmeticOperation
-struct XorWithA<S: RightOperand<Word>> {
+struct XorWithA<S: RightOperand<Word> + AsString> {
     source: S,
     size: Size,
     cycles: Cycle
@@ -32,7 +31,7 @@ pub fn xor_n() -> Box<Opcode> {
     })
 }
 
-impl<S: RightOperand<Word>> Opcode for XorWithA<S> {
+impl<S: RightOperand<Word> + AsString> Opcode for XorWithA<S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let n = self.source.resolve(cpu);
         let a = cpu.get_a_register();
@@ -51,4 +50,8 @@ impl<S: RightOperand<Word>> Opcode for XorWithA<S> {
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<5} {},{}", "xor", WordRegister::A.to_string(cpu), self.source.to_string(cpu) )
+    }
 }
+

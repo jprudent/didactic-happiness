@@ -27,5 +27,9 @@ impl Opcode for Ccf {
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
+
+    fn to_string(&self, _: &ComputerUnit) -> String {
+        "ccf".to_string()
+    }
 }
 

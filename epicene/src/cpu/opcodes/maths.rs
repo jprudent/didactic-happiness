@@ -1,11 +1,12 @@
 use super::super::{Cycle, Word, Double, Size, Opcode, ComputerUnit};
-use super::super::operands::{LeftOperand, Carry, Constant, DoubleRegister, WordRegister, RightOperand, ImmediateWord, RegisterPointer};
+use super::super::operands::{AsString, LeftOperand, Carry, Constant, DoubleRegister, WordRegister, RightOperand, ImmediateWord, RegisterPointer};
 use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
 
-struct ArithmeticOperation<X, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>> {
+struct ArithmeticOperation<X, Y, D: LeftOperand<X> + RightOperand<X> + AsString, S: RightOperand<Y> + AsString> {
     source: S,
     destination: D,
     operation: fn(X, Y, Word) -> ArithmeticResult<X>,
+    mnemonic: &'static str,
     size: Size,
     cycles: Cycle
 }
@@ -32,6 +33,7 @@ fn add_hl_rr(rr: DoubleRegister) -> Box<Opcode> {
             source: rr,
             destination: DoubleRegister::HL,
             operation: ArithmeticLogicalUnit::add_16_16,
+            mnemonic: "add",
             size: 1,
             cycles: 8
         })
@@ -43,6 +45,7 @@ pub fn add_sp_w() -> Box<Opcode> {
             source: ImmediateWord {},
             destination: DoubleRegister::SP,
             operation: ArithmeticLogicalUnit::add_16_8,
+            mnemonic: "add",
             size: 2,
             cycles: 16
         })
@@ -54,6 +57,7 @@ pub fn and_w() -> Box<Opcode> {
             source: ImmediateWord {},
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::and,
+            mnemonic: "and",
             size: 2,
             cycles: 8,
         })
@@ -64,6 +68,7 @@ pub fn sub_r(source: WordRegister) -> Box<Opcode> {
         source: source,
         destination: WordRegister::A,
         operation: ArithmeticLogicalUnit::sub,
+        mnemonic: "sub",
         size: 1,
         cycles: 4,
     })
@@ -74,6 +79,7 @@ pub fn sub_ptr_r(source: RegisterPointer) -> Box<Opcode> {
         source: source,
         destination: WordRegister::A,
         operation: ArithmeticLogicalUnit::sub,
+        mnemonic: "sub",
         size: 1,
         cycles: 8,
     })
@@ -84,6 +90,7 @@ pub fn add_a_r(source: WordRegister) -> Box<Opcode> {
         source: source,
         destination: WordRegister::A,
         operation: ArithmeticLogicalUnit::add,
+        mnemonic: "add",
         size: 1,
         cycles: 4,
     })
@@ -94,6 +101,7 @@ pub fn add_a_d8() -> Box<Opcode> {
         source: ImmediateWord {},
         destination: WordRegister::A,
         operation: ArithmeticLogicalUnit::add,
+        mnemonic: "add",
         size: 2,
         cycles: 8,
     })
@@ -104,6 +112,7 @@ pub fn sub_d8() -> Box<Opcode> {
         source: ImmediateWord {},
         destination: WordRegister::A,
         operation: ArithmeticLogicalUnit::sub,
+        mnemonic: "sub",
         size: 2,
         cycles: 8,
     })
@@ -114,6 +123,7 @@ pub fn add_ptr_r(source: RegisterPointer) -> Box<Opcode> {
         source: source,
         destination: WordRegister::A,
         operation: ArithmeticLogicalUnit::add,
+        mnemonic: "add",
         size: 1,
         cycles: 8,
     })
@@ -125,6 +135,7 @@ pub fn or_ptr_hl() -> Box<Opcode> {
             source: RegisterPointer::HL,
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::or,
+            mnemonic: "or",
             size: 1,
             cycles: 8,
         })
@@ -164,6 +175,7 @@ fn or_r(op: fn(Word, Word, Word) -> ArithmeticResult<Word>, r: WordRegister) -> 
             source: r,
             destination: WordRegister::A,
             operation: op,
+            mnemonic: "or",
             size: 1,
             cycles: 4,
         }
@@ -173,9 +185,10 @@ fn or_r(op: fn(Word, Word, Word) -> ArithmeticResult<Word>, r: WordRegister) -> 
 pub fn or_a_w() -> Box<Opcode> {
     Box::new(
         ArithmeticOperation {
-            source: ImmediateWord{},
+            source: ImmediateWord {},
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::or,
+            mnemonic: "or",
             size: 2,
             cycles: 8,
         }
@@ -216,6 +229,7 @@ fn rlc_r(sd: WordRegister) -> Box<Opcode> {
             source: Constant(1),
             destination: sd,
             operation: ArithmeticLogicalUnit::rotate_left,
+            mnemonic: "rlc",
             size: 1,
             cycles: 4,
         }
@@ -228,6 +242,7 @@ pub fn rlc_ptr_hl() -> Box<Opcode> {
             source: Constant(1),
             destination: RegisterPointer::HL,
             operation: ArithmeticLogicalUnit::rotate_left,
+            mnemonic: "rlc",
             size: 1,
             cycles: 12,
         }
@@ -268,6 +283,7 @@ fn rrc_r(r: WordRegister) -> Box<Opcode> {
             source: Constant(1),
             destination: r,
             operation: ArithmeticLogicalUnit::rotate_right,
+            mnemonic: "rrc",
             size: 1,
             cycles: 4,
         }
@@ -280,6 +296,7 @@ pub fn rrc_ptr_hl() -> Box<Opcode> {
             source: Constant(1),
             destination: RegisterPointer::HL,
             operation: ArithmeticLogicalUnit::rotate_right,
+            mnemonic: "rrc",
             size: 1,
             cycles: 12,
         }
@@ -320,6 +337,7 @@ fn rr_r(register: WordRegister) -> Box<Opcode> {
             source: Carry {},
             destination: register,
             operation: ArithmeticLogicalUnit::rotate_right_through_carry,
+            mnemonic: "rr",
             size: 1,
             cycles: 4
         })
@@ -331,6 +349,7 @@ pub fn rr_ptr_hl() -> Box<Opcode> {
             source: Carry {},
             destination: RegisterPointer::HL,
             operation: ArithmeticLogicalUnit::rotate_right_through_carry,
+            mnemonic: "rr",
             size: 1,
             cycles: 12
         })
@@ -370,6 +389,7 @@ fn rl_r(register: WordRegister) -> Box<Opcode> {
             source: Carry {},
             destination: register,
             operation: ArithmeticLogicalUnit::rotate_left_through_carry,
+            mnemonic: "rl",
             size: 1,
             cycles: 4
         })
@@ -381,6 +401,7 @@ pub fn rl_ptr_hl() -> Box<Opcode> {
             source: Carry {},
             destination: RegisterPointer::HL,
             operation: ArithmeticLogicalUnit::rotate_left_through_carry,
+            mnemonic: "rl",
             size: 1,
             cycles: 12
         })
@@ -420,6 +441,7 @@ fn srl_r(sd: WordRegister) -> Box<Opcode> {
             source: Constant(1),
             destination: sd,
             operation: ArithmeticLogicalUnit::shift_right,
+            mnemonic: "srl",
             size: 1,
             cycles: 4,
         }
@@ -432,6 +454,7 @@ pub fn srl_ptr_hl() -> Box<Opcode> {
             source: Constant(1),
             destination: RegisterPointer::HL,
             operation: ArithmeticLogicalUnit::shift_right,
+            mnemonic: "srl",
             size: 1,
             cycles: 12,
         }
@@ -472,6 +495,7 @@ fn adc_a_r(source: WordRegister) -> Box<Opcode> {
             source: source,
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::add_with_carry,
+            mnemonic: "adc",
             size: 1,
             cycles: 4,
         }
@@ -484,6 +508,7 @@ pub fn adc_a_ptr_hl() -> Box<Opcode> {
             source: RegisterPointer::HL,
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::add_with_carry,
+            mnemonic: "adc",
             size: 1,
             cycles: 8,
         }
@@ -496,6 +521,7 @@ pub fn adc_a_w() -> Box<Opcode> {
             source: ImmediateWord {},
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::add_with_carry,
+            mnemonic: "adc",
             size: 2,
             cycles: 8,
         }
@@ -536,6 +562,7 @@ fn sbc_a_r(source: WordRegister) -> Box<Opcode> {
             source: source,
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::sub_with_carry,
+            mnemonic: "sbc",
             size: 1,
             cycles: 4,
         }
@@ -548,6 +575,7 @@ pub fn sbc_a_ptr_hl() -> Box<Opcode> {
             source: RegisterPointer::HL,
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::sub_with_carry,
+            mnemonic: "sbc",
             size: 1,
             cycles: 8,
         }
@@ -560,6 +588,7 @@ pub fn sbc_a_w() -> Box<Opcode> {
             source: ImmediateWord {},
             destination: WordRegister::A,
             operation: ArithmeticLogicalUnit::sub_with_carry,
+            mnemonic: "sbc",
             size: 2,
             cycles: 8,
         }
@@ -600,6 +629,7 @@ fn swap_r(destination: WordRegister) -> Box<Opcode> {
             source: Constant(1), // unused
             destination: destination,
             operation: ArithmeticLogicalUnit::swap,
+            mnemonic: "swap",
             size: 1,
             cycles: 4,
         }
@@ -612,6 +642,7 @@ pub fn swap_ptr_hl() -> Box<Opcode> {
             source: Constant(1), // unused
             destination: RegisterPointer::HL,
             operation: ArithmeticLogicalUnit::swap,
+            mnemonic: "swap",
             size: 1,
             cycles: 4,
         }
@@ -623,7 +654,7 @@ fn bool_to_word(b: bool) -> Word {
     if b { 1 } else { 0 }
 }
 
-fn compute<X: Copy, Y, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Y>>(operation: &ArithmeticOperation<X, Y, D, S>, cpu: &mut ComputerUnit) -> ArithmeticResult<X> {
+fn compute<X: Copy, Y, D: LeftOperand<X> + RightOperand<X> + AsString, S: RightOperand<Y> + AsString>(operation: &ArithmeticOperation<X, Y, D, S>, cpu: &mut ComputerUnit) -> ArithmeticResult<X> {
     let a = operation.destination.resolve(cpu);
     let b = operation.source.resolve(cpu);
     let c = bool_to_word(cpu.carry_flag());
@@ -651,9 +682,13 @@ impl Opcode for ArithmeticOperation<Double, Double, DoubleRegister, DoubleRegist
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
     }
+
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {} {}", self.mnemonic, self.destination.to_string(cpu), self.source.to_string(cpu))
+    }
 }
 
-impl<X: Copy, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Word>> Opcode for ArithmeticOperation<X, Word, D, S> {
+impl<X: Copy, D: LeftOperand<X> + RightOperand<X> + AsString, S: RightOperand<Word> + AsString> Opcode for ArithmeticOperation<X, Word, D, S> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let r = compute(self, cpu);
         r.flags().set_flags(cpu);
@@ -665,5 +700,8 @@ impl<X: Copy, D: LeftOperand<X> + RightOperand<X>, S: RightOperand<Word>> Opcode
 
     fn cycles(&self, _: &ComputerUnit) -> Cycle {
         self.cycles
+    }
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        format!("{:<4} {} {}", self.mnemonic, self.destination.to_string(cpu), self.source.to_string(cpu))
     }
 }

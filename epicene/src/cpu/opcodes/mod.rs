@@ -60,5 +60,16 @@ impl JmpCondition {
             JmpCondition::CARRY => cpu.carry_flag()
         }
     }
+
+    // TODO could use fmt::Display instead
+    fn to_string(&self) -> String {
+        match *self {
+            JmpCondition::ALWAYS => "".to_string(),
+            JmpCondition::NONZERO => "nz".to_string(),
+            JmpCondition::ZERO => "z".to_string(),
+            JmpCondition::NOCARRY => "nc".to_string(),
+            JmpCondition::CARRY => "c".to_string()
+        }
+    }
 }
 
