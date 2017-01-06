@@ -476,10 +476,41 @@ pub struct ComputerUnit {
     registers: Registers,
     memory: ArrayBasedMemory,
     cycles: Cycle,
-    ime: bool
+    ime: bool,
+    hooks: Hooks
+}
+
+pub struct Hooks {
+    before_exec: Vec<(Box<Fn(&ComputerUnit, &Box<Opcode>) -> ()>)>,
+    before_write: Vec<(Box<Fn(&ComputerUnit, Address, Word) -> ()>)>
+}
+
+impl Hooks {
+    fn no_hooks() -> Hooks {
+        Hooks {
+            before_exec: vec!(),
+            before_write: vec!()
+        }
+    }
 }
 
 impl ComputerUnit {
+    fn new() -> ComputerUnit {
+        ComputerUnit::new_hooked(Hooks::no_hooks())
+    }
+
+    fn new_hooked(hooks: Hooks) -> ComputerUnit {
+        ComputerUnit {
+            registers: Registers::new(),
+            memory: ArrayBasedMemory {
+                words: [0xAA; 0xFFFF + 1]
+            },
+            ime: true,
+            cycles: 0xA0, // this is some random value
+            hooks: hooks
+        }
+    }
+
     fn inc_pc(&mut self, length: Double) {
         self.registers.pc = self.registers.pc + length;
     }
@@ -487,6 +518,9 @@ impl ComputerUnit {
     fn run_1_instruction(&mut self, decoder: &Decoder) {
         let word = self.memory.word_at(self.registers.pc);
         let ref opcode = decoder[word];
+        for hook in &self.hooks.before_exec {
+            hook(self, opcode);
+        }
         opcode.exec(self);
         self.inc_pc(opcode.size());
         self.cycles = self.cycles.wrapping_add(opcode.cycles(self));
@@ -609,10 +643,17 @@ impl ComputerUnit {
     }
 
     fn set_word_at(&mut self, address: Address, word: Word) {
+        for hook in &self.hooks.before_write {
+            hook(self, address, word);
+        }
         self.memory.set_word_at(address, word);
     }
 
     fn set_double_at(&mut self, address: Address, double: Double) {
+        for hook in &self.hooks.before_write {
+            hook(self, address, high_word(double));
+            hook(self, address + 1, low_word(double));
+        }
         self.memory.set_double_at(address, double);
     }
 
@@ -675,16 +716,6 @@ impl ComputerUnit {
     }
 }
 
-fn new_cpu() -> ComputerUnit {
-    ComputerUnit {
-        registers: Registers::new(),
-        memory: ArrayBasedMemory {
-            words: [0xAA; 0xFFFF + 1]
-        },
-        ime: true,
-        cycles: 0xA0 // this is some random value
-    }
-}
 
 pub struct MemoryProgramLoader {}
 
@@ -698,30 +729,13 @@ impl MemoryProgramLoader {
 }
 
 pub mod logger {
-    use super::ComputerUnit;
-
-    pub fn log(cpu: &ComputerUnit) {
-        println!("@{:04X} {:02X} {:02X}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
-                 cpu.get_pc_register(),
-                 cpu.word_at(cpu.get_pc_register()),
-                 cpu.word_at(cpu.get_pc_register() + 1),
-                 cpu.get_af_register(),
-                 cpu.get_bc_register(),
-                 cpu.get_de_register(),
-                 cpu.get_hl_register(),
-                 cpu.get_sp_register(),
-                 if cpu.zero_flag() { "Z" } else { "z" },
-                 if cpu.add_sub_flag() { "N" } else { "n" },
-                 if cpu.half_carry_flag() { "H" } else { "h" },
-                 if cpu.carry_flag() { "C" } else { "c" },
-        );
-    }
+    use super::{ComputerUnit, Opcode};
 }
 
 
 #[test]
 fn should_load_program() {
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
 
     let program_loader = MemoryProgramLoader {};
     let program = program_loader.load(vec![0x06, 0xBA]); // LD B, 0xBA
@@ -879,7 +893,7 @@ fn should_implement_every_ld_r_w_instructions() {
     );
 
     for case in cases {
-        let mut cpu = new_cpu();
+        let mut cpu = ComputerUnit::new();
         cpu.load(&case.program());
         cpu.run_1_instruction(&Decoder::new_basic());
         case.assert(cpu);
@@ -894,7 +908,7 @@ fn should_implement_ld_b_a_instructions() {
         content: vec![0x06, 0xBB, 0x78]
     };
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
 
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
@@ -918,7 +932,7 @@ fn should_implement_ld_c_prt_hl_instructions() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.hl = 0xABCD;
     cpu.memory.words[0xABCD] = 0xEF;
@@ -938,7 +952,7 @@ fn should_implement_ld_a_prt_bc_instructions() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.bc = 0xABCD;
     cpu.memory.words[0xABCD] = 0xEF;
@@ -959,7 +973,7 @@ fn should_implement_ld_a_prt_de_instructions() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.de = 0xABCD;
     cpu.memory.words[0xABCD] = 0xEF;
@@ -979,7 +993,7 @@ fn should_implement_ld_prt_hl_d_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.hl = 0xABCD;
     cpu.registers.de = 0xEF00;
@@ -1000,7 +1014,7 @@ fn should_implement_ld_prt_c_a_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.set_register_a(0xEF);
     cpu.set_register_c(0xCD);
@@ -1021,7 +1035,7 @@ fn should_implement_ld_a_ptr_c_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.set_register_c(0xCD);
     cpu.set_word_at(0xFFCD, 0xEF);
@@ -1042,7 +1056,7 @@ fn should_implement_ld_a_hli_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.set_register_hl(0xABCD);
     cpu.set_word_at(0xABCD, 0xEF);
@@ -1063,7 +1077,7 @@ fn should_implement_ld_prt_nn_a_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.af = 0xEF00;
 
@@ -1083,7 +1097,7 @@ fn should_implement_ld_prt_hl_a_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.hl = 0xABCD;
     cpu.registers.af = 0xEF00;
@@ -1104,7 +1118,7 @@ fn should_implement_ld_prt_bc_a_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.bc = 0xABCD;
     cpu.registers.af = 0xEF00;
@@ -1125,7 +1139,7 @@ fn should_implement_ld_prt_de_a_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.de = 0xABCD;
     cpu.registers.af = 0xEF00;
@@ -1146,7 +1160,7 @@ fn should_implement_prt_hl_n_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.hl = 0xABCD;
 
@@ -1167,7 +1181,7 @@ fn should_implement_ld_a_prt_nn_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.memory.words[0xABCD] = 0x66;
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
@@ -1186,7 +1200,7 @@ fn should_implement_ld_sp_hl_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.set_register_hl(0xABCD);
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
@@ -1205,7 +1219,7 @@ fn should_implement_ld_ptr_nn_sp_instruction() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.set_register_sp(0x1234);
     assert_eq!(cpu.cycles, 160, "bad cycles count after {}", msg);
@@ -1223,7 +1237,7 @@ fn should_implement_dec_instruction() {
         content: vec![0x05]
     };
 
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.set_register_b(0);
     assert_eq!(cpu.cycles, 160);
@@ -1249,7 +1263,7 @@ fn should_run_gunsriders() {
     };
 
     let msg = pg.name;
-    let mut cpu = new_cpu();
+    let mut cpu = ComputerUnit::new();
     cpu.load(&pg);
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
@@ -1469,13 +1483,26 @@ fn should_run_gunsriders() {
     while cpu.get_pc_register() != 0x31B0 {
         cpu.run_1_instruction(&decoder);
     }
+}
 
-    //cpu.run_1_instruction(&decoder); // RRCA
-    //assert_eq!(cpu.get_pc_register(), 0x31B1);
+struct BreakpointFactory {}
 
-    //while true {
-    //    cpu.run_1_instruction(&decoder);
-    //}
+impl BreakpointFactory {
+    fn on_exec_addr<F: 'static + Fn(&ComputerUnit, &Box<Opcode>)>(address: Address, f: F) -> Box<Fn(&ComputerUnit, &Box<Opcode>)> {
+        Box::new(move |cpu, opcode| {
+            if cpu.get_pc_register() == address {
+                f(cpu, opcode)
+            }
+        })
+    }
+
+    fn on_write_addr<F: 'static + Fn(&ComputerUnit, Address, Word)>(bp_address: Address, f: F) -> Box<Fn(&ComputerUnit, Address, Word)> {
+        Box::new(move |cpu, address, word| {
+            if bp_address == address {
+                f(cpu, address, word)
+            }
+        })
+    }
 }
 
 #[test]
@@ -1486,18 +1513,44 @@ fn should_run_testrom() {
     let mut s = vec!();
     f.read_to_end(&mut s).unwrap();
     let pg = Program {
-        name: "Guns Rider",
+        name: "cpu_instrs.gb",
         content: s
     };
 
-    let mut cpu = new_cpu();
+
+    let print_memory_write = |cpu: &ComputerUnit, address, value| {
+        println!("Instruction @{:04X} is writing {:02X} at address {:04X}",
+                 cpu.get_pc_register(),
+                 value,
+                 address);
+    };
+
+    let log_cpu_state = |cpu: &ComputerUnit, opcode: &Box<Opcode>| -> () {
+        println!("@{:04X} {:02X} {:02X}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
+                 cpu.get_pc_register(),
+                 cpu.word_at(cpu.get_pc_register()),
+                 cpu.word_at(cpu.get_pc_register() + 1),
+                 cpu.get_af_register(),
+                 cpu.get_bc_register(),
+                 cpu.get_de_register(),
+                 cpu.get_hl_register(),
+                 cpu.get_sp_register(),
+                 if cpu.zero_flag() { "Z" } else { "z" },
+                 if cpu.add_sub_flag() { "N" } else { "n" },
+                 if cpu.half_carry_flag() { "H" } else { "h" },
+                 if cpu.carry_flag() { "C" } else { "c" },
+        );
+    };
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: vec!(BreakpointFactory::on_exec_addr(0xC302, log_cpu_state)),
+        before_write: vec!(BreakpointFactory::on_write_addr(0xC302, print_memory_write))
+    });
     cpu.load(&pg);
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
     for i in 0..1000000 {
-        use self::logger::log;
-        log(&cpu);
         cpu.run_1_instruction(&decoder);
     }
 
