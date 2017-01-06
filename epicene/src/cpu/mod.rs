@@ -352,6 +352,14 @@ impl Decoder {
         decoder[0x95] = sub_r(WordRegister::L);
         decoder[0x96] = sub_ptr_r(RegisterPointer::HL);
         decoder[0x97] = sub_r(WordRegister::A);
+        decoder[0x98] = sbc_a_b();
+        decoder[0x99] = sbc_a_c();
+        decoder[0x9A] = sbc_a_d();
+        decoder[0x9B] = sbc_a_e();
+        decoder[0x9C] = sbc_a_h();
+        decoder[0x9D] = sbc_a_l();
+        decoder[0x9E] = sbc_a_ptr_hl();
+        decoder[0x9F] = sbc_a_a();
         decoder[0xA8] = xor_r(WordRegister::B);
         decoder[0xA9] = xor_r(WordRegister::C);
         decoder[0xAA] = xor_r(WordRegister::D);
@@ -399,6 +407,7 @@ impl Decoder {
         decoder[0xD8] = ret_c();
         decoder[0xDA] = jp_c_nn();
         decoder[0xDC] = call_c_a16();
+        decoder[0xDE] = sbc_a_w();
         decoder[0xE0] = ldh_ptr_a();
         decoder[0xE1] = pop_hl();
         decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);

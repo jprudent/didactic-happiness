@@ -28,7 +28,6 @@ pub struct FlagRegister {
 }
 
 impl FlagRegister {
-
     pub fn zero_flag(&self) -> bool {
         self.zf
     }
@@ -233,10 +232,16 @@ impl ArithmeticLogicalUnit {
     }
 
     // TODO check implementation, really not sure about it
-    pub fn add_carry(a: Word, b: Word, carry: Word) -> ArithmeticResult<Word> {
+    pub fn add_with_carry(a: Word, b: Word, carry: Word) -> ArithmeticResult<Word> {
         assert!(carry <= 1, "carry should be 0 or 1");
         let r1 = ArithmeticLogicalUnit::add(b, carry, 0);
         ArithmeticLogicalUnit::add(a, r1.result(), 0)
+    }
+
+    pub fn sub_with_carry(a: Word, b: Word, carry: Word) -> ArithmeticResult<Word> {
+        assert!(carry <= 1, "carry should be 0 or 1");
+        let r1 = ArithmeticLogicalUnit::add(b, carry, 0);
+        ArithmeticLogicalUnit::sub(a, r1.result(), 0)
     }
 
     fn has_carry(a: Word, b: Word) -> bool {

@@ -471,7 +471,7 @@ fn adc_a_r(source: WordRegister) -> Box<Opcode> {
         ArithmeticOperation {
             source: source,
             destination: WordRegister::A,
-            operation: ArithmeticLogicalUnit::add_carry,
+            operation: ArithmeticLogicalUnit::add_with_carry,
             size: 1,
             cycles: 4,
         }
@@ -483,7 +483,7 @@ pub fn adc_a_ptr_hl() -> Box<Opcode> {
         ArithmeticOperation {
             source: RegisterPointer::HL,
             destination: WordRegister::A,
-            operation: ArithmeticLogicalUnit::add_carry,
+            operation: ArithmeticLogicalUnit::add_with_carry,
             size: 1,
             cycles: 8,
         }
@@ -495,7 +495,71 @@ pub fn adc_a_w() -> Box<Opcode> {
         ArithmeticOperation {
             source: ImmediateWord {},
             destination: WordRegister::A,
-            operation: ArithmeticLogicalUnit::add_carry,
+            operation: ArithmeticLogicalUnit::add_with_carry,
+            size: 2,
+            cycles: 8,
+        }
+    )
+}
+
+pub fn sbc_a_a() -> Box<Opcode> {
+    sbc_a_r(WordRegister::A)
+}
+
+pub fn sbc_a_b() -> Box<Opcode> {
+    sbc_a_r(WordRegister::B)
+}
+
+pub fn sbc_a_c() -> Box<Opcode> {
+    sbc_a_r(WordRegister::C)
+}
+
+pub fn sbc_a_d() -> Box<Opcode> {
+    sbc_a_r(WordRegister::D)
+}
+
+pub fn sbc_a_e() -> Box<Opcode> {
+    sbc_a_r(WordRegister::E)
+}
+
+pub fn sbc_a_h() -> Box<Opcode> {
+    sbc_a_r(WordRegister::H)
+}
+
+pub fn sbc_a_l() -> Box<Opcode> {
+    sbc_a_r(WordRegister::L)
+}
+
+fn sbc_a_r(source: WordRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: source,
+            destination: WordRegister::A,
+            operation: ArithmeticLogicalUnit::sub_with_carry,
+            size: 1,
+            cycles: 4,
+        }
+    )
+}
+
+pub fn sbc_a_ptr_hl() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: RegisterPointer::HL,
+            destination: WordRegister::A,
+            operation: ArithmeticLogicalUnit::sub_with_carry,
+            size: 1,
+            cycles: 8,
+        }
+    )
+}
+
+pub fn sbc_a_w() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: ImmediateWord {},
+            destination: WordRegister::A,
+            operation: ArithmeticLogicalUnit::sub_with_carry,
             size: 2,
             cycles: 8,
         }
