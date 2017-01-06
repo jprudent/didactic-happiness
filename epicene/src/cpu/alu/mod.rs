@@ -28,6 +28,7 @@ pub struct FlagRegister {
 }
 
 impl FlagRegister {
+
     pub fn zero_flag(&self) -> bool {
         self.zf
     }
@@ -71,13 +72,24 @@ impl ArithmeticLogicalUnit {
         ArithmeticResult {
             result: result,
             flags: FlagRegister {
-                cy: ArithmeticLogicalUnit::has_carry_16(a,b),
-                h: ArithmeticLogicalUnit::has_half_carry_16(a,b),
+                cy: ArithmeticLogicalUnit::has_carry_16(a, b),
+                h: ArithmeticLogicalUnit::has_half_carry_16(a, b),
                 zf: false,
                 n: false
             }
         }
     }
+
+    pub fn inc(a: Word) -> ArithmeticResult<Word> {
+        // TODO move the logic of caller here
+        ArithmeticLogicalUnit::add(a, 1, 0)
+    }
+
+    pub fn dec(a: Word) -> ArithmeticResult<Word> {
+        // TODO move the logic of caller here
+        ArithmeticLogicalUnit::sub(a, 1, 0)
+    }
+
 
     fn has_carry_16(a: Double, b: Double) -> bool {
         let overflowing_result: u32 = a as u32 + b as u32;

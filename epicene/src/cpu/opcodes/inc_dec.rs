@@ -2,10 +2,10 @@ use std::marker::PhantomData;
 use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
 use super::super::operands::{WordRegister, RightOperand, LeftOperand, RegisterPointer};
 use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
-// TODO always Word
+
 struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
     destination: D,
-    operation: fn(X, X, Word) -> ArithmeticResult<X>,
+    operation: fn(X) -> ArithmeticResult<X>,
     size: Size,
     cycles: Cycle,
     operation_type: PhantomData<X> // TODO can be removed ?
@@ -14,7 +14,7 @@ struct IncDec<X, D: LeftOperand<X> + RightOperand<X>> {
 pub fn dec_r(destination: WordRegister) -> Box<Opcode> {
     Box::new(IncDec {
         destination: destination,
-        operation: ArithmeticLogicalUnit::sub,
+        operation: ArithmeticLogicalUnit::dec,
         size: 1,
         cycles: 4,
         operation_type: PhantomData
@@ -24,7 +24,7 @@ pub fn dec_r(destination: WordRegister) -> Box<Opcode> {
 pub fn inc_r(destination: WordRegister) -> Box<Opcode> {
     Box::new(IncDec {
         destination: destination,
-        operation: ArithmeticLogicalUnit::add,
+        operation: ArithmeticLogicalUnit::inc,
         size: 1,
         cycles: 4,
         operation_type: PhantomData
@@ -34,7 +34,7 @@ pub fn inc_r(destination: WordRegister) -> Box<Opcode> {
 pub fn dec_ptr_r(destination: RegisterPointer) -> Box<Opcode> {
     Box::new(IncDec {
         destination: destination,
-        operation: ArithmeticLogicalUnit::sub,
+        operation: ArithmeticLogicalUnit::dec,
         size: 1,
         cycles: 12,
         operation_type: PhantomData
@@ -44,7 +44,7 @@ pub fn dec_ptr_r(destination: RegisterPointer) -> Box<Opcode> {
 pub fn inc_ptr_r(destination: RegisterPointer) -> Box<Opcode> {
     Box::new(IncDec {
         destination: destination,
-        operation: ArithmeticLogicalUnit::add,
+        operation: ArithmeticLogicalUnit::inc,
         size: 1,
         cycles: 12,
         operation_type: PhantomData
@@ -55,7 +55,7 @@ pub fn inc_ptr_r(destination: RegisterPointer) -> Box<Opcode> {
 impl<D: LeftOperand<Word> + RightOperand<Word>> Opcode for IncDec<Word, D> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let x = self.destination.resolve(cpu);
-        let r = (self.operation)(x, 1, 0);
+        let r = (self.operation)(x);
         self.destination.alter(cpu, r.result());
         //unfortunately this instruction doesn't set the carry flag
         cpu.set_zero_flag(r.flags().zero_flag());

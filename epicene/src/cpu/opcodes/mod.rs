@@ -47,6 +47,9 @@ enum JmpCondition {
     CARRY
 }
 
+pub mod ccf;
+pub mod scf;
+
 impl JmpCondition {
     fn matches(&self, cpu: &ComputerUnit) -> bool {
         match *self {

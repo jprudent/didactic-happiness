@@ -199,6 +199,9 @@ impl Decoder {
         use self::opcodes::jr::*;
         use self::opcodes::xor::*;
         use self::opcodes::prefix_cb::*;
+        use self::opcodes::ccf::*;
+        use self::opcodes::scf::*;
+
         decoder[0x00] = nop();
         decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
         decoder[0x02] = ld_ptr_r_from_r(RegisterPointer::BC, WordRegister::A);
@@ -210,6 +213,7 @@ impl Decoder {
         decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
         decoder[0x09] = add_hl_bc();
         decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
+        decoder[0x0B] = dec_bc();
         decoder[0x0C] = inc_r(WordRegister::C);
         decoder[0x0D] = dec_r(WordRegister::C);
         decoder[0x0E] = ld_r_from_w(WordRegister::C);
@@ -225,6 +229,7 @@ impl Decoder {
         decoder[0x18] = jr_w();
         decoder[0x19] = add_hl_de();
         decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
+        decoder[0x1B] = dec_de();
         decoder[0x1C] = inc_r(WordRegister::E);
         decoder[0x1D] = dec_r(WordRegister::E);
         decoder[0x1E] = ld_r_from_w(WordRegister::E);
@@ -250,12 +255,15 @@ impl Decoder {
         decoder[0x34] = inc_ptr_r(RegisterPointer::HL);
         decoder[0x35] = dec_ptr_r(RegisterPointer::HL);
         decoder[0x36] = ld_ptr_r_from_w(RegisterPointer::HL);
+        decoder[0x37] = scf();
         decoder[0x38] = jr_c_w();
         decoder[0x39] = add_hl_sp();
         decoder[0x3A] = ld_a_from_ptr_hl(HlOp::HLD);
+        decoder[0x3B] = dec_sp();
         decoder[0x3C] = inc_r(WordRegister::A);
         decoder[0x3D] = dec_r(WordRegister::A);
         decoder[0x3E] = ld_r_from_w(WordRegister::A);
+        decoder[0x3F] = ccf();
         decoder[0x40] = ld_r_from_r(WordRegister::B, WordRegister::B);
         decoder[0x41] = ld_r_from_r(WordRegister::B, WordRegister::C);
         decoder[0x42] = ld_r_from_r(WordRegister::B, WordRegister::D);
@@ -329,13 +337,13 @@ impl Decoder {
         decoder[0x86] = add_ptr_r(RegisterPointer::HL);
         decoder[0x87] = add_a_r(WordRegister::A);
         decoder[0x88] = adc_a_b();
-        decoder[0x88] = adc_a_c();
-        decoder[0x88] = adc_a_d();
-        decoder[0x88] = adc_a_e();
-        decoder[0x88] = adc_a_h();
-        decoder[0x88] = adc_a_l();
-        decoder[0x88] = adc_a_ptr_hl();
-        decoder[0x88] = adc_a_a();
+        decoder[0x89] = adc_a_c();
+        decoder[0x8A] = adc_a_d();
+        decoder[0x8B] = adc_a_e();
+        decoder[0x8C] = adc_a_h();
+        decoder[0x8D] = adc_a_l();
+        decoder[0x8E] = adc_a_ptr_hl();
+        decoder[0x8F] = adc_a_a();
         decoder[0x90] = sub_r(WordRegister::B);
         decoder[0x91] = sub_r(WordRegister::C);
         decoder[0x92] = sub_r(WordRegister::D);
@@ -513,7 +521,7 @@ impl ComputerUnit {
     }
 
     fn inc_pc(&mut self, length: Double) {
-        self.registers.pc = self.registers.pc + length;
+        self.registers.pc = self.registers.pc.wrapping_add(length);
     }
 
     fn run_1_instruction(&mut self, decoder: &Decoder) {
@@ -1514,7 +1522,7 @@ fn should_run_testrom() {
     };
 
 
-    let print_memory_write = |cpu: &ComputerUnit, address, value| {
+    let print_memory_write = |cpu: &ComputerUnit, address: Address, value: Word| {
         println!("Instruction @{:04X} is writing {:02X} at address {:04X}",
                  cpu.get_pc_register(),
                  value,
@@ -1525,7 +1533,7 @@ fn should_run_testrom() {
         println!("@{:04X} {:02X} {:02X}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
                  cpu.get_pc_register(),
                  cpu.word_at(cpu.get_pc_register()),
-                 cpu.word_at(cpu.get_pc_register() + 1),
+                 cpu.word_at(cpu.get_pc_register().wrapping_add(1)),
                  cpu.get_af_register(),
                  cpu.get_bc_register(),
                  cpu.get_de_register(),
@@ -1538,17 +1546,23 @@ fn should_run_testrom() {
         );
     };
 
+    let mut exec_hooks: Vec<(Box<Fn(&ComputerUnit, &Box<Opcode>) -> ()>)> = vec!();
+    //exec_hooks.push(BreakpointFactory::on_exec_addr(0xC302, log_cpu_state));
+    //exec_hooks.push(Box::new(log_cpu_state));
+    let mut write_hooks = vec!();
+    //write_hooks.push(BreakpointFactory::on_write_addr(0xC302, print_memory_write));
+
     let mut cpu = ComputerUnit::new_hooked(Hooks {
-        before_exec: vec!(BreakpointFactory::on_exec_addr(0xC302, log_cpu_state)),
-        before_write: vec!(BreakpointFactory::on_write_addr(0xC302, print_memory_write))
+        before_exec: exec_hooks,
+        before_write: write_hooks
     });
     cpu.load(&pg);
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..1000000 {
+    for i in 0..10000000 {
         cpu.run_1_instruction(&decoder);
-    }
+    };
 
     assert!(false);
 }

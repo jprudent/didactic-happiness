@@ -8,8 +8,20 @@ struct IncDecDouble {
     cycles: Cycle,
 }
 
+pub fn dec_bc() -> Box<Opcode> {
+    inc_dec_rr(dec, DoubleRegister::BC)
+}
+
+pub fn dec_de() -> Box<Opcode> {
+    inc_dec_rr(dec, DoubleRegister::DE)
+}
+
 pub fn dec_hl() -> Box<Opcode> {
     inc_dec_rr(dec, DoubleRegister::HL)
+}
+
+pub fn dec_sp() -> Box<Opcode> {
+    inc_dec_rr(dec, DoubleRegister::SP)
 }
 
 pub fn inc_hl() -> Box<Opcode> {
