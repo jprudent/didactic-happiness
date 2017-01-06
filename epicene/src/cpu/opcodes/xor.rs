@@ -1,7 +1,7 @@
 use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
 use super::super::operands::{ImmediateWord, WordRegister, RegisterPointer, RightOperand};
 
-//TODO use ArithmeticOperationOnRegisterA
+//TODO use ArithmeticOperation
 struct XorWithA<S: RightOperand<Word>> {
     source: S,
     size: Size,

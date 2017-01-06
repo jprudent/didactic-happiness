@@ -360,6 +360,14 @@ impl Decoder {
         decoder[0xB5] = or_l();
         decoder[0xB6] = or_ptr_hl();
         decoder[0xB7] = or_a();
+        decoder[0xB8] = cp_a_b();
+        decoder[0xB9] = cp_a_c();
+        decoder[0xBA] = cp_a_d();
+        decoder[0xBB] = cp_a_e();
+        decoder[0xBC] = cp_a_h();
+        decoder[0xBD] = cp_a_l();
+        decoder[0xBE] = cp_a_ptr_hl();
+        decoder[0xBF] = cp_a_a();
         decoder[0xC0] = ret_nz();
         decoder[0xC1] = pop_bc();
         decoder[0xC2] = jp_nz_nn();
@@ -425,7 +433,6 @@ impl IndexMut<Word> for Decoder {
         &mut self.0[index as usize]
     }
 }
-
 
 
 pub struct ArrayBasedMemory {
@@ -690,6 +697,26 @@ impl MemoryProgramLoader {
     }
 }
 
+pub mod logger {
+    use super::ComputerUnit;
+
+    pub fn log(cpu: &ComputerUnit) {
+        println!("@{:04X} {:02X} {:02X}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
+                 cpu.get_pc_register(),
+                 cpu.word_at(cpu.get_pc_register()),
+                 cpu.word_at(cpu.get_pc_register() + 1),
+                 cpu.get_af_register(),
+                 cpu.get_bc_register(),
+                 cpu.get_de_register(),
+                 cpu.get_hl_register(),
+                 cpu.get_sp_register(),
+                 if cpu.zero_flag() { "Z" } else { "z" },
+                 if cpu.add_sub_flag() { "N" } else { "n" },
+                 if cpu.half_carry_flag() { "H" } else { "h" },
+                 if cpu.carry_flag() { "C" } else { "c" },
+        );
+    }
+}
 
 
 #[test]
@@ -1469,7 +1496,8 @@ fn should_run_testrom() {
     let decoder = &Decoder::new_basic();
 
     for i in 0..1000000 {
-        println!("@{:04X} {:02X} {:02X}", cpu.get_pc_register(), cpu.word_at(cpu.get_pc_register()), cpu.word_at(cpu.get_pc_register() + 1));
+        use self::logger::log;
+        log(&cpu);
         cpu.run_1_instruction(&decoder);
     }
 
