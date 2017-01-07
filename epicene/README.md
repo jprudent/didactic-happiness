@@ -71,3 +71,9 @@ pas de null
 - quand ça compile, on est à peu près sûr que ça marche
 
 
+# journal de bord
+Après avoir essayé Guns Riders, je m'attaque à la rom de test.
+J'ai un bug et j'ai la flême de chercher son origine.
+J'ai implémenté un débugger mais ça donne pas grand chose.
+J'essaye d'implémenter l'écran pour voir où j'en suis et redonner le moral
+aux troupes

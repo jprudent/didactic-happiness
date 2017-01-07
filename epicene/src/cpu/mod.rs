@@ -5,7 +5,7 @@ use std::ops::IndexMut;
 use std::ops::Index;
 use self::operands::{WordRegister, DoubleRegister, RegisterPointer, HlOp};
 
-type Word = u8;
+pub type Word = u8;
 type Double = u16;
 type Address = Double;
 type Cycle = u8;
@@ -453,6 +453,7 @@ impl IndexMut<Word> for Decoder {
     }
 }
 
+use super::program::Program;
 
 pub struct ArrayBasedMemory {
     words: [Word; 0xFFFF + 1]
@@ -484,11 +485,6 @@ impl ArrayBasedMemory {
         self.words[i] = low_word(double);
         self.words[i + 1] = high_word(double);
     }
-}
-
-struct Program {
-    name: &'static str,
-    content: Vec<Word>
 }
 
 pub struct ComputerUnit {
@@ -744,23 +740,15 @@ impl ComputerUnit {
 }
 
 
-pub struct MemoryProgramLoader {}
 
-impl MemoryProgramLoader {
-    fn load(&self, input: Vec<Word>) -> Program {
-        Program {
-            name: "memory",
-            content: input
-        }
-    }
-}
+use super::program::memory_program_loader;
 
 #[test]
 fn should_load_program() {
     let mut cpu = ComputerUnit::new();
 
-    let program_loader = MemoryProgramLoader {};
-    let program = program_loader.load(vec![0x06, 0xBA]); // LD B, 0xBA
+    let program_loader = memory_program_loader(&vec![0x06, 0xBA]); // LD B, 0xBA
+    let program = program_loader.load();
 
     cpu.load(&program);
     cpu.run_1_instruction(&Decoder::new_basic());
@@ -1567,18 +1555,9 @@ pub mod debug {
     }
 }
 
+use super::program::file_loader;
 #[test]
 fn should_run_testrom() {
-    use std::io::prelude::*;
-    use std::fs::File;
-    let mut f = File::open("roms/cpu_instrs/cpu_instrs.gb").unwrap();
-    let mut s = vec!();
-    f.read_to_end(&mut s).unwrap();
-    let pg = Program {
-        name: "cpu_instrs.gb",
-        content: s
-    };
-
 
     let print_memory_write = |cpu: &ComputerUnit, address: Address, value: Word| {
         println!("Instruction @{:04X} is writing {:02X} at address {:04X}",
@@ -1600,6 +1579,8 @@ fn should_run_testrom() {
         before_exec: exec_hooks,
         before_write: write_hooks
     });
+    let loader = file_loader(&"roms/cpu_instrs/cpu_instrs.gb".to_string());
+    let pg = loader.load();
     cpu.load(&pg);
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
