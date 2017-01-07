@@ -171,10 +171,10 @@ pub trait Opcode {
 }
 
 
-struct Decoder(Vec<Box<Opcode>>);
+pub struct Decoder(Vec<Box<Opcode>>);
 
 impl Decoder {
-    fn new_basic() -> Decoder {
+    pub fn new_basic() -> Decoder {
         let mut decoder = Decoder(vec!());
 
         //todo temp loop for growing the vec
@@ -518,7 +518,7 @@ impl Hooks {
 }
 
 impl ComputerUnit {
-    fn new() -> ComputerUnit {
+    pub fn new() -> ComputerUnit {
         ComputerUnit::new_hooked(Hooks::no_hooks())
     }
 
@@ -538,7 +538,7 @@ impl ComputerUnit {
         self.registers.pc = self.registers.pc.wrapping_add(length);
     }
 
-    fn run_1_instruction(&mut self, decoder: &Decoder) {
+    pub fn run_1_instruction(&mut self, decoder: &Decoder) {
         let word = self.memory.word_at(self.registers.pc);
         let ref opcode = decoder[word];
         for hook in &self.hooks.before_exec {
@@ -549,7 +549,8 @@ impl ComputerUnit {
         self.cycles = self.cycles.wrapping_add(opcode.cycles(self));
     }
 
-    fn load(&mut self, program: &Program) {
+    // TODO maybe a constructor would be better
+    pub fn load(&mut self, program: &Program) {
         self.memory.map(&program)
     }
 
@@ -653,7 +654,7 @@ impl ComputerUnit {
         self.registers.sp = double
     }
 
-    fn set_register_pc(&mut self, double: Double) {
+    pub fn set_register_pc(&mut self, double: Double) {
         self.registers.pc = double
     }
 
@@ -680,11 +681,11 @@ impl ComputerUnit {
         self.memory.set_double_at(address, double);
     }
 
-    fn interrupt_master(&self) -> bool {
+    pub fn interrupt_master(&self) -> bool {
         self.ime
     }
 
-    fn disable_interrupt_master(&mut self) {
+    pub fn disable_interrupt_master(&mut self) {
         self.ime = false
     }
 
@@ -737,8 +738,26 @@ impl ComputerUnit {
         self.set_register_sp(sp + 2);
         value
     }
-}
 
+    fn interrupt_enabled_register(&self) -> Word {
+        self.word_at(0xFFFF)
+    }
+
+
+    fn interrupt_requested_register(&self) -> Word {
+        self.word_at(0xFFFF)
+    }
+
+    pub fn vblank_interrupt_enabled(&self) -> bool {
+        let w = self.interrupt_enabled_register();
+        w & 1 != 0
+    }
+
+    pub fn vblank_interrupt_requested(&self) -> bool {
+        let w = self.interrupt_requested_register();
+        w & 1 != 0
+    }
+}
 
 
 use super::program::memory_program_loader;
@@ -1556,9 +1575,9 @@ pub mod debug {
 }
 
 use super::program::file_loader;
+
 #[test]
 fn should_run_testrom() {
-
     let print_memory_write = |cpu: &ComputerUnit, address: Address, value: Word| {
         println!("Instruction @{:04X} is writing {:02X} at address {:04X}",
                  cpu.get_pc_register(),
