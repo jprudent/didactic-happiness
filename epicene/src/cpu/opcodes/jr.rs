@@ -76,6 +76,7 @@ impl<A: RightOperand<Word> + AsString> Opcode for ConditionalJump<Word, A> {
         }
     }
     fn to_string(&self, cpu: &ComputerUnit) -> String {
-        format!("{:<4} {} {}", "jr", self.condition.to_string(), self.address.to_string(cpu) )
+        let relative = self.address.to_string(cpu);
+        format!("{:<4} {} {}", "jr", self.condition.to_string(), relative)
     }
 }

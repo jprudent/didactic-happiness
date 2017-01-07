@@ -499,9 +499,17 @@ pub struct ComputerUnit {
     hooks: Hooks
 }
 
+pub trait ExecHook {
+    fn apply(&self, &ComputerUnit, &Box<Opcode>);
+}
+
+pub trait MemoryWriteHook {
+    fn apply(&self, &ComputerUnit, Address, Word);
+}
+
 pub struct Hooks {
-    before_exec: Vec<(Box<Fn(&ComputerUnit, &Box<Opcode>) -> ()>)>,
-    before_write: Vec<(Box<Fn(&ComputerUnit, Address, Word) -> ()>)>
+    before_exec: Vec<Box<ExecHook>>,
+    before_write: Vec<Box<MemoryWriteHook>>
 }
 
 impl Hooks {
@@ -538,7 +546,7 @@ impl ComputerUnit {
         let word = self.memory.word_at(self.registers.pc);
         let ref opcode = decoder[word];
         for hook in &self.hooks.before_exec {
-            hook(self, opcode);
+            hook.apply(self, opcode);
         }
         opcode.exec(self);
         self.inc_pc(opcode.size());
@@ -663,15 +671,15 @@ impl ComputerUnit {
 
     fn set_word_at(&mut self, address: Address, word: Word) {
         for hook in &self.hooks.before_write {
-            hook(self, address, word);
+            hook.apply(self, address, word);
         }
         self.memory.set_word_at(address, word);
     }
 
     fn set_double_at(&mut self, address: Address, double: Double) {
         for hook in &self.hooks.before_write {
-            hook(self, address, high_word(double));
-            hook(self, address + 1, low_word(double));
+            hook.apply(self, address, high_word(double));
+            hook.apply(self, address + 1, low_word(double));
         }
         self.memory.set_double_at(address, double);
     }
@@ -1519,6 +1527,46 @@ impl BreakpointFactory {
     }
 }
 
+pub mod debug {
+    use super::{ExecHook, ComputerUnit, Opcode};
+
+    struct CpuLogger;
+
+    pub fn cpu_logger() -> Box<ExecHook> {
+        Box::new(CpuLogger)
+    }
+
+    impl CpuLogger {
+        fn instruction_bytes(cpu: &ComputerUnit, opcode: &Box<Opcode>) -> String {
+            let mut s = "".to_string();
+            for i in 0..opcode.size() {
+                let w = cpu.word_at(cpu.get_pc_register().wrapping_add(i));
+                s.push_str(&format!("{:02X}", w))
+            }
+            s
+        }
+    }
+
+    impl ExecHook for CpuLogger {
+        fn apply(&self, cpu: &ComputerUnit, opcode: &Box<Opcode>) {
+            println!("@{:04X} {:<6}|{:<10}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
+                     cpu.get_pc_register(),
+                     CpuLogger::instruction_bytes(cpu, opcode),
+                     opcode.to_string(cpu),
+                     cpu.get_af_register(),
+                     cpu.get_bc_register(),
+                     cpu.get_de_register(),
+                     cpu.get_hl_register(),
+                     cpu.get_sp_register(),
+                     if cpu.zero_flag() { "Z" } else { "z" },
+                     if cpu.add_sub_flag() { "N" } else { "n" },
+                     if cpu.half_carry_flag() { "H" } else { "h" },
+                     if cpu.carry_flag() { "C" } else { "c" },
+            );
+        }
+    }
+}
+
 #[test]
 fn should_run_testrom() {
     use std::io::prelude::*;
@@ -1539,34 +1587,12 @@ fn should_run_testrom() {
                  address);
     };
 
-    let log_cpu_state = |cpu: &ComputerUnit, opcode: &Box<Opcode>| -> () {
-        fn hex(cpu: &ComputerUnit, opcode: &Box<Opcode>) -> String {
-            let mut s = "".to_string();
-            for i in 0..opcode.size() {
-                let w = cpu.word_at(cpu.get_pc_register().wrapping_add(i));
-                s.push_str(&format!("{:02X}", w))
-            }
-            s
-        }
-        println!("@{:04X} {:<6}|{:<10}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
-                 cpu.get_pc_register(),
-                 hex(cpu, opcode),
-                 opcode.to_string(cpu),
-                 cpu.get_af_register(),
-                 cpu.get_bc_register(),
-                 cpu.get_de_register(),
-                 cpu.get_hl_register(),
-                 cpu.get_sp_register(),
-                 if cpu.zero_flag() { "Z" } else { "z" },
-                 if cpu.add_sub_flag() { "N" } else { "n" },
-                 if cpu.half_carry_flag() { "H" } else { "h" },
-                 if cpu.carry_flag() { "C" } else { "c" },
-        );
-    };
+    let log_cpu_state = |cpu: &ComputerUnit, opcode: &Box<Opcode>| -> () {};
 
-    let mut exec_hooks: Vec<(Box<Fn(&ComputerUnit, &Box<Opcode>) -> ()>)> = vec!();
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
     //exec_hooks.push(BreakpointFactory::on_exec_addr(0xC302, log_cpu_state));
-    //exec_hooks.push(Box::new(log_cpu_state));
+    use self::debug::cpu_logger;
+    exec_hooks.push(cpu_logger());
     let mut write_hooks = vec!();
     //write_hooks.push(BreakpointFactory::on_write_addr(0xC302, print_memory_write));
 
