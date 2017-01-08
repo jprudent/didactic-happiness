@@ -124,8 +124,8 @@ impl ArithmeticLogicalUnit {
         let two_complement = (!b).wrapping_add(1);
         let mut add = ArithmeticLogicalUnit::add(a, two_complement, 0);
         add.flags.n = true;
-        add.flags.cy = a < b;
-        add.flags.h = ArithmeticLogicalUnit::low_nibble(a) < ArithmeticLogicalUnit::low_nibble(b);
+        add.flags.cy = !add.flags.cy;
+        add.flags.h = !add.flags.h;
         add
     }
 

@@ -1,4 +1,5 @@
-use super::super::{Word, Size, Cycle, Opcode, ComputerUnit};
+use super::super::{ Size, Cycle, Opcode, ComputerUnit};
+use super::super::alu::ArithmeticLogicalUnit;
 
 struct Daa {
     size: Size,
@@ -13,41 +14,37 @@ pub fn daa() -> Box<Opcode> {
 }
 
 impl Opcode for Daa {
-    // I didn't find any strength to dive into this instruction so
-    // I monkey copied the snippet found here : http://forums.nesdev.com/viewtopic.php?t=9088
-    // TODO I think this can be refactored using ALU::add / sub
     fn exec(&self, cpu: &mut ComputerUnit) {
-        let mut a = cpu.get_a_register() as u16;
         if cpu.add_sub_flag() {
-            if cpu.half_carry_flag() {
-                a = a.wrapping_sub(6) & 0xFF;
+            if cpu.half_carry_flag() || ((cpu.get_a_register() & 0xF) > 9) {
+                let r = ArithmeticLogicalUnit::sub(cpu.get_a_register(), 0x06, 0);
+                println!("{:02X} - {:02X} = {:02X} c={}", cpu.get_a_register(), 0x06, r.result(), r.flags().carry_flag());
+                cpu.set_register_a(r.result());
+                cpu.set_carry_flag(r.flags().carry_flag());
             }
-            if cpu.carry_flag() {
-                a = a.wrapping_sub(0x60)
+            if cpu.carry_flag() || cpu.get_a_register() > 0x9F {
+                let r = ArithmeticLogicalUnit::sub(cpu.get_a_register(), 0x60, 0);
+                println!("{:02X} - {:02X} = {:02X} c={}", cpu.get_a_register(), 0x60, r.result(), r.flags().carry_flag());
+                cpu.set_register_a(r.result());
+                cpu.set_carry_flag(r.flags().carry_flag());
             }
         } else {
-            if cpu.half_carry_flag() || ((a & 0xF) > 9) {
-                a = a + 0x06
+            if cpu.half_carry_flag() || ((cpu.get_a_register() & 0xF) > 9) {
+                let r = ArithmeticLogicalUnit::add(cpu.get_a_register(), 0x06, 0);
+                cpu.set_register_a(r.result());
+                cpu.set_carry_flag(r.flags().carry_flag());
             }
-            if cpu.carry_flag() || a > 0x9F {
-                a += 0x60
+            if cpu.carry_flag() || cpu.get_a_register() > 0x9F {
+                let r = ArithmeticLogicalUnit::add(cpu.get_a_register(), 0x60, 0);
+                cpu.set_register_a(r.result());
+                cpu.set_carry_flag(r.flags().carry_flag());
             }
-        }
+        };
 
-        // The original code is :
-        //_regs.F &= ~(Flags.H | Flags.Z);
-        // I suppose (Flags.H | Flags.Z) = 1010_0000
-        // so ~(Flags.H | Flags.Z)       = 0101_1111
-        // correponding to the flags     = znhc
-        // so I believe this means resetting z and h
-        cpu.set_zero_flag(false);
+        let a = cpu.get_a_register();
+        cpu.set_zero_flag(a == 0);
         cpu.set_half_carry_flag(false);
 
-        cpu.set_carry_flag((a & 0x100) != 0);
-        a = a & 0xFF;
-        cpu.set_zero_flag(a == 0);
-
-        cpu.set_register_a(a as Word);
     }
 
     fn size(&self) -> Size {

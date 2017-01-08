@@ -1287,6 +1287,40 @@ fn should_implement_dec_instruction() {
 }
 
 #[test]
+fn should_implement_daa_instruction() {
+    let pg = Program {
+        name: "DAA",
+        content: vec![0x27]
+    };
+
+    let testcase =
+    vec![
+    (0, 0x0080),
+    (0x0A00, 0x1000),
+    (0x0B00, 0x1100),
+    (0x0C00, 0x1200),
+    (0x0D00, 0x1300),
+    (0x0E00, 0x1400),
+    (0x0F00, 0x1500),
+    (0x1000, 0x1000),
+    (0x1A00, 0x2000),
+    (0x1F00, 0x2500),
+    (0x9B00, 0x0110),
+    (0x0420, 0x0A00),
+    (0xFFF0, 0x9950),
+    ];
+    for (af, expected) in testcase {
+        let mut cpu = ComputerUnit::new();
+        cpu.load(&pg);
+        cpu.set_register_af(af as Double);
+        cpu.run_1_instruction(&Decoder::new_basic());
+        let msg = format!("DAA for AF={:04X} should be {:04X}, not {:04X}", af, expected, cpu.get_af_register());
+        assert_eq!(cpu.get_af_register(), expected as Double, "DAA for AF={:04X} should be {:04X}, not {:04X}", af, expected, cpu.get_af_register());
+    }
+}
+
+
+#[test]
 fn should_write_af() {
     let mut registers = Registers::new();
     registers.set_af(0xFFFF);
@@ -1534,9 +1568,7 @@ pub mod debug;
 #[test]
 fn should_run_the_first_testrom() {
     let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(on_exec(0xC5, cpu_logger())); // push bc
-    //exec_hooks.push(on_exec(0xF1, cpu_logger())); // pop af
-    //exec_hooks.push(on_exec(0xF5, cpu_logger())); // push af
+    exec_hooks.push(on_exec(0x27, cpu_logger())); // DAA
     //exec_hooks.push(cpu_logger());
     use self::debug::*;
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
@@ -1592,7 +1624,13 @@ fn should_run_the_first_testrom() {
     cpu.run_1_instruction(&decoder); // jr nz 0xC31D
     assert_eq!(cpu.get_pc_register(), 0xC31D);
 
-    for i in 0..100_000_000 {
+    while cpu.get_pc_register() != 0xC33D {
         cpu.run_1_instruction(&decoder);
+    }
+    cpu.run_1_instruction(&decoder); // DAA
+    assert_eq!(cpu.get_af_register(), 0x0080);
+
+    for i in 0..100_000_000 {
+        cpu.run_1_instruction(&decoder)
     }
 }
