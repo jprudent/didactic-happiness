@@ -46,7 +46,7 @@ impl Opcode for Push {
     }
 
     fn to_string(&self, cpu: &ComputerUnit) -> String {
-        format!("{:<4} {}", "dec", self.source.to_string(cpu))
+        format!("{:<4} {}", "push", self.source.to_string(cpu))
 
     }
 }

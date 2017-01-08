@@ -2,6 +2,7 @@ extern crate piston;
 extern crate graphics;
 extern crate glutin_window;
 extern crate opengl_graphics;
+
 use self::cpu::ComputerUnit;
 use self::cpu::Decoder;
 
@@ -21,13 +22,10 @@ struct GameBoy {
 }
 
 
-
 mod lcd {
     use super::cpu::ComputerUnit;
 
-    struct Lcd {
-
-    }
+    struct Lcd {}
 
     impl Lcd {
         fn update(&self, cpu: &mut ComputerUnit) {
@@ -74,7 +72,19 @@ fn test_da_gameboy() {
     let pg_loader = file_loader(&"roms/cpu_instrs/individual/01-special.gb".to_string());
     let pg = pg_loader.load();
 
-    let mut cpu = ComputerUnit::new();
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(BreakpointFactory::on_exec_addr(0xC302, log_cpu_state));
+    use self::cpu::debug::{cpu_logger};
+    use self::cpu::{ExecHook, Hooks};
+    exec_hooks.push(cpu_logger());
+    let mut write_hooks = vec!();
+    //write_hooks.push(BreakpointFactory::on_write_addr(0xC302, print_memory_write));
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+
     cpu.load(&pg);
 
     let mut gb = GameBoy {

@@ -77,3 +77,5 @@ J'ai un bug et j'ai la flême de chercher son origine.
 J'ai implémenté un débugger mais ça donne pas grand chose.
 J'essaye d'implémenter l'écran pour voir où j'en suis et redonner le moral
 aux troupes
+
+J'ai un sale bug sur pop AF. La solution est [ici](https://forums.nesdev.com/viewtopic.php?f=20&t=12815).

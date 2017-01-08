@@ -4,6 +4,7 @@ mod alu;
 use std::ops::IndexMut;
 use std::ops::Index;
 use self::operands::{WordRegister, DoubleRegister, RegisterPointer, HlOp};
+use super::program::file_loader;
 
 pub type Word = u8;
 type Double = u16;
@@ -55,6 +56,8 @@ impl Registers {
 
     fn set_af(&mut self, double: Double) {
         self.af = double;
+        // bits 0-3 are always 0
+        self.af = self.af & 0xFFF0
     }
 
     fn b(&self) -> Word {
@@ -162,7 +165,7 @@ fn should_get_value_from_registers() {
 // todo move in opcodes
 pub mod operands;
 
-
+// todo that's a pity the opcode doesn't know it's opcode (as a number)
 pub trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
     fn size(&self) -> Size;
@@ -504,8 +507,8 @@ pub trait MemoryWriteHook {
 }
 
 pub struct Hooks {
-    before_exec: Vec<Box<ExecHook>>,
-    before_write: Vec<Box<MemoryWriteHook>>
+    pub before_exec: Vec<Box<ExecHook>>,
+    pub before_write: Vec<Box<MemoryWriteHook>>
 }
 
 impl Hooks {
@@ -522,7 +525,7 @@ impl ComputerUnit {
         ComputerUnit::new_hooked(Hooks::no_hooks())
     }
 
-    fn new_hooked(hooks: Hooks) -> ComputerUnit {
+    pub fn new_hooked(hooks: Hooks) -> ComputerUnit {
         ComputerUnit {
             registers: Registers::new(),
             memory: ArrayBasedMemory {
@@ -1280,6 +1283,13 @@ fn should_implement_dec_instruction() {
 }
 
 #[test]
+fn should_write_af() {
+    let mut registers = Registers::new();
+    registers.set_af(0xFFFF);
+    assert_eq!(registers.af, 0xFFF0, "bits 0-3 don't really exist")
+}
+
+#[test]
 fn should_run_gunsriders() {
     use std::io::prelude::*;
     use std::fs::File;
@@ -1514,99 +1524,71 @@ fn should_run_gunsriders() {
     }
 }
 
-struct BreakpointFactory {}
+pub mod debug;
 
-impl BreakpointFactory {
-    fn on_exec_addr<F: 'static + Fn(&ComputerUnit, &Box<Opcode>)>(address: Address, f: F) -> Box<Fn(&ComputerUnit, &Box<Opcode>)> {
-        Box::new(move |cpu, opcode| {
-            if cpu.get_pc_register() == address {
-                f(cpu, opcode)
-            }
-        })
-    }
-
-    fn on_write_addr<F: 'static + Fn(&ComputerUnit, Address, Word)>(bp_address: Address, f: F) -> Box<Fn(&ComputerUnit, Address, Word)> {
-        Box::new(move |cpu, address, word| {
-            if bp_address == address {
-                f(cpu, address, word)
-            }
-        })
-    }
-}
-
-pub mod debug {
-    use super::{ExecHook, ComputerUnit, Opcode};
-
-    struct CpuLogger;
-
-    pub fn cpu_logger() -> Box<ExecHook> {
-        Box::new(CpuLogger)
-    }
-
-    impl CpuLogger {
-        fn instruction_bytes(cpu: &ComputerUnit, opcode: &Box<Opcode>) -> String {
-            let mut s = "".to_string();
-            for i in 0..opcode.size() {
-                let w = cpu.word_at(cpu.get_pc_register().wrapping_add(i));
-                s.push_str(&format!("{:02X}", w))
-            }
-            s
-        }
-    }
-
-    impl ExecHook for CpuLogger {
-        fn apply(&self, cpu: &ComputerUnit, opcode: &Box<Opcode>) {
-            println!("@{:04X} {:<6}|{:<10}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}",
-                     cpu.get_pc_register(),
-                     CpuLogger::instruction_bytes(cpu, opcode),
-                     opcode.to_string(cpu),
-                     cpu.get_af_register(),
-                     cpu.get_bc_register(),
-                     cpu.get_de_register(),
-                     cpu.get_hl_register(),
-                     cpu.get_sp_register(),
-                     if cpu.zero_flag() { "Z" } else { "z" },
-                     if cpu.add_sub_flag() { "N" } else { "n" },
-                     if cpu.half_carry_flag() { "H" } else { "h" },
-                     if cpu.carry_flag() { "C" } else { "c" },
-            );
-        }
-    }
-}
-
-use super::program::file_loader;
 
 #[test]
-fn should_run_testrom() {
-    let print_memory_write = |cpu: &ComputerUnit, address: Address, value: Word| {
-        println!("Instruction @{:04X} is writing {:02X} at address {:04X}",
-                 cpu.get_pc_register(),
-                 value,
-                 address);
-    };
-
-    let log_cpu_state = |cpu: &ComputerUnit, opcode: &Box<Opcode>| -> () {};
-
+fn should_run_the_first_testrom() {
     let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(BreakpointFactory::on_exec_addr(0xC302, log_cpu_state));
-    use self::debug::cpu_logger;
-    exec_hooks.push(cpu_logger());
-    let mut write_hooks = vec!();
-    //write_hooks.push(BreakpointFactory::on_write_addr(0xC302, print_memory_write));
+    //exec_hooks.push(on_exec(0xC5, cpu_logger())); // push bc
+    //exec_hooks.push(on_exec(0xF1, cpu_logger())); // pop af
+    //exec_hooks.push(on_exec(0xF5, cpu_logger())); // push af
+    //exec_hooks.push(cpu_logger());
+    use self::debug::*;
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
 
     let mut cpu = ComputerUnit::new_hooked(Hooks {
         before_exec: exec_hooks,
         before_write: write_hooks
     });
-    let loader = file_loader(&"roms/cpu_instrs/cpu_instrs.gb".to_string());
+    let loader = file_loader(&"roms/cpu_instrs/individual/01-special.gb".to_string());
     let pg = loader.load();
     cpu.load(&pg);
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..500000 {
-        cpu.run_1_instruction(&decoder);
-    };
+    while cpu.get_pc_register() != 0xC31D {
+        cpu.run_1_instruction(&decoder)
+    }
 
-    assert!(false);
+    assert_eq!(cpu.get_bc_register(), 0x1200);
+    cpu.run_1_instruction(&decoder); // push bc
+
+    cpu.run_1_instruction(&decoder); // pop af
+    assert_eq!(cpu.get_af_register(), 0x1200);
+    assert!(!cpu.zero_flag());
+
+    cpu.run_1_instruction(&decoder); // push af
+
+    cpu.run_1_instruction(&decoder); // pop de
+    assert_eq!(cpu.get_de_register(), 0x1200);
+
+    cpu.run_1_instruction(&decoder); //ld a,c
+    assert_eq!(cpu.get_a_register(), 0);
+
+    cpu.run_1_instruction(&decoder); //and a, 0xF0
+    assert_eq!(cpu.get_a_register(), 0);
+    assert!(cpu.zero_flag());
+
+    cpu.run_1_instruction(&decoder); //cp e
+    assert_eq!(cpu.get_a_register(), 0);
+    assert!(cpu.zero_flag());
+    assert!(cpu.add_sub_flag());
+
+    cpu.run_1_instruction(&decoder); // jp nz 0xC1B9
+    assert_eq!(cpu.get_pc_register(), 0xC328);
+
+    cpu.run_1_instruction(&decoder); // inc b
+    assert_eq!(cpu.get_b_register(), 0x13);
+
+    cpu.run_1_instruction(&decoder); // inc c
+    assert_eq!(cpu.get_c_register(), 0x01);
+
+    cpu.run_1_instruction(&decoder); // jr nz 0xC31D
+    assert_eq!(cpu.get_pc_register(), 0xC31D);
+
+    for i in 0..1_000_000 {
+        cpu.run_1_instruction(&decoder);
+    }
 }
