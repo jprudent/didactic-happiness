@@ -53,6 +53,8 @@ impl FlagRegister {
 }
 
 impl ArithmeticLogicalUnit {
+
+    // TODO unused parameters
     pub fn add(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
         let result = a.wrapping_add(b);
         ArithmeticResult {
@@ -66,6 +68,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    // TODO unused parameters
     pub fn add_16_16(a: Double, b: Double, _: Word) -> ArithmeticResult<Double> {
         let result = a.wrapping_add(b);
         ArithmeticResult {
@@ -102,6 +105,7 @@ impl ArithmeticLogicalUnit {
         (add & 0x1000) != 0
     }
 
+    // TODO unused parameters
     pub fn add_16_8(a: Double, b: Word, _: Word) -> ArithmeticResult<Double> {
         let result = set_low_word(a, low_word(a).wrapping_add(b));
         ArithmeticResult {
@@ -115,6 +119,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    // TODO unused parameters
     pub fn sub(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
         let two_complement = (!b).wrapping_add(1);
         let mut add = ArithmeticLogicalUnit::add(a, two_complement, 0);
@@ -124,6 +129,7 @@ impl ArithmeticLogicalUnit {
         add
     }
 
+    // TODO unused parameters
     pub fn and(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a & b;
         ArithmeticResult {
@@ -137,6 +143,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    // TODO unused parameters
     pub fn or(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a | b;
         ArithmeticResult {
@@ -150,6 +157,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    // TODO unused parameters
     pub fn rotate_left(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a.rotate_left(1);
         ArithmeticResult {
@@ -163,6 +171,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    // TODO unused parameters
     pub fn rotate_right(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a.rotate_right(1);
         ArithmeticResult {
@@ -176,6 +185,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    // TODO unused parameters
     pub fn rotate_right_through_carry(a: Word, _: Word, carry: Word) -> ArithmeticResult<Word> {
         assert!(carry <= 1, "Carry should be 1 or 0");
         let c = carry.wrapping_shl(7);
@@ -191,6 +201,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    // TODO unused parameters
     pub fn rotate_left_through_carry(a: Word, _: Word, carry: Word) -> ArithmeticResult<Word> {
         assert!(carry <= 1, "Carry should be 1 or 0");
         let r = (a.rotate_left(1) & 0xFE) | carry;
@@ -205,6 +216,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    // TODO unused parameters
     pub fn shift_right(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a.wrapping_shr(1);
         ArithmeticResult {
@@ -218,6 +230,7 @@ impl ArithmeticLogicalUnit {
         }
     }
 
+    // TODO unused parameters
     pub fn swap(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a.rotate_right(4);
         ArithmeticResult {

@@ -37,7 +37,7 @@ little pet project for this purpose.
 - [Test Roms](http://gbdev.gg8.se/files/roms/blargg-gb-tests/) to test your implementation. Priceless.
 - [Z80 syntax](http://www.z80.info/z80syntx.htm) with useful diagrams.
 - [Z80 user guide](http://www.zilog.com/appnotes_download.php?FromPage=DirectLink&dn=UM0080&ft=User%20Manual&f=YUhSMGNEb3ZMM2QzZHk1NmFXeHZaeTVqYjIwdlpHOWpjeTk2T0RBdlZVMHdNRGd3TG5Ca1pnPT0=) describes each instruction in length. Not enough example though.
-
+- [Nesdev](http://forum.nesdev.com). I've done numerous search on the forum via Google 'site:"nesdev.com" blabla'.
 # Struggling with Rust :
 
 - Recursive generic type :

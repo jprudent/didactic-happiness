@@ -28,7 +28,7 @@ mod lcd {
     struct Lcd {}
 
     impl Lcd {
-        fn update(&self, cpu: &mut ComputerUnit) {
+        fn update(&self, _: &mut ComputerUnit) {
             //let cycles = cpu.clock();
         }
     }

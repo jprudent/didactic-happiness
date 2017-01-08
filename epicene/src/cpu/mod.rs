@@ -205,6 +205,8 @@ impl Decoder {
         use self::opcodes::prefix_cb::*;
         use self::opcodes::ccf::*;
         use self::opcodes::scf::*;
+        use self::opcodes::daa::*;
+        use self::opcodes::cpl::*;
 
         decoder[0x00] = nop();
         decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
@@ -245,6 +247,7 @@ impl Decoder {
         decoder[0x24] = inc_r(WordRegister::H);
         decoder[0x25] = dec_r(WordRegister::H);
         decoder[0x26] = ld_r_from_w(WordRegister::H);
+        decoder[0x27] = daa();
         decoder[0x28] = jr_z_w();
         decoder[0x29] = add_hl_hl();
         decoder[0x2A] = ld_a_from_ptr_hl(HlOp::HLI);
@@ -252,6 +255,7 @@ impl Decoder {
         decoder[0x2C] = inc_r(WordRegister::L);
         decoder[0x2D] = dec_r(WordRegister::L);
         decoder[0x2E] = ld_r_from_w(WordRegister::L);
+        decoder[0x2F] = cpl();
         decoder[0x30] = jr_nc_w();
         decoder[0x31] = ld_rr_from_ww(DoubleRegister::SP);
         decoder[0x32] = ld_ptr_hl_from_a(HlOp::HLD);
@@ -1588,7 +1592,7 @@ fn should_run_the_first_testrom() {
     cpu.run_1_instruction(&decoder); // jr nz 0xC31D
     assert_eq!(cpu.get_pc_register(), 0xC31D);
 
-    for i in 0..1_000_000 {
+    for i in 0..100_000_000 {
         cpu.run_1_instruction(&decoder);
     }
 }

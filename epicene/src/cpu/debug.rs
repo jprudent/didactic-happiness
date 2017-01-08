@@ -57,7 +57,7 @@ pub fn print_char() -> Box<MemoryWriteHook> {
 struct PrintChar;
 
 impl MemoryWriteHook for PrintChar {
-    fn apply(&self, cpu: &ComputerUnit, address: Address, word: Word) {
+    fn apply(&self, _: &ComputerUnit, _: Address, word: Word) {
         print!("{}", word as char);
     }
 }
