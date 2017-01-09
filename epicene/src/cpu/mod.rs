@@ -1293,50 +1293,53 @@ fn should_implement_daa_instruction() {
         content: vec![0x27]
     };
 
-    let testcase =
+    let testcase: Vec<(Double, Double)> =
     vec![
     (0, 0x0080),
-    (0x0A00, 0x1000),
-    (0x0B00, 0x1100),
-    (0x0C00, 0x1200),
-    (0x0D00, 0x1300),
-    (0x0E00, 0x1400),
-    (0x0F00, 0x1500),
-
-    (0x1000, 0x1000),
-    (0x1A00, 0x2000),
-    (0x1F00, 0x2500),
-
-    (0x9B00, 0x0110),
-
-    (0x0420, 0x0A00),
+    (0x0A00, 0x1000), // - - - -
+    (0x0B00, 0x1100), // - - - -
+    (0x0C00, 0x1200), // - - - -
+    (0x0D00, 0x1300), // - - - -
+    (0x0E00, 0x1400), // - - - -
+    (0x0F00, 0x1500), // - - - -
+    (0x1000, 0x1000), // - - - -
+    (0x1A00, 0x2000), // - - - -
+    (0x1F00, 0x2500), // - - - -
+    (0x9B00, 0x0110), // - - - C
+    (0x0420, 0x0A00), // - - - -
+    (0xFF20, 0x6510), // - - H -
+    (0xFF30, 0x6510), // - - H C
+    (0xFF10, 0x6510), // - - - C
+    (0x0F20, 0x1500), // - - H -
+    (0x0F30, 0x7510), // - - H C
+    (0x0F10, 0x7510), // - - - C
 
     (0xFFF0, 0x9950), // Z N H C
     (0xFF40, 0xFF40), // - N - -
     (0xFF60, 0xF940), // - N H -
     (0xFF50, 0x9F50), // - N - C
     (0xFF70, 0x9950), // - N H C
-    (0xFF20, 0x6510), // - - H -
-    (0xFF30, 0x6510), // - - H C
-    (0xFF10, 0x6510), // - - - C
-
     (0x0FF0, 0xA950), // Z N H C
     (0x0F40, 0x0F40), // - N - -
     (0x0F60, 0x0940), // - N H -
     (0x0F50, 0xAF50), // - N - C
     (0x0F70, 0xA950), // - N H C
-    (0x0F20, 0x1500), // - - H -
-    (0x0F30, 0x7510), // - - H C
-    (0x0F10, 0x7510), // - - - C
     ];
-    for (af, expected) in testcase {
+
+    let run = |testcase: &(Double, Double)| -> (Double, Double, Double) {
+        let (af, expected) = *testcase;
         let mut cpu = ComputerUnit::new();
         cpu.load(&pg);
         cpu.set_register_af(af as Double);
         cpu.run_1_instruction(&Decoder::new_basic());
-        let msg = format!("DAA for AF={:04X} should be {:04X}, not {:04X}", af, expected, cpu.get_af_register());
-        assert_eq!(cpu.get_af_register(), expected as Double, "DAA for AF={:04X} should be {:04X}, not {:04X}", af, expected, cpu.get_af_register());
+        (af, expected, cpu.get_af_register())
+    };
+
+    for (af, expected, actual) in testcase.iter().map(run) {
+        println!("DAA {:04X} = {:04X} = {:04X} ? {}", af, expected, actual, expected == actual)
     }
+
+    assert!(false)
 }
 
 
