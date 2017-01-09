@@ -1307,7 +1307,12 @@ fn should_implement_daa_instruction() {
     (0x1F00, 0x2500),
     (0x9B00, 0x0110),
     (0x0420, 0x0A00),
-    (0xFFF0, 0x9950),
+    (0xFFF0, 0x9950), // Z N H C
+    (0xFF40, 0xFF40), // - N - -
+    (0xFF60, 0xF940), // - N H -
+    (0xFF50, 0x9F50), // - N - C
+    (0xFF70, 0x9950), // - N H C
+    (0xFF20, 0x6510), // - - H -
     ];
     for (af, expected) in testcase {
         let mut cpu = ComputerUnit::new();
