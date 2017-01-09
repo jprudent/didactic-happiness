@@ -1307,6 +1307,7 @@ fn should_implement_daa_instruction() {
     (0x1F00, 0x2500), // - - - -
     (0x9B00, 0x0110), // - - - C
     (0x0420, 0x0A00), // - - - -
+
     (0xFF20, 0x6510), // - - H -
     (0xFF30, 0x6510), // - - H C
     (0xFF10, 0x6510), // - - - C
@@ -1319,11 +1320,38 @@ fn should_implement_daa_instruction() {
     (0xFF60, 0xF940), // - N H -
     (0xFF50, 0x9F50), // - N - C
     (0xFF70, 0x9950), // - N H C
+
     (0x0FF0, 0xA950), // Z N H C
     (0x0F40, 0x0F40), // - N - -
     (0x0F60, 0x0940), // - N H -
     (0x0F50, 0xAF50), // - N - C
     (0x0F70, 0xA950), // - N H C
+
+    (0xF0F0, 0x8A50), // Z N H C
+    (0xF040, 0xF040), // - N - -
+    (0xF050, 0x9050), // - N - C
+    (0xF060, 0xEA40), // - N H -
+    (0xF070, 0x8A50), // - N H C
+
+    (0xF000, 0x5010), // - - - -
+    (0xF010, 0x5010), // - - - C
+    (0xF020, 0x5610), // - - H -
+    (0xF030, 0x5610), // - - H C
+    (0xF0B0, 0x5610), // Z - H C
+
+    (0x9AF0, 0x3450), // Z N H C
+    (0x9A40, 0x9A40), // - N - -
+    (0x9A50, 0x3A50), // - N - C
+    (0x9A60, 0x9440), // - N H -
+    (0x9A70, 0x3450), // - N H C
+
+    (0x9A00, 0x0090), // - - - -
+    (0x9A10, 0x0090), // - - - C
+    (0x9A20, 0x0090), // - - H -
+    (0x9A30, 0x0090), // - - H C
+    (0x9AB0, 0x0090), // Z - H C
+
+
     ];
 
     let run = |testcase: &(Double, Double)| -> (Double, Double, Double) {
