@@ -37,6 +37,7 @@ impl Opcode for Daa {
             if !cpu.carry_flag() && high_nibble(a) <= 9 && !cpu.half_carry_flag() && low_nibble(a) <= 9 {
                 cpu.set_carry_flag(false)
             } else if !cpu.carry_flag() && high_nibble(a) <= 8 && cpu.half_carry_flag() && low_nibble(a) >= 6 {
+                println!("sub case 2");
                 cpu.set_register_a(a.wrapping_add(0xFA));
                 cpu.set_carry_flag(false)
             } else if cpu.carry_flag() && high_nibble(a) >= 7 && !cpu.half_carry_flag() && low_nibble(a) <= 9 {
@@ -47,6 +48,9 @@ impl Opcode for Daa {
                 cpu.set_carry_flag(true)
             } else if cpu.carry_flag() && high_nibble(a) >= 0xA && !cpu.half_carry_flag() && low_nibble(a) >= 0xA {
                 cpu.set_register_a(a.wrapping_add(0xA0));
+                cpu.set_carry_flag(true)
+            } else if cpu.carry_flag() && high_nibble(a) <= 0xA && cpu.half_carry_flag() && low_nibble(a) >= 0xA {
+                cpu.set_register_a(a.wrapping_add(0x9A));
                 cpu.set_carry_flag(true)
             } else {
                 let mut new_carry = false;
