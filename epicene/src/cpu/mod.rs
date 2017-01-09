@@ -1568,7 +1568,7 @@ pub mod debug;
 #[test]
 fn should_run_the_first_testrom() {
     let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    exec_hooks.push(on_exec(0x27, cpu_logger())); // DAA
+    //exec_hooks.push(on_exec(0x27, cpu_logger())); // DAA
     //exec_hooks.push(cpu_logger());
     use self::debug::*;
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
