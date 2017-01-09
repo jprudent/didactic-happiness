@@ -123,15 +123,17 @@ impl Opcode for Daa {
                 cpu.set_carry_flag(true);
                 cpu.set_register_a(a.wrapping_add(0x66));
             } else {
+                let mut new_carry = false;
                 if cpu.half_carry_flag() || ((cpu.get_a_register() & 0xF) > 9) {
                     let r = ArithmeticLogicalUnit::add(cpu.get_a_register(), 0x06, 0);
                     cpu.set_register_a(r.result());
                     cpu.set_carry_flag(r.flags().carry_flag());
+                    new_carry = r.flags().carry_flag()
                 }
                 if cpu.carry_flag() || cpu.get_a_register() > 0x9F {
                     let r = ArithmeticLogicalUnit::add(cpu.get_a_register(), 0x60, 0);
                     cpu.set_register_a(r.result());
-                    cpu.set_carry_flag(r.flags().carry_flag());
+                    cpu.set_carry_flag(r.flags().carry_flag() | new_carry);
                 }
             }
         };
