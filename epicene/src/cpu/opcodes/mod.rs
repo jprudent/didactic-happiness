@@ -23,6 +23,9 @@ pub mod daa;
 pub mod ccf;
 pub mod scf;
 pub mod cpl;
+pub mod bit;
+pub mod res;
+pub mod set;
 
 
 #[derive(Debug)]

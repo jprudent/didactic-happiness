@@ -1972,3 +1972,28 @@ fn should_run_the_nineth_testrom() {
 
     assert!(false) // this test doesn't pass.
 }
+
+#[test]
+fn should_run_the_tenth_testrom() {
+    use self::debug::*;
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(cpu_logger());
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+    let loader = file_loader(&"roms/cpu_instrs/individual/10-bit ops.gb".to_string());
+    let pg = loader.load();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = &Decoder::new_basic();
+
+    for i in 0..10_000_000 {
+        cpu.run_1_instruction(&decoder)
+    }
+
+    assert!(false) // this test doesn't pass.
+}

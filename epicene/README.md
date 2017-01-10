@@ -84,3 +84,5 @@ J'ai 12000 bugs sur DAA et j'ai pas de solution
 J'ai un sale bug sur 0xF8 ld hl,(sp+n)
 
 J'ai abandonné l'écran.
+J'ai perdu trop de temps à essayer d'être générique au niveau des opcodes.
+
