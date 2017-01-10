@@ -700,6 +700,103 @@ pub fn swap_ptr_hl() -> Box<Opcode> {
     )
 }
 
+pub fn sla_a() -> Box<Opcode> {
+    sla_r(WordRegister::A)
+}
+pub fn sla_b() -> Box<Opcode> {
+    sla_r(WordRegister::B)
+}
+pub fn sla_c() -> Box<Opcode> {
+    sla_r(WordRegister::C)
+}
+pub fn sla_d() -> Box<Opcode> {
+    sla_r(WordRegister::D)
+}
+pub fn sla_e() -> Box<Opcode> {
+    sla_r(WordRegister::E)
+}
+pub fn sla_h() -> Box<Opcode> {
+    sla_r(WordRegister::H)
+}
+pub fn sla_l() -> Box<Opcode> {
+    sla_r(WordRegister::L)
+}
+
+fn sla_r(r: WordRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Constant(1), // unused
+            destination: r,
+            operation: ArithmeticLogicalUnit::shift_left,
+            mnemonic: "swap",
+            size: 1,
+            cycles: 8,
+        }
+    )
+}
+
+pub fn sra_a() -> Box<Opcode> {
+    sra_r(WordRegister::A)
+}
+pub fn sra_b() -> Box<Opcode> {
+    sra_r(WordRegister::B)
+}
+pub fn sra_c() -> Box<Opcode> {
+    sra_r(WordRegister::C)
+}
+pub fn sra_d() -> Box<Opcode> {
+    sra_r(WordRegister::D)
+}
+pub fn sra_e() -> Box<Opcode> {
+    sra_r(WordRegister::E)
+}
+pub fn sra_h() -> Box<Opcode> {
+    sra_r(WordRegister::H)
+}
+pub fn sra_l() -> Box<Opcode> {
+    sra_r(WordRegister::L)
+}
+
+fn sra_r(r: WordRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Constant(1), // unused
+            destination: r,
+            operation: ArithmeticLogicalUnit::shift_right,
+            mnemonic: "swap",
+            size: 1,
+            cycles: 8,
+        }
+    )
+}
+
+pub fn sra_ptr_hl() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Constant(1), // unused
+            destination: RegisterPointer::HL,
+            operation: ArithmeticLogicalUnit::shift_right,
+            mnemonic: "swap",
+            size: 1,
+            cycles: 16,
+        }
+    )
+}
+
+
+pub fn sla_ptr_hl() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: Constant(1), // unused
+            destination: RegisterPointer::HL,
+            operation: ArithmeticLogicalUnit::shift_left,
+            mnemonic: "swap",
+            size: 1,
+            cycles: 16,
+        }
+    )
+}
+
 
 fn bool_to_word(b: bool) -> Word {
     if b { 1 } else { 0 }

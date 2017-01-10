@@ -1966,7 +1966,7 @@ fn should_run_the_nineth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..12_000_000 {
+    for i in 0..40_000_000 {
         cpu.run_1_instruction(&decoder)
     }
 

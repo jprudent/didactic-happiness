@@ -240,6 +240,20 @@ impl ArithmeticLogicalUnit {
     }
 
     // TODO unused parameters
+    pub fn shift_left(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
+        let r = a.wrapping_shl(1);
+        ArithmeticResult {
+            result: r,
+            flags: FlagRegister {
+                zf: r == 0,
+                n: false,
+                h: false,
+                cy: a & 0x80 != 0
+            }
+        }
+    }
+
+    // TODO unused parameters
     pub fn swap(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a.rotate_right(4);
         ArithmeticResult {
