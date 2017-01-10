@@ -368,6 +368,14 @@ impl Decoder {
         decoder[0x9D] = sbc_a_l();
         decoder[0x9E] = sbc_a_ptr_hl();
         decoder[0x9F] = sbc_a_a();
+        decoder[0xA0] = and_a_b();
+        decoder[0xA1] = and_a_c();
+        decoder[0xA2] = and_a_d();
+        decoder[0xA3] = and_a_e();
+        decoder[0xA4] = and_a_h();
+        decoder[0xA5] = and_a_l();
+        decoder[0xA6] = and_a_ptr_hl();
+        decoder[0xA7] = and_a_a();
         decoder[0xA8] = xor_r(WordRegister::B);
         decoder[0xA9] = xor_r(WordRegister::C);
         decoder[0xAA] = xor_r(WordRegister::D);
@@ -400,37 +408,45 @@ impl Decoder {
         decoder[0xC4] = call_nz_a16();
         decoder[0xC5] = push_bc();
         decoder[0xC6] = add_a_d8();
+        decoder[0xC7] = rst_00();
         decoder[0xC8] = ret_z();
         decoder[0xCA] = jp_z_nn();
         decoder[0xCB] = prefix_cb();
         decoder[0xCC] = call_z_a16();
         decoder[0xCD] = call_a16();
         decoder[0xCE] = adc_a_w();
+        decoder[0xCF] = rst_08();
         decoder[0xD0] = ret_nc();
         decoder[0xD1] = pop_de();
         decoder[0xD2] = jp_nc_nn();
         decoder[0xD4] = call_nc_a16();
         decoder[0xD5] = push_de();
         decoder[0xD6] = sub_d8();
+        decoder[0xD7] = rst_10();
         decoder[0xD8] = ret_c();
+        decoder[0xD9] = reti();
         decoder[0xDA] = jp_c_nn();
         decoder[0xDC] = call_c_a16();
         decoder[0xDE] = sbc_a_w();
+        decoder[0xDF] = rst_18();
         decoder[0xE0] = ldh_ptr_a();
         decoder[0xE1] = pop_hl();
         decoder[0xE2] = ld_ptr_r_from_r(RegisterPointer::C, WordRegister::A);
         decoder[0xE5] = push_hl();
         decoder[0xE6] = and_w();
+        decoder[0xE7] = rst_20();
         decoder[0xE8] = add_sp_w();
         decoder[0xE9] = jp_hl();
         decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
         decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
+        decoder[0xEF] = rst_28();
         decoder[0xF0] = ldh_a_ptr();
         decoder[0xF1] = pop_af();
         decoder[0xF2] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::C);
         decoder[0xF3] = di();
         decoder[0xF5] = push_af();
         decoder[0xF6] = or_a_w();
+        decoder[0xF7] = rst_30();
         decoder[0xF8] = ld_hl_sp_plus_w();
         decoder[0xF9] = ld_rr_from_rr(DoubleRegister::SP, DoubleRegister::HL);
         decoder[0xFA] = ld_r_from_ptr_nn(WordRegister::A);
@@ -1825,9 +1841,134 @@ fn should_run_the_fourth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    while cpu.get_pc_register() != 0xCB44 {
+    for i in 0..1_500_000 {
         cpu.run_1_instruction(&decoder)
     }
 
     assert!(false) // this test doesn't pass. Magic address is at 0xDEF8
+}
+
+#[test]
+fn should_run_the_fifth_testrom() {
+    use self::debug::*;
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(cpu_logger());
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+    let loader = file_loader(&"roms/cpu_instrs/individual/05-op rp.gb".to_string());
+    let pg = loader.load();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = &Decoder::new_basic();
+
+    for i in 0..2_000_000 {
+        cpu.run_1_instruction(&decoder)
+    }
+
+    assert!(false) // this test doesn't pass.
+}
+
+#[test]
+fn should_run_the_sixth_testrom() {
+    use self::debug::*;
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(cpu_logger());
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+    let loader = file_loader(&"roms/cpu_instrs/individual/06-ld r,r.gb".to_string());
+    let pg = loader.load();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = &Decoder::new_basic();
+
+    for i in 0..2_000_000 {
+        cpu.run_1_instruction(&decoder)
+    }
+
+    assert!(false) // this test doesn't pass.
+}
+
+#[test]
+fn should_run_the_seventh_testrom() {
+    use self::debug::*;
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(cpu_logger());
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+    let loader = file_loader(&"roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb".to_string());
+    let pg = loader.load();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = &Decoder::new_basic();
+
+    for i in 0..2_000_000 {
+        cpu.run_1_instruction(&decoder)
+    }
+
+    assert!(false) // this test doesn't pass.
+}
+
+#[test]
+fn should_run_the_eigth_testrom() {
+    use self::debug::*;
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(cpu_logger());
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+    let loader = file_loader(&"roms/cpu_instrs/individual/08-misc instrs.gb".to_string());
+    let pg = loader.load();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = &Decoder::new_basic();
+
+    for i in 0..2_000_000 {
+        cpu.run_1_instruction(&decoder)
+    }
+
+    assert!(false) // this test doesn't pass.
+}
+
+#[test]
+fn should_run_the_nineth_testrom() {
+    use self::debug::*;
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(cpu_logger());
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+    let loader = file_loader(&"roms/cpu_instrs/individual/09-op r,r.gb".to_string());
+    let pg = loader.load();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = &Decoder::new_basic();
+
+    for i in 0..12_000_000 {
+        cpu.run_1_instruction(&decoder)
+    }
+
+    assert!(false) // this test doesn't pass.
 }

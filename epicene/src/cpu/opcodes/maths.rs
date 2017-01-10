@@ -63,6 +63,57 @@ pub fn and_w() -> Box<Opcode> {
         })
 }
 
+pub fn and_a_a() -> Box<Opcode> {
+    and_a(WordRegister::A)
+}
+
+pub fn and_a_b() -> Box<Opcode> {
+    and_a(WordRegister::B)
+}
+
+pub fn and_a_c() -> Box<Opcode> {
+    and_a(WordRegister::C)
+}
+
+pub fn and_a_d() -> Box<Opcode> {
+    and_a(WordRegister::D)
+}
+
+pub fn and_a_e() -> Box<Opcode> {
+    and_a(WordRegister::E)
+}
+
+pub fn and_a_h() -> Box<Opcode> {
+    and_a(WordRegister::H)
+}
+
+pub fn and_a_l() -> Box<Opcode> {
+    and_a(WordRegister::L)
+}
+
+fn and_a(r: WordRegister) -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: r,
+            destination: WordRegister::A,
+            operation: ArithmeticLogicalUnit::and,
+            mnemonic: "and",
+            size: 1,
+            cycles: 4,
+        })
+}
+
+pub fn and_a_ptr_hl() -> Box<Opcode> {
+    Box::new(
+        ArithmeticOperation {
+            source: RegisterPointer::HL,
+            destination: WordRegister::A,
+            operation: ArithmeticLogicalUnit::and,
+            mnemonic: "and",
+            size: 1,
+            cycles: 8,
+        })
+}
 pub fn sub_r(source: WordRegister) -> Box<Opcode> {
     Box::new(ArithmeticOperation {
         source: source,

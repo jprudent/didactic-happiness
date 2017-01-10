@@ -1,4 +1,4 @@
-use super::super::{Size, Cycle, Opcode, Double, ComputerUnit};
+use super::super::{Size, Address, Cycle, Opcode, Double, ComputerUnit};
 use super::super::operands::{AsString, RightOperand, ImmediateDouble, ConstantAddress};
 use super::{JmpCondition};
 
@@ -41,10 +41,42 @@ fn call(condition: JmpCondition) -> Box<Opcode> {
         })
 }
 
+pub fn rst_00() -> Box<Opcode> {
+    rst(0x00)
+}
+
+pub fn rst_10() -> Box<Opcode> {
+    rst(0x10)
+}
+
+pub fn rst_20() -> Box<Opcode> {
+    rst(0x20)
+}
+
+pub fn rst_30() -> Box<Opcode> {
+    rst(0x30)
+}
+
+pub fn rst_08() -> Box<Opcode> {
+    rst(0x08)
+}
+
+pub fn rst_18() -> Box<Opcode> {
+    rst(0x18)
+}
+
+pub fn rst_28() -> Box<Opcode> {
+    rst(0x28)
+}
+
 pub fn rst_38() -> Box<Opcode> {
+    rst(0x38)
+}
+
+fn rst(address: Address) -> Box<Opcode> {
     Box::new(
         Call {
-            address: ConstantAddress(0x38),
+            address: ConstantAddress(address),
             condition: JmpCondition::ALWAYS,
             size: 1,
             cycles_when_taken: 32,
@@ -60,7 +92,7 @@ impl<S: RightOperand<Double> + AsString> Opcode for Call<S> {
             cpu.push(pc + self.size());
 
             let address = self.address.resolve(cpu);
-            cpu.set_register_pc(address - self.size()); // self.size() is added afterward
+            cpu.set_register_pc(address.wrapping_sub(self.size())); // self.size() is added afterward
         }
     }
 
