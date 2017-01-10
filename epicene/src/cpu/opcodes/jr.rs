@@ -3,7 +3,7 @@ use super::JmpCondition;
 use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, ImmediateWord, RightOperand};
 
-struct ConditionalJump<X, A: RightOperand<X> + AsString> {
+struct RelativeJump<X, A: RightOperand<X> + AsString> {
     address: A,
     condition: JmpCondition,
     size: Size,
@@ -34,7 +34,7 @@ pub fn jr_w() -> Box<Opcode> {
 
 fn jr_cond_w(condition: JmpCondition) -> Box<Opcode> {
     Box::new(
-        ConditionalJump {
+        RelativeJump {
             address: ImmediateWord {},
             condition: condition,
             size: 2,
@@ -48,7 +48,7 @@ fn is_negative(word: Word) -> bool {
     word & 0x80 != 0
 }
 
-impl<A: RightOperand<Word> + AsString> Opcode for ConditionalJump<Word, A> {
+impl<A: RightOperand<Word> + AsString> Opcode for RelativeJump<Word, A> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let relative_address: Word = self.address.resolve(cpu);
         if self.condition.matches(cpu) {

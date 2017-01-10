@@ -334,8 +334,10 @@ impl RightOperand<Double> for SpRelative {
         let sp = cpu.get_sp_register();
         let pc = cpu.get_pc_register();
         let word = cpu.word_at(pc + 1);
-        let r = ArithmeticLogicalUnit::add_16_8(sp, word, 0);
+        let r = ArithmeticLogicalUnit::add_16_8_signed(sp, word, 0);
         r.flags().set_flags(cpu); // mut the CPU
+        cpu.set_zero_flag(false);
+        cpu.set_add_sub_flag(false);
         r.result()
     }
 }

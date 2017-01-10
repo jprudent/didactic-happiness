@@ -44,7 +44,7 @@ pub fn add_sp_w() -> Box<Opcode> {
         ArithmeticOperation {
             source: ImmediateWord {},
             destination: DoubleRegister::SP,
-            operation: ArithmeticLogicalUnit::add_16_8,
+            operation: ArithmeticLogicalUnit::add_16_8_signed,
             mnemonic: "add",
             size: 2,
             cycles: 16

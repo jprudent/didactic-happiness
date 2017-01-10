@@ -1287,6 +1287,61 @@ fn should_implement_dec_instruction() {
 }
 
 #[test]
+fn should_implement_ld_hl_sp_plus_n() {
+    let test_cases = vec!(
+        //  n      sp  flgs      hl  flgs
+        (0xFF, 0x0000, 0xFF, 0xFFFF, 0x00),
+        (0xFF, 0x0001, 0xFF, 0x0000, 0x30),
+        (0xFF, 0x000F, 0xFF, 0x000E, 0x30),
+        (0xFF, 0x0010, 0xFF, 0x000F, 0x10),
+        (0xFF, 0x001F, 0xFF, 0x001E, 0x30),
+        (0xFF, 0x007F, 0xFF, 0x007E, 0x30),
+        (0xFF, 0x007F, 0xFF, 0x007E, 0x30),
+        (0xFF, 0x0080, 0xFF, 0x007F, 0x10),
+        (0xFF, 0x0080, 0xFF, 0x007F, 0x10),
+        (0xFF, 0x00FF, 0xFF, 0x00FE, 0x30),
+        (0xFF, 0x0100, 0xFF, 0x00FF, 0x00),
+        (0xFF, 0x0F00, 0xFF, 0x0EFF, 0x00),
+        (0xFF, 0x1F00, 0xFF, 0x1EFF, 0x00),
+        (0xFF, 0x1000, 0xFF, 0x0FFF, 0x00),
+        (0xFF, 0x7FFF, 0xFF, 0x7FFE, 0x30),
+        (0xFF, 0x8000, 0xFF, 0x7FFF, 0x00),
+        (0xFF, 0xFFFF, 0xFF, 0xFFFE, 0x30),
+
+        (0x01, 0x0000, 0x00, 0x0001, 0x00),
+        (0x01, 0x0001, 0x00, 0x0002, 0x00),
+        (0x01, 0x000F, 0x00, 0x0010, 0x20),
+        (0x01, 0x0010, 0x00, 0x0011, 0x00),
+        (0x01, 0x001F, 0x00, 0x0020, 0x20),
+        (0x01, 0x007F, 0x00, 0x0080, 0x20),
+        (0x01, 0x0080, 0x00, 0x0081, 0x00),
+        (0x01, 0x00FF, 0x00, 0x0100, 0x30),
+        (0x01, 0x0100, 0x00, 0x0101, 0x00),
+        (0x01, 0x0F00, 0x00, 0x0F01, 0x00),
+        (0x01, 0x1F00, 0x00, 0x1F01, 0x00),
+        (0x01, 0x1000, 0x00, 0x1001, 0x00),
+        (0x01, 0x7FFF, 0x00, 0x8000, 0x30),
+        (0x01, 0x8000, 0x00, 0x8001, 0x00),
+        (0x01, 0xFFFF, 0x00, 0x0000, 0x30),
+    );
+
+    for case in test_cases {
+        let (n, sp, flags, expected_hl, expected_flags) = case;
+        let pg = Program {
+            name: "LD HL,(SP+0xn)",
+            content: vec![0xF8, n]
+        };
+        let mut cpu = ComputerUnit::new();
+        cpu.load(&pg);
+        cpu.set_register_sp(sp);
+        cpu.set_register_af(flags as Double);
+        cpu.run_1_instruction(&Decoder::new_basic());
+        assert_eq!(cpu.get_hl_register(), expected_hl, "n={:02X}, sp={:04X}", n, sp);
+        assert_eq!(cpu.get_af_register(), expected_flags as Double, "n={:02X}, sp={:04X}", n, sp)
+    }
+}
+
+#[test]
 fn should_implement_daa_instruction() {
     let pg = Program {
         name: "DAA",
@@ -1352,6 +1407,19 @@ fn should_implement_daa_instruction() {
     (0x9AB0, 0x0090), // Z - H C
 
 
+    (0x8AF0, 0x3450), // Z N H C
+    (0x8A40, 0x9A40), // - N - -
+    (0x8A50, 0x3A50), // - N - C
+    (0x8A60, 0x9440), // - N H -
+    (0x8A70, 0x3450), // - N H C
+
+    (0x8A00, 0x0090), // - - - -
+    (0x8A10, 0x0090), // - - - C
+    (0x8A20, 0x0090), // - - H -
+    (0x8A30, 0x0090), // - - H C
+    (0x8AB0, 0x0090), // Z - H C
+
+
     ];
 
     let run = |testcase: &(Double, Double)| -> (Double, Double, Double) {
@@ -1364,7 +1432,8 @@ fn should_implement_daa_instruction() {
     };
 
     for (af, expected, actual) in testcase.iter().map(run) {
-        println!("DAA {:04X} = {:04X} = {:04X} ? {}", af, expected, actual, expected == actual)
+        println!("DAA {:04X} = {:04X} = {:04X} ? {}", af, expected, actual, expected == actual);
+        assert_eq!(actual, expected);
     }
 
     assert!(false)
@@ -1682,6 +1751,37 @@ fn should_run_the_first_testrom() {
     assert_eq!(cpu.get_af_register(), 0x0080);
 
     for i in 0..100_000_000 {
+        cpu.run_1_instruction(&decoder)
+    }
+}
+
+#[test]
+fn should_run_the_third_testrom() {
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(on_exec(0x2A, cpu_logger())); // LD A,(HL+)
+    //exec_hooks.push(on_exec(0xE5, cpu_logger())); // POP HL
+    //exec_hooks.push(on_exec(0xD5, cpu_logger())); // POP DE
+    //exec_hooks.push(on_exec(0xC5, cpu_logger())); // POP BC
+    //exec_hooks.push(on_exec(0xF8, when_at(0xDEF8, cpu_logger())));
+    //exec_hooks.push(when_at(0xDEF9, cpu_logger()));
+    //exec_hooks.push(when_at(0xDEFA, cpu_logger()));
+    //exec_hooks.push(when_at(0xDEFB, cpu_logger()));
+    //exec_hooks.push(cpu_logger());
+    use self::debug::*;
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+    let loader = file_loader(&"roms/cpu_instrs/individual/03-op sp,hl.gb".to_string());
+    let pg = loader.load();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = &Decoder::new_basic();
+
+    while cpu.get_pc_register() != 0xCB44 {
         cpu.run_1_instruction(&decoder)
     }
 }

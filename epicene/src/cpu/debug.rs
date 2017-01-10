@@ -76,6 +76,20 @@ impl ExecHook for OnExec {
     }
 }
 
+pub fn when_at(address: Address, hook: Box<ExecHook>) -> Box<ExecHook> {
+    Box::new(WhenAt(address, hook))
+}
+
+struct WhenAt(Address, Box<ExecHook>);
+
+impl ExecHook for WhenAt {
+    fn apply(&self, cpu: &ComputerUnit, opcode: &Box<Opcode>) {
+        if cpu.get_pc_register() == self.0 {
+            self.1.apply(cpu, opcode)
+        }
+    }
+}
+
 pub fn serial_monitor() -> Box<MemoryWriteHook> {
     let sb = 0xFF01;
     on_write(sb, print_char())

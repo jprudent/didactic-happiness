@@ -53,7 +53,6 @@ impl FlagRegister {
 }
 
 impl ArithmeticLogicalUnit {
-
     // TODO unused parameters
     pub fn add(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
         let result = a.wrapping_add(b);
@@ -105,9 +104,19 @@ impl ArithmeticLogicalUnit {
         (add & 0x1000) != 0
     }
 
+    fn is_negative(word: Word) -> bool {
+        word & 0x80 != 0
+    }
+
     // TODO unused parameters
-    pub fn add_16_8(a: Double, b: Word, _: Word) -> ArithmeticResult<Double> {
-        let result = set_low_word(a, low_word(a).wrapping_add(b));
+    pub fn add_16_8_signed(a: Double, b: Word, _: Word) -> ArithmeticResult<Double> {
+        let result =
+        if ArithmeticLogicalUnit::is_negative(b) {
+            let negative = (!b).wrapping_add(1);
+            a.wrapping_sub(negative as Double)
+        } else {
+            a.wrapping_add(b as Double)
+        };
         ArithmeticResult {
             result: result,
             flags: FlagRegister {

@@ -167,8 +167,8 @@ pub fn ld_a_from_ptr_hl(hlop: HlOp) -> Box<Opcode> {
 
 impl<X, L: LeftOperand<X> + AsString, R: RightOperand<X> + AsString> Opcode for Load<X, L, R> {
     fn exec(&self, cpu: &mut ComputerUnit) {
-        let word = self.source.resolve(cpu);
-        self.destination.alter(cpu, word);
+        let value = self.source.resolve(cpu);
+        self.destination.alter(cpu, value);
     }
 
     fn size(&self) -> Size {

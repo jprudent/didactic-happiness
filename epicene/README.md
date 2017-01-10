@@ -38,6 +38,7 @@ little pet project for this purpose.
 - [Z80 syntax](http://www.z80.info/z80syntx.htm) with useful diagrams.
 - [Z80 user guide](http://www.zilog.com/appnotes_download.php?FromPage=DirectLink&dn=UM0080&ft=User%20Manual&f=YUhSMGNEb3ZMM2QzZHk1NmFXeHZaeTVqYjIwdlpHOWpjeTk2T0RBdlZVMHdNRGd3TG5Ca1pnPT0=) describes each instruction in length. Not enough example though.
 - [Nesdev](http://forum.nesdev.com). I've done numerous search on the forum via Google 'site:"nesdev.com" blabla'.
+- [Contains a chart explaining DAA](http://datasheets.chipdb.org/Zilog/Z80/z80-documented-0.90.pdf)
 # Struggling with Rust :
 
 - Recursive generic type :
@@ -79,3 +80,7 @@ J'essaye d'implémenter l'écran pour voir où j'en suis et redonner le moral
 aux troupes
 
 J'ai un sale bug sur pop AF. La solution est [ici](https://forums.nesdev.com/viewtopic.php?f=20&t=12815).
+J'ai 12000 bugs sur DAA et j'ai pas de solution
+J'ai un sale bug sur 0xF8 ld hl,(sp+n)
+
+J'ai abandonné l'écran.
