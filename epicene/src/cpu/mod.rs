@@ -1287,6 +1287,35 @@ fn should_implement_dec_instruction() {
 }
 
 #[test]
+fn should_implement_inc() {
+    let test_cases = vec!(
+        //   sp  flgs      sp
+        (0x0000, 0xF0, 0x0001),
+        (0x0001, 0xF0, 0x0002),
+        (0x000F, 0xF0, 0x0010),
+        (0x001F, 0xF0, 0x0020),
+        (0x007F, 0xF0, 0x0080),
+        (0x0080, 0xF0, 0x0081),
+        (0x00FF, 0xF0, 0x0100),
+    );
+
+    for case in test_cases {
+        let (sp, flags, expected_sp) = case;
+        let pg = Program {
+            name: "INC SP",
+            content: vec![0x33]
+        };
+        let mut cpu = ComputerUnit::new();
+        cpu.load(&pg);
+        cpu.set_register_sp(sp);
+        cpu.set_register_af(flags as Double);
+        cpu.run_1_instruction(&Decoder::new_basic());
+        assert_eq!(cpu.get_sp_register(), expected_sp, "sp={:04X}", sp);
+        assert_eq!(cpu.get_af_register(), flags as Double, "sp={:04X}. Flags are left untouched.", sp)
+    }
+}
+
+#[test]
 fn should_implement_ld_hl_sp_plus_n() {
     let test_cases = vec!(
         //  n      sp  flgs      hl  flgs
@@ -1758,15 +1787,6 @@ fn should_run_the_first_testrom() {
 #[test]
 fn should_run_the_third_testrom() {
     let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(on_exec(0x2A, cpu_logger())); // LD A,(HL+)
-    //exec_hooks.push(on_exec(0xE5, cpu_logger())); // POP HL
-    //exec_hooks.push(on_exec(0xD5, cpu_logger())); // POP DE
-    //exec_hooks.push(on_exec(0xC5, cpu_logger())); // POP BC
-    //exec_hooks.push(on_exec(0xF8, when_at(0xDEF8, cpu_logger())));
-    //exec_hooks.push(when_at(0xDEF9, cpu_logger()));
-    //exec_hooks.push(when_at(0xDEFA, cpu_logger()));
-    //exec_hooks.push(when_at(0xDEFB, cpu_logger()));
-    //exec_hooks.push(cpu_logger());
     use self::debug::*;
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
@@ -1784,4 +1804,6 @@ fn should_run_the_third_testrom() {
     while cpu.get_pc_register() != 0xCB44 {
         cpu.run_1_instruction(&decoder)
     }
+
+    assert!(false) // this test doesn't pass. Magic address is at 0xDEF8
 }
