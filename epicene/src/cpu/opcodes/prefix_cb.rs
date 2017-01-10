@@ -316,11 +316,14 @@ fn build_decoder() -> Decoder {
 
 impl Opcode for PrefixCb {
     fn exec(&self, cpu: &mut ComputerUnit) {
-        cpu.inc_pc(1);
+        // todo this looks like messy. Better do nothing here and execute the extended instruction in the cpu
+        cpu.inc_pc(self.size());
         let pc = cpu.get_pc_register();
         let word = cpu.word_at(pc);
-        let ref instruction = self.decoder[word];
-        instruction.exec(cpu);
+        let ref opcode = self.decoder[word];
+        opcode.exec(cpu);
+        cpu.cycles = cpu.cycles.wrapping_add(opcode.cycles(cpu));
+        cpu.inc_pc(opcode.size() - self.size()); // size is added after
     }
 
     fn size(&self) -> Size {
@@ -331,8 +334,11 @@ impl Opcode for PrefixCb {
         4
     }
 
-    fn to_string(&self, _: &ComputerUnit) -> String {
-        "--".to_string()
+    fn to_string(&self, cpu: &ComputerUnit) -> String {
+        let pc = cpu.get_pc_register().wrapping_add(1);
+        let word = cpu.word_at(pc);
+        let ref instruction = self.decoder[word];
+        instruction.to_string(cpu)
     }
 }
 

@@ -66,7 +66,7 @@ checksums_compare:
      ret
 .else
      
-     push bc
+     push bc // 0xC2B4
      push de
      push hl
      ld   a,(next_checksum)

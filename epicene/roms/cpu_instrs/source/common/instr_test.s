@@ -52,7 +52,7 @@ main:
      call reset_crc
      call test_instr
      
-     call checksums_compare
+     call checksums_compare // 0xC4E3
      jr   z,passed
      
      set_test 1

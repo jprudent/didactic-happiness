@@ -15,10 +15,10 @@ pub fn xor_r(r: WordRegister) -> Box<Opcode> {
     })
 }
 
-pub fn xor_ptr_r(r: RegisterPointer) -> Box<Opcode> {
+pub fn xor_ptr_hl() -> Box<Opcode> {
     Box::new(XorWithA {
-        source: r,
-        size: 2,
+        source: RegisterPointer::HL,
+        size: 1,
         cycles: 8
     })
 }
