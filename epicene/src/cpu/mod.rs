@@ -382,8 +382,7 @@ impl Decoder {
         decoder[0xAB] = xor_r(WordRegister::E);
         decoder[0xAC] = xor_r(WordRegister::H);
         decoder[0xAD] = xor_r(WordRegister::L);
-        decoder[0xC9] = ret();
-        decoder[0xAE] = xor_n();
+        decoder[0xAE] = xor_ptr_hl();
         decoder[0xAF] = xor_r(WordRegister::A);
         decoder[0xB0] = or_b();
         decoder[0xB1] = or_c();
@@ -410,6 +409,7 @@ impl Decoder {
         decoder[0xC6] = add_a_d8();
         decoder[0xC7] = rst_00();
         decoder[0xC8] = ret_z();
+        decoder[0xC9] = ret();
         decoder[0xCA] = jp_z_nn();
         decoder[0xCB] = prefix_cb();
         decoder[0xCC] = call_z_a16();
@@ -438,7 +438,7 @@ impl Decoder {
         decoder[0xE8] = add_sp_w();
         decoder[0xE9] = jp_hl();
         decoder[0xEA] = ld_ptr_nn_from_r(WordRegister::A);
-        decoder[0xEE] = xor_ptr_r(RegisterPointer::HL);
+        decoder[0xEE] = xor_n();
         decoder[0xEF] = rst_28();
         decoder[0xF0] = ldh_a_ptr();
         decoder[0xF1] = pop_af();
@@ -1797,6 +1797,8 @@ fn should_run_the_first_testrom() {
     for i in 0..100_000_000 {
         cpu.run_1_instruction(&decoder)
     }
+
+    assert!(false)
 }
 
 #[test]
@@ -1991,9 +1993,15 @@ fn should_run_the_tenth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..10_000_000 {
+    while cpu.get_pc_register() != 0xC81E {
         cpu.run_1_instruction(&decoder)
     }
 
-    assert!(false) // this test doesn't pass.
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18B {
+        cpu.run_1_instruction(&decoder);
+    }
+
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
+    }
 }

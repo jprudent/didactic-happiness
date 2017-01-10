@@ -57,7 +57,7 @@ tests_passed:
 ; Reports "Done" if set_test has never been used,
 ; "Passed" if set_test 0 was last used, or
 ; failure if set_test n was last used.
-tests_done:
+tests_done: // 0xC19F
      ld   a,(result)
      inc  a
      jr   z,+
