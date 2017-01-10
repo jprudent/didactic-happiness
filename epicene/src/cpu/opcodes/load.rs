@@ -117,7 +117,7 @@ pub fn ld_ptr_r_from_w(destination: RegisterPointer) -> Box<Opcode> {
     Box::new(Load {
         destination: destination,
         source: ImmediateWord {},
-        size: 1,
+        size: 2,
         cycles: 12,
         operation_type: PhantomData
     })

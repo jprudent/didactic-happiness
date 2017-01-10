@@ -1336,7 +1336,6 @@ fn should_implement_ld_hl_sp_plus_n() {
         (0xFF, 0x7FFF, 0xFF, 0x7FFE, 0x30),
         (0xFF, 0x8000, 0xFF, 0x7FFF, 0x00),
         (0xFF, 0xFFFF, 0xFF, 0xFFFE, 0x30),
-
         (0x01, 0x0000, 0x00, 0x0001, 0x00),
         (0x01, 0x0001, 0x00, 0x0002, 0x00),
         (0x01, 0x000F, 0x00, 0x0010, 0x20),
@@ -1796,6 +1795,31 @@ fn should_run_the_third_testrom() {
         before_write: write_hooks
     });
     let loader = file_loader(&"roms/cpu_instrs/individual/03-op sp,hl.gb".to_string());
+    let pg = loader.load();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = &Decoder::new_basic();
+
+    while cpu.get_pc_register() != 0xCB44 {
+        cpu.run_1_instruction(&decoder)
+    }
+
+    assert!(false) // this test doesn't pass. Magic address is at 0xDEF8
+}
+
+#[test]
+fn should_run_the_fourth_testrom() {
+    use self::debug::*;
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(cpu_logger());
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+    let loader = file_loader(&"roms/cpu_instrs/individual/04-op r,imm.gb".to_string());
     let pg = loader.load();
     cpu.load(&pg);
     cpu.registers.pc = 0x100;
