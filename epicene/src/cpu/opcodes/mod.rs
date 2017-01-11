@@ -27,6 +27,7 @@ pub mod bit;
 pub mod res;
 pub mod set;
 pub mod rlca;
+pub mod rla;
 
 #[derive(Debug)]
 enum JmpCondition {

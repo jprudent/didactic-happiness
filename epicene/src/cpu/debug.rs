@@ -78,6 +78,7 @@ impl ExecHook for OnExec {
     }
 }
 
+#[allow(dead_code)]
 pub fn when_at(address: Address, hook: Box<ExecHook>) -> Box<ExecHook> {
     Box::new(WhenAt(address, hook))
 }

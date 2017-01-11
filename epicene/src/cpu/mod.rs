@@ -208,6 +208,7 @@ impl Decoder {
         use self::opcodes::daa::*;
         use self::opcodes::cpl::*;
         use self::opcodes::rlca::*;
+        use self::opcodes::rla::*;
 
         decoder[0x00] = nop();
         decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
@@ -232,7 +233,7 @@ impl Decoder {
         decoder[0x14] = inc_r(WordRegister::D);
         decoder[0x15] = dec_r(WordRegister::D);
         decoder[0x16] = ld_r_from_w(WordRegister::D);
-        decoder[0x17] = rl_a();
+        decoder[0x17] = rla();
         decoder[0x18] = jr_w();
         decoder[0x19] = add_hl_de();
         decoder[0x1A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::DE);
@@ -1809,17 +1810,7 @@ pub mod debug;
 
 #[test]
 fn should_run_the_first_testrom() {
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(on_exec(0x27, cpu_logger())); // DAA
-    //exec_hooks.push(cpu_logger());
-    use self::debug::*;
-    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
-    write_hooks.push(serial_monitor());
-
-    let mut cpu = ComputerUnit::new_hooked(Hooks {
-        before_exec: exec_hooks,
-        before_write: write_hooks
-    });
+    let mut cpu = ComputerUnit::new();
     let loader = file_loader(&"roms/cpu_instrs/individual/01-special.gb".to_string());
     let pg = loader.load();
     cpu.load(&pg);
@@ -2032,7 +2023,7 @@ fn should_run_the_eigth_testrom() {
 fn should_run_the_nineth_testrom() {
     use self::debug::*;
     let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(when_at(0xDEF8, on_exec(0x07, cpu_logger())));
+    //exec_hooks.push(when_at(0xDEF8, on_exec(0x17, cpu_logger())));
     //exec_hooks.push(when_at(0xDEF9, on_exec(0x00, cpu_logger())));
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
@@ -2047,7 +2038,7 @@ fn should_run_the_nineth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for _ in 0..40_000_000 {
+    for _ in 0..30_000_000 {
         cpu.run_1_instruction(&decoder)
     }
 
