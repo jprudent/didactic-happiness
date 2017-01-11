@@ -1812,7 +1812,15 @@ pub mod debug;
 
 #[test]
 fn should_run_the_first_testrom() {
-    let mut cpu = ComputerUnit::new();
+    let exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    use self::debug::*;
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
     let loader = file_loader(&"roms/cpu_instrs/individual/01-special.gb".to_string());
     let pg = loader.load();
     cpu.load(&pg);
@@ -1865,11 +1873,17 @@ fn should_run_the_first_testrom() {
     cpu.run_1_instruction(&decoder); // DAA
     assert_eq!(cpu.get_af_register(), 0x0080);
 
-    for _ in 0..100_000_000 {
-        cpu.run_1_instruction(&decoder)
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
     }
 
-    assert!(false)
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
+    }
+
+    for _ in 0..100_000 {
+        cpu.run_1_instruction(&decoder);
+    }
 }
 
 #[test]
@@ -1889,11 +1903,17 @@ fn should_run_the_third_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    while cpu.get_pc_register() != 0xCB44 {
-        cpu.run_1_instruction(&decoder)
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
     }
 
-    assert!(false) // this test doesn't pass. Magic address is at 0xDEF8
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
+    }
+
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
+    }
 }
 
 #[test]
@@ -1914,11 +1934,17 @@ fn should_run_the_fourth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for _ in 0..1_500_000 {
-        cpu.run_1_instruction(&decoder)
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
     }
 
-    assert!(false) // this test doesn't pass. Magic address is at 0xDEF8
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
+    }
+
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
+    }
 }
 
 #[test]
@@ -1939,11 +1965,17 @@ fn should_run_the_fifth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for _ in 0..2_000_000 {
-        cpu.run_1_instruction(&decoder)
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
     }
 
-    assert!(false) // this test doesn't pass.
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
+    }
+
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
+    }
 }
 
 #[test]
@@ -1964,11 +1996,17 @@ fn should_run_the_sixth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for _ in 0..2_000_000 {
-        cpu.run_1_instruction(&decoder)
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
     }
 
-    assert!(false) // this test doesn't pass.
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
+    }
+
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
+    }
 }
 
 #[test]
@@ -1989,11 +2027,17 @@ fn should_run_the_seventh_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for _ in 0..2_000_000 {
-        cpu.run_1_instruction(&decoder)
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
     }
 
-    assert!(false) // this test doesn't pass.
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
+    }
+
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
+    }
 }
 
 #[test]
@@ -2014,11 +2058,17 @@ fn should_run_the_eigth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for _ in 0..2_000_000 {
-        cpu.run_1_instruction(&decoder)
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
     }
 
-    assert!(false) // this test doesn't pass.
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
+    }
+
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
+    }
 }
 
 #[test]
@@ -2042,12 +2092,12 @@ fn should_run_the_nineth_testrom() {
         cpu.run_1_instruction(&decoder);
     }
 
-    for _ in 0..10_000 {
-        cpu.run_1_instruction(&decoder);
-    }
-
     if cpu.get_pc_register() == 0xC1B9 {
         assert!(false, "test failed")
+    }
+
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
     }
 }
 
@@ -2068,11 +2118,11 @@ fn should_run_the_tenth_testrom() {
         cpu.run_1_instruction(&decoder);
     }
 
-    for _ in 0..10_000 {
-        cpu.run_1_instruction(&decoder);
-    }
-
     if cpu.get_pc_register() == 0xC1B9 {
         assert!(false, "test failed")
+    }
+
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
     }
 }

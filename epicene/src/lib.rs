@@ -71,6 +71,7 @@ impl GameBoy {
 use self::interrupts::InterruptHandler;
 
 #[test]
+#[ignore]
 fn test_da_gameboy() {
     use self::program::file_loader;
     let pg_loader = file_loader(&"roms/cpu_instrs/individual/01-special.gb".to_string());

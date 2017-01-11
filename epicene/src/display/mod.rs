@@ -73,7 +73,8 @@ fn window() {
        }
 }
 
-#[test]
+//#[test]
+#[allow(dead_code)]
 fn f(){
     window()
 }
