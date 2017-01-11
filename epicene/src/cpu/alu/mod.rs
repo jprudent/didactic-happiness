@@ -133,7 +133,7 @@ impl ArithmeticLogicalUnit {
         let r = a.wrapping_sub(b);
         ArithmeticResult {
             result: r,
-            flags : FlagRegister {
+            flags: FlagRegister {
                 zf: r == 0,
                 cy: a < b,
                 h: ArithmeticLogicalUnit::low_nibble(a) < ArithmeticLogicalUnit::low_nibble(b),
@@ -271,7 +271,6 @@ impl ArithmeticLogicalUnit {
         }
     }
 
-    // TODO check implementation, really not sure about it
     pub fn add_with_carry(a: Word, b: Word, carry: Word) -> ArithmeticResult<Word> {
         assert!(carry <= 1, "carry should be 0 or 1");
         let r1 = ArithmeticLogicalUnit::add(b, carry, 0);
@@ -290,7 +289,16 @@ impl ArithmeticLogicalUnit {
     pub fn sub_with_carry(a: Word, b: Word, carry: Word) -> ArithmeticResult<Word> {
         assert!(carry <= 1, "carry should be 0 or 1");
         let r1 = ArithmeticLogicalUnit::add(b, carry, 0);
-        ArithmeticLogicalUnit::sub(a, r1.result(), 0)
+        let r2 = ArithmeticLogicalUnit::sub(a, r1.result(), 0);
+        ArithmeticResult {
+            result: r2.result(),
+            flags: FlagRegister {
+                zf: r2.result() == 0,
+                cy: r1.flags().carry_flag() | r2.flags().carry_flag(),
+                h: r1.flags().half_carry_flag() | r2.flags().half_carry_flag(),
+                n: true
+            }
+        }
     }
 
     fn has_carry(a: Word, b: Word) -> bool {

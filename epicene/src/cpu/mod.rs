@@ -1355,6 +1355,31 @@ fn should_implement_adc() {
 }
 
 #[test]
+fn should_implement_sbc() {
+    let test_cases = vec!(
+        // a flgs   b   xpctd
+        (0x0000, 0x00, 0x00C0),
+        (0x00F0, 0x00, 0xFF70),
+        (0x00F0, 0xFF, 0x00F0),
+        (0xFFF0, 0xFF, 0xFF70),
+    );
+
+    for case in test_cases {
+        let (af, b, expected_af) = case;
+        let pg = Program {
+            name: "SBC B",
+            content: vec![0x98]
+        };
+        let mut cpu = ComputerUnit::new();
+        cpu.load(&pg);
+        cpu.set_register_b(b);
+        cpu.set_register_af(af);
+        cpu.run_1_instruction(&Decoder::new_basic());
+        assert_eq!(cpu.get_af_register(), expected_af, "af={:04X}, b={:02X}; expected {:04X} got {:04X}", af, b, expected_af, cpu.get_af_register())
+    }
+}
+
+#[test]
 fn should_implement_ld_hl_sp_plus_n() {
     let test_cases = vec!(
         //  n      sp  flgs      hl  flgs
@@ -1977,7 +2002,7 @@ fn should_run_the_eigth_testrom() {
 fn should_run_the_nineth_testrom() {
     use self::debug::*;
     let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(when_at(0xDEF8, on_exec(0x88, cpu_logger())));
+    //exec_hooks.push(when_at(0xDEF8, on_exec(0x98, cpu_logger())));
     //exec_hooks.push(when_at(0xDEF9, on_exec(0x00, cpu_logger())));
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
