@@ -23,6 +23,8 @@ fn build_decoder() -> Decoder {
     use super::bit::*;
     use super::res::*;
     use super::set::*;
+    use super::rlc::*;
+    use super::sra::*;
     decoder[0x00] = rlc_b();
     decoder[0x01] = rlc_c();
     decoder[0x02] = rlc_d();

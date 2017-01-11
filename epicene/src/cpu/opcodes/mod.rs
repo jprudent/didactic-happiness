@@ -30,6 +30,8 @@ pub mod rlca;
 pub mod rla;
 pub mod rrca;
 pub mod rra;
+pub mod rlc;
+pub mod sra;
 
 #[derive(Debug)]
 enum JmpCondition {

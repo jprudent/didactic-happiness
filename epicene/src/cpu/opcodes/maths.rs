@@ -246,60 +246,6 @@ pub fn or_a_w() -> Box<Opcode> {
     )
 }
 
-pub fn rlc_a() -> Box<Opcode> {
-    rlc_r(WordRegister::A)
-}
-
-pub fn rlc_b() -> Box<Opcode> {
-    rlc_r(WordRegister::B)
-}
-
-pub fn rlc_c() -> Box<Opcode> {
-    rlc_r(WordRegister::C)
-}
-
-pub fn rlc_d() -> Box<Opcode> {
-    rlc_r(WordRegister::D)
-}
-
-pub fn rlc_e() -> Box<Opcode> {
-    rlc_r(WordRegister::E)
-}
-
-pub fn rlc_h() -> Box<Opcode> {
-    rlc_r(WordRegister::H)
-}
-
-pub fn rlc_l() -> Box<Opcode> {
-    rlc_r(WordRegister::L)
-}
-
-fn rlc_r(sd: WordRegister) -> Box<Opcode> {
-    Box::new(
-        ArithmeticOperation {
-            source: Constant(1),
-            destination: sd,
-            operation: ArithmeticLogicalUnit::rotate_left,
-            mnemonic: "rlc",
-            size: 1,
-            cycles: 4,
-        }
-    )
-}
-
-pub fn rlc_ptr_hl() -> Box<Opcode> {
-    Box::new(
-        ArithmeticOperation {
-            source: Constant(1),
-            destination: RegisterPointer::HL,
-            operation: ArithmeticLogicalUnit::rotate_left,
-            mnemonic: "rlc",
-            size: 1,
-            cycles: 12,
-        }
-    )
-}
-
 pub fn rrc_a() -> Box<Opcode> {
     rrc_r(WordRegister::A)
 }
@@ -735,55 +681,6 @@ fn sla_r(r: WordRegister) -> Box<Opcode> {
     )
 }
 
-pub fn sra_a() -> Box<Opcode> {
-    sra_r(WordRegister::A)
-}
-pub fn sra_b() -> Box<Opcode> {
-    sra_r(WordRegister::B)
-}
-pub fn sra_c() -> Box<Opcode> {
-    sra_r(WordRegister::C)
-}
-pub fn sra_d() -> Box<Opcode> {
-    sra_r(WordRegister::D)
-}
-pub fn sra_e() -> Box<Opcode> {
-    sra_r(WordRegister::E)
-}
-pub fn sra_h() -> Box<Opcode> {
-    sra_r(WordRegister::H)
-}
-pub fn sra_l() -> Box<Opcode> {
-    sra_r(WordRegister::L)
-}
-
-fn sra_r(r: WordRegister) -> Box<Opcode> {
-    Box::new(
-        ArithmeticOperation {
-            source: Constant(1), // unused
-            destination: r,
-            operation: ArithmeticLogicalUnit::shift_right,
-            mnemonic: "swap",
-            size: 1,
-            cycles: 8,
-        }
-    )
-}
-
-pub fn sra_ptr_hl() -> Box<Opcode> {
-    Box::new(
-        ArithmeticOperation {
-            source: Constant(1), // unused
-            destination: RegisterPointer::HL,
-            operation: ArithmeticLogicalUnit::shift_right,
-            mnemonic: "swap",
-            size: 1,
-            cycles: 16,
-        }
-    )
-}
-
-
 pub fn sla_ptr_hl() -> Box<Opcode> {
     Box::new(
         ArithmeticOperation {
@@ -814,6 +711,7 @@ fn compute<X: Copy, Y, D: LeftOperand<X> + RightOperand<X> + AsString, S: RightO
 // special implementation where z flag is left untouched
 // TODO maybe if FlagRegister values were SET,UNSET,UNTOUCHED we could have a generic implementation
 // TODO ... an option could do the trick too!
+// TODO if it's not generic ... well it's not generic, should have a proper struct
 impl Opcode for ArithmeticOperation<Double, Double, DoubleRegister, DoubleRegister> {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let r = compute(self, cpu);

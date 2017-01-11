@@ -1874,7 +1874,7 @@ fn should_run_the_first_testrom() {
 
 #[test]
 fn should_run_the_third_testrom() {
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    let exec_hooks: Vec<(Box<ExecHook>)> = vec!();
     use self::debug::*;
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
@@ -2024,9 +2024,7 @@ fn should_run_the_eigth_testrom() {
 #[test]
 fn should_run_the_nineth_testrom() {
     use self::debug::*;
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(when_at(0xDEF8, on_exec(0x17, cpu_logger())));
-    //exec_hooks.push(when_at(0xDEF9, on_exec(0x00, cpu_logger())));
+    let exec_hooks: Vec<(Box<ExecHook>)> = vec!();
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
 
@@ -2040,11 +2038,17 @@ fn should_run_the_nineth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for _ in 0..30_000_000 {
-        cpu.run_1_instruction(&decoder)
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
     }
 
-    assert!(false) // this test doesn't pass.
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
+    }
+
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
+    }
 }
 
 #[test]
@@ -2061,6 +2065,10 @@ fn should_run_the_tenth_testrom() {
     }
 
     while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
+    }
+
+    for _ in 0..10_000 {
         cpu.run_1_instruction(&decoder);
     }
 

@@ -171,20 +171,6 @@ impl ArithmeticLogicalUnit {
     }
 
     // TODO unused parameters
-    pub fn rotate_left(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
-        let r = a.rotate_left(1);
-        ArithmeticResult {
-            result: r,
-            flags: FlagRegister {
-                zf: r == 0,
-                n: false,
-                h: false,
-                cy: (r & 0x80) == 1
-            }
-        }
-    }
-
-    // TODO unused parameters
     pub fn rotate_right(a: Word, _: Word, _: Word) -> ArithmeticResult<Word> {
         let r = a.rotate_right(1);
         ArithmeticResult {
@@ -193,7 +179,7 @@ impl ArithmeticLogicalUnit {
                 zf: r == 0,
                 n: false,
                 h: false,
-                cy: (r & 1) == 1
+                cy: (a & 1) == 1
             }
         }
     }
