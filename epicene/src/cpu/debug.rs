@@ -62,6 +62,7 @@ impl MemoryWriteHook for PrintChar {
     }
 }
 
+#[allow(dead_code)]
 pub fn on_exec(instruction: Word, hook: Box<ExecHook>) -> Box<ExecHook> {
     Box::new(OnExec(instruction, hook))
 }

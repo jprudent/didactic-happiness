@@ -1,4 +1,4 @@
-use super::{Word, Double, ComputerUnit, low_word, set_low_word};
+use super::{Word, Double, ComputerUnit, low_word};
 
 pub struct ArithmeticLogicalUnit {}
 

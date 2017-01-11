@@ -207,6 +207,7 @@ impl Decoder {
         use self::opcodes::scf::*;
         use self::opcodes::daa::*;
         use self::opcodes::cpl::*;
+        use self::opcodes::rlca::*;
 
         decoder[0x00] = nop();
         decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
@@ -215,7 +216,7 @@ impl Decoder {
         decoder[0x04] = inc_r(WordRegister::B);
         decoder[0x05] = dec_r(WordRegister::B);
         decoder[0x06] = ld_r_from_w(WordRegister::B);
-        decoder[0x07] = rlc_a();
+        decoder[0x07] = rlca();
         decoder[0x08] = ld_ptr_nn_from_rr(DoubleRegister::SP);
         decoder[0x09] = add_hl_bc();
         decoder[0x0A] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::BC);
@@ -1376,6 +1377,30 @@ fn should_implement_sbc() {
         cpu.set_register_af(af);
         cpu.run_1_instruction(&Decoder::new_basic());
         assert_eq!(cpu.get_af_register(), expected_af, "af={:04X}, b={:02X}; expected {:04X} got {:04X}", af, b, expected_af, cpu.get_af_register())
+    }
+}
+
+#[test]
+fn should_implement_rlca() {
+    let test_cases = vec!(
+        //  a f   xpctd
+        (0x0000, 0x0000),
+        (0xFFFF, 0xFF10),
+        (0xFF00, 0xFF10),
+        (0xEE00, 0xDD10),
+    );
+
+    for case in test_cases {
+        let (af, expected_af) = case;
+        let pg = Program {
+            name: "RLCA",
+            content: vec![0x07]
+        };
+        let mut cpu = ComputerUnit::new();
+        cpu.load(&pg);
+        cpu.set_register_af(af);
+        cpu.run_1_instruction(&Decoder::new_basic());
+        assert_eq!(cpu.get_af_register(), expected_af, "af={:04X}, expected {:04X} got {:04X}", af, expected_af, cpu.get_af_register())
     }
 }
 
