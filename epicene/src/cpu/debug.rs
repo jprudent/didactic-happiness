@@ -2,6 +2,7 @@ use super::{Address, Word, ExecHook, MemoryWriteHook, ComputerUnit, Opcode};
 
 struct CpuLogger;
 
+#[allow(dead_code)]
 pub fn cpu_logger() -> Box<ExecHook> {
     Box::new(CpuLogger)
 }

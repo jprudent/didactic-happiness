@@ -18,7 +18,7 @@ impl Opcode for Rlca {
         let a = WordRegister::A.resolve(cpu);
         let r = a.rotate_left(1);
         WordRegister::A.alter(cpu, r);
-        cpu.set_carry_flag((r & 0x80) != 0);
+        cpu.set_carry_flag((a & 0x80) != 0);
         cpu.set_zero_flag(false);
         cpu.set_half_carry_flag(false);
         cpu.set_add_sub_flag(false);

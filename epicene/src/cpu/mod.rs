@@ -1388,6 +1388,11 @@ fn should_implement_rlca() {
         (0xFFFF, 0xFF10),
         (0xFF00, 0xFF10),
         (0xEE00, 0xDD10),
+        (0x0F00, 0x1E00),
+        (0xF000, 0xE110),
+        (0x00F0, 0x0000),
+        (0x01F0, 0x0200),
+        (0x7F00, 0xFE00),
     );
 
     for case in test_cases {
@@ -1867,7 +1872,7 @@ fn should_run_the_first_testrom() {
     cpu.run_1_instruction(&decoder); // DAA
     assert_eq!(cpu.get_af_register(), 0x0080);
 
-    for i in 0..100_000_000 {
+    for _ in 0..100_000_000 {
         cpu.run_1_instruction(&decoder)
     }
 
@@ -1901,7 +1906,7 @@ fn should_run_the_third_testrom() {
 #[test]
 fn should_run_the_fourth_testrom() {
     use self::debug::*;
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    let exec_hooks: Vec<(Box<ExecHook>)> = vec!();
     //exec_hooks.push(cpu_logger());
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
@@ -1916,7 +1921,7 @@ fn should_run_the_fourth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..1_500_000 {
+    for _ in 0..1_500_000 {
         cpu.run_1_instruction(&decoder)
     }
 
@@ -1926,7 +1931,7 @@ fn should_run_the_fourth_testrom() {
 #[test]
 fn should_run_the_fifth_testrom() {
     use self::debug::*;
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    let exec_hooks: Vec<(Box<ExecHook>)> = vec!();
     //exec_hooks.push(cpu_logger());
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
@@ -1941,7 +1946,7 @@ fn should_run_the_fifth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..2_000_000 {
+    for _ in 0..2_000_000 {
         cpu.run_1_instruction(&decoder)
     }
 
@@ -1951,7 +1956,7 @@ fn should_run_the_fifth_testrom() {
 #[test]
 fn should_run_the_sixth_testrom() {
     use self::debug::*;
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    let exec_hooks: Vec<(Box<ExecHook>)> = vec!();
     //exec_hooks.push(cpu_logger());
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
@@ -1966,7 +1971,7 @@ fn should_run_the_sixth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..2_000_000 {
+    for _ in 0..2_000_000 {
         cpu.run_1_instruction(&decoder)
     }
 
@@ -1976,7 +1981,7 @@ fn should_run_the_sixth_testrom() {
 #[test]
 fn should_run_the_seventh_testrom() {
     use self::debug::*;
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    let exec_hooks: Vec<(Box<ExecHook>)> = vec!();
     //exec_hooks.push(cpu_logger());
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
@@ -1991,7 +1996,7 @@ fn should_run_the_seventh_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..2_000_000 {
+    for _ in 0..2_000_000 {
         cpu.run_1_instruction(&decoder)
     }
 
@@ -2001,7 +2006,7 @@ fn should_run_the_seventh_testrom() {
 #[test]
 fn should_run_the_eigth_testrom() {
     use self::debug::*;
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    let exec_hooks: Vec<(Box<ExecHook>)> = vec!();
     //exec_hooks.push(cpu_logger());
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
@@ -2016,7 +2021,7 @@ fn should_run_the_eigth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..2_000_000 {
+    for _ in 0..2_000_000 {
         cpu.run_1_instruction(&decoder)
     }
 
@@ -2027,7 +2032,7 @@ fn should_run_the_eigth_testrom() {
 fn should_run_the_nineth_testrom() {
     use self::debug::*;
     let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(when_at(0xDEF8, on_exec(0x98, cpu_logger())));
+    //exec_hooks.push(when_at(0xDEF8, on_exec(0x07, cpu_logger())));
     //exec_hooks.push(when_at(0xDEF9, on_exec(0x00, cpu_logger())));
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
@@ -2042,7 +2047,7 @@ fn should_run_the_nineth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    for i in 0..40_000_000 {
+    for _ in 0..40_000_000 {
         cpu.run_1_instruction(&decoder)
     }
 
@@ -2051,16 +2056,7 @@ fn should_run_the_nineth_testrom() {
 
 #[test]
 fn should_run_the_tenth_testrom() {
-    use self::debug::*;
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(cpu_logger());
-    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
-    write_hooks.push(serial_monitor());
-
-    let mut cpu = ComputerUnit::new_hooked(Hooks {
-        before_exec: exec_hooks,
-        before_write: write_hooks
-    });
+    let mut cpu = ComputerUnit::new();
     let loader = file_loader(&"roms/cpu_instrs/individual/10-bit ops.gb".to_string());
     let pg = loader.load();
     cpu.load(&pg);
