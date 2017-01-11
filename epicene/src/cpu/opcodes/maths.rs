@@ -217,7 +217,7 @@ pub fn or_h() -> Box<Opcode> {
 }
 
 pub fn or_l() -> Box<Opcode> {
-    or_r(ArithmeticLogicalUnit::or, WordRegister::H)
+    or_r(ArithmeticLogicalUnit::or, WordRegister::L)
 }
 
 fn or_r(op: fn(Word, Word, Word) -> ArithmeticResult<Word>, r: WordRegister) -> Box<Opcode> {
