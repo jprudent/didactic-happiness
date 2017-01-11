@@ -1954,7 +1954,8 @@ fn should_run_the_eigth_testrom() {
 fn should_run_the_nineth_testrom() {
     use self::debug::*;
     let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
-    //exec_hooks.push(cpu_logger());
+    //exec_hooks.push(when_at(0xDEF8, on_exec(0x90, cpu_logger())));
+    //exec_hooks.push(when_at(0xDEF9, on_exec(0x00, cpu_logger())));
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());
 

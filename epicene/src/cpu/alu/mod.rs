@@ -130,12 +130,16 @@ impl ArithmeticLogicalUnit {
 
     // TODO unused parameters
     pub fn sub(a: Word, b: Word, _: Word) -> ArithmeticResult<Word> {
-        let two_complement = (!b).wrapping_add(1);
-        let mut add = ArithmeticLogicalUnit::add(a, two_complement, 0);
-        add.flags.n = true;
-        add.flags.cy = !add.flags.cy;
-        add.flags.h = !add.flags.h;
-        add
+        let r = a.wrapping_sub(b);
+        ArithmeticResult {
+            result: r,
+            flags : FlagRegister {
+                zf: r == 0,
+                cy: a < b,
+                h: ArithmeticLogicalUnit::low_nibble(a) < ArithmeticLogicalUnit::low_nibble(b),
+                n: true
+            }
+        }
     }
 
     // TODO unused parameters
