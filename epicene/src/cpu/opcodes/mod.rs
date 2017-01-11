@@ -28,6 +28,8 @@ pub mod res;
 pub mod set;
 pub mod rlca;
 pub mod rla;
+pub mod rrca;
+pub mod rra;
 
 #[derive(Debug)]
 enum JmpCondition {

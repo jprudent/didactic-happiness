@@ -209,6 +209,8 @@ impl Decoder {
         use self::opcodes::cpl::*;
         use self::opcodes::rlca::*;
         use self::opcodes::rla::*;
+        use self::opcodes::rrca::*;
+        use self::opcodes::rra::*;
 
         decoder[0x00] = nop();
         decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
@@ -225,7 +227,7 @@ impl Decoder {
         decoder[0x0C] = inc_r(WordRegister::C);
         decoder[0x0D] = dec_r(WordRegister::C);
         decoder[0x0E] = ld_r_from_w(WordRegister::C);
-        decoder[0x0F] = rrc_a();
+        decoder[0x0F] = rrca();
         decoder[0x10] = stop();
         decoder[0x11] = ld_rr_from_ww(DoubleRegister::DE);
         decoder[0x12] = ld_ptr_r_from_r(RegisterPointer::DE, WordRegister::A);
@@ -241,7 +243,7 @@ impl Decoder {
         decoder[0x1C] = inc_r(WordRegister::E);
         decoder[0x1D] = dec_r(WordRegister::E);
         decoder[0x1E] = ld_r_from_w(WordRegister::E);
-        decoder[0x1F] = rr_a();
+        decoder[0x1F] = rra();
         decoder[0x20] = jr_nz_w();
         decoder[0x21] = ld_rr_from_ww(DoubleRegister::HL);
         decoder[0x22] = ld_ptr_hl_from_a(HlOp::HLI);
