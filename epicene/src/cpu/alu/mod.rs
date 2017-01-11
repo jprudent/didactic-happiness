@@ -275,7 +275,16 @@ impl ArithmeticLogicalUnit {
     pub fn add_with_carry(a: Word, b: Word, carry: Word) -> ArithmeticResult<Word> {
         assert!(carry <= 1, "carry should be 0 or 1");
         let r1 = ArithmeticLogicalUnit::add(b, carry, 0);
-        ArithmeticLogicalUnit::add(a, r1.result(), 0)
+        let r2 = ArithmeticLogicalUnit::add(a, r1.result(), 0);
+        ArithmeticResult {
+            result: r2.result(),
+            flags: FlagRegister {
+                zf: r2.result() == 0,
+                cy: r1.flags().carry_flag() | r2.flags().carry_flag(),
+                h: r1.flags().half_carry_flag() | r2.flags().half_carry_flag(),
+                n: false
+            }
+        }
     }
 
     pub fn sub_with_carry(a: Word, b: Word, carry: Word) -> ArithmeticResult<Word> {
