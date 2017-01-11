@@ -16,7 +16,7 @@ pub fn rla() -> Box<Opcode> {
 impl Opcode for Rla {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let a = WordRegister::A.resolve(cpu);
-        let r = (a.rotate_left(1) & 0xFE) | (cpu.carry_flag() as Word);
+        let r = a.wrapping_shl(1) | (cpu.carry_flag() as Word);
         WordRegister::A.alter(cpu, r);
         cpu.set_carry_flag((a & 0x80) != 0);
         cpu.set_zero_flag(false);
