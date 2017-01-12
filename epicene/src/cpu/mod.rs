@@ -981,7 +981,7 @@ fn should_implement_ld_b_a_instructions() {
 }
 
 #[test]
-fn should_implement_ld_c_prt_hl_instructions() {
+fn should_implement_ld_c_ptr_hl_instructions() {
     let pg = Program {
         name: "LD C,(HL)",
         content: vec![0x4E]
@@ -1001,7 +1001,7 @@ fn should_implement_ld_c_prt_hl_instructions() {
 }
 
 #[test]
-fn should_implement_ld_a_prt_bc_instructions() {
+fn should_implement_ld_a_ptr_bc_instructions() {
     let pg = Program {
         name: "LD A,(BC)",
         content: vec![0x0A]
@@ -1022,7 +1022,7 @@ fn should_implement_ld_a_prt_bc_instructions() {
 
 
 #[test]
-fn should_implement_ld_a_prt_de_instructions() {
+fn should_implement_ld_a_ptr_de_instructions() {
     let pg = Program {
         name: "LD A,(DE)",
         content: vec![0x1A]
@@ -1042,7 +1042,7 @@ fn should_implement_ld_a_prt_de_instructions() {
 }
 
 #[test]
-fn should_implement_ld_prt_hl_d_instruction() {
+fn should_implement_ld_ptr_hl_d_instruction() {
     let pg = Program {
         name: "LD (HL),D",
         content: vec![0x72]
@@ -1063,7 +1063,7 @@ fn should_implement_ld_prt_hl_d_instruction() {
 }
 
 #[test]
-fn should_implement_ld_prt_c_a_instruction() {
+fn should_implement_ld_ptr_c_a_instruction() {
     let pg = Program {
         name: "LD (C), A",
         content: vec![0xE2]
@@ -1126,7 +1126,7 @@ fn should_implement_ld_a_hli_instruction() {
 }
 
 #[test]
-fn should_implement_ld_prt_nn_a_instruction() {
+fn should_implement_ld_ptr_nn_a_instruction() {
     let pg = Program {
         name: "LD (0xABCD),A",
         content: vec![0xEA, 0xCD, 0xAB] // little endian
@@ -1146,7 +1146,7 @@ fn should_implement_ld_prt_nn_a_instruction() {
 }
 
 #[test]
-fn should_implement_ld_prt_hl_a_instruction() {
+fn should_implement_ld_ptr_hl_a_instruction() {
     let pg = Program {
         name: "LD (HL),A",
         content: vec![0x77]
@@ -1167,7 +1167,7 @@ fn should_implement_ld_prt_hl_a_instruction() {
 }
 
 #[test]
-fn should_implement_ld_prt_bc_a_instruction() {
+fn should_implement_ld_ptr_bc_a_instruction() {
     let pg = Program {
         name: "LD (BC),A",
         content: vec![0x02]
@@ -1188,7 +1188,7 @@ fn should_implement_ld_prt_bc_a_instruction() {
 }
 
 #[test]
-fn should_implement_ld_prt_de_a_instruction() {
+fn should_implement_ld_ptr_de_a_instruction() {
     let pg = Program {
         name: "LD (DE),A",
         content: vec![0x12]
@@ -1209,7 +1209,7 @@ fn should_implement_ld_prt_de_a_instruction() {
 }
 
 #[test]
-fn should_implement_prt_hl_n_instruction() {
+fn should_implement_ld_ptr_hl_n_instruction() {
     let pg = Program {
         name: "LD (HL),0x66",
         content: vec![0x36, 0x66]
@@ -1224,13 +1224,13 @@ fn should_implement_prt_hl_n_instruction() {
 
     cpu.run_1_instruction(&Decoder::new_basic());
     assert_eq!(cpu.word_at(cpu.get_hl_register()), 0x66, "bad memory value after {}", msg);
-    assert_eq!(cpu.get_pc_register(), 0x01, "bad pc after {}", msg);
+    assert_eq!(cpu.get_pc_register(), 0x02, "bad pc after {}", msg);
     assert_eq!(cpu.cycles, 172, "bad cycles count after {}", msg);
 }
 
 
 #[test]
-fn should_implement_ld_a_prt_nn_instruction() {
+fn should_implement_ld_a_ptr_nn_instruction() {
     let pg = Program {
         name: "LD A,(0xABCD)",
         content: vec![0xFA, 0xCD, 0xAB] // little endian
