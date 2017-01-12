@@ -11,33 +11,6 @@ struct ArithmeticOperation<X, Y, D: LeftOperand<X> + RightOperand<X> + AsString,
     cycles: Cycle
 }
 
-pub fn add_hl_bc() -> Box<Opcode> {
-    add_hl_rr(DoubleRegister::BC)
-}
-
-pub fn add_hl_de() -> Box<Opcode> {
-    add_hl_rr(DoubleRegister::DE)
-}
-
-pub fn add_hl_hl() -> Box<Opcode> {
-    add_hl_rr(DoubleRegister::HL)
-}
-
-pub fn add_hl_sp() -> Box<Opcode> {
-    add_hl_rr(DoubleRegister::SP)
-}
-
-fn add_hl_rr(rr: DoubleRegister) -> Box<Opcode> {
-    Box::new(
-        ArithmeticOperation {
-            source: rr,
-            destination: DoubleRegister::HL,
-            operation: ArithmeticLogicalUnit::add_16_16,
-            mnemonic: "add",
-            size: 1,
-            cycles: 8
-        })
-}
 
 pub fn add_sp_w() -> Box<Opcode> {
     Box::new(

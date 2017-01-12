@@ -211,6 +211,7 @@ impl Decoder {
         use self::opcodes::rla::*;
         use self::opcodes::rrca::*;
         use self::opcodes::rra::*;
+        use self::opcodes::add_hl_rr::*;
 
         decoder[0x00] = nop();
         decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
@@ -2027,7 +2028,7 @@ fn should_run_the_tenth_testrom() {
 #[test]
 fn should_run_the_eleventh_testrom() {
     use self::debug::*;
-    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    let exec_hooks: Vec<(Box<ExecHook>)> = vec!();
     //exec_hooks.push(cpu_logger());
     let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
     write_hooks.push(serial_monitor());

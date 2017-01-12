@@ -1,5 +1,4 @@
-use super::super::{ Size, Double, Word, Cycle, Opcode, ComputerUnit};
-use super::super::alu::ArithmeticLogicalUnit;
+use super::super::{ Size, Double, Cycle, Opcode, ComputerUnit};
 
 struct Daa {
     size: Size,
