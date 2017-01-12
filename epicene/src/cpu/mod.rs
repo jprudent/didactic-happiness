@@ -2011,10 +2011,6 @@ fn should_run_the_tenth_testrom() {
     cpu.registers.pc = 0x100;
     let decoder = &Decoder::new_basic();
 
-    while cpu.get_pc_register() != 0xC81E {
-        cpu.run_1_instruction(&decoder)
-    }
-
     while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
         cpu.run_1_instruction(&decoder);
     }
@@ -2025,5 +2021,37 @@ fn should_run_the_tenth_testrom() {
 
     for _ in 0..10_000 {
         cpu.run_1_instruction(&decoder);
+    }
+}
+
+#[test]
+fn should_run_the_eleventh_testrom() {
+    use self::debug::*;
+    let mut exec_hooks: Vec<(Box<ExecHook>)> = vec!();
+    //exec_hooks.push(cpu_logger());
+    let mut write_hooks: Vec<(Box<MemoryWriteHook>)> = vec!();
+    write_hooks.push(serial_monitor());
+
+    let mut cpu = ComputerUnit::new_hooked(Hooks {
+        before_exec: exec_hooks,
+        before_write: write_hooks
+    });
+    let loader = file_loader(&"roms/cpu_instrs/individual/11-op a,(hl).gb".to_string());
+    let pg = loader.load();
+    cpu.load(&pg);
+    cpu.registers.pc = 0x100;
+    let decoder = &Decoder::new_basic();
+
+    while cpu.get_pc_register() != 0xC1B9 && cpu.get_pc_register() != 0xC18F {
+        cpu.run_1_instruction(&decoder);
+    }
+
+
+    for _ in 0..10_000 {
+        cpu.run_1_instruction(&decoder);
+    }
+
+    if cpu.get_pc_register() == 0xC1B9 {
+        assert!(false, "test failed")
     }
 }
