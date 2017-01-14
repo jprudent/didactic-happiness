@@ -53,7 +53,35 @@ pub fn ld_ptr_r_from_r(destination: RegisterPointer, source: WordRegister) -> Bo
     })
 }
 
-pub fn ld_r_from_w(destination: WordRegister) -> Box<Opcode> {
+pub fn ld_a_w() -> Box<Opcode> {
+    ld_r_from_w(WordRegister::A)
+}
+
+pub fn ld_b_w() -> Box<Opcode> {
+    ld_r_from_w(WordRegister::B)
+}
+
+pub fn ld_c_w() -> Box<Opcode> {
+    ld_r_from_w(WordRegister::C)
+}
+
+pub fn ld_d_w() -> Box<Opcode> {
+    ld_r_from_w(WordRegister::D)
+}
+
+pub fn ld_e_w() -> Box<Opcode> {
+    ld_r_from_w(WordRegister::E)
+}
+
+pub fn ld_h_w() -> Box<Opcode> {
+    ld_r_from_w(WordRegister::H)
+}
+
+pub fn ld_l_w() -> Box<Opcode> {
+    ld_r_from_w(WordRegister::L)
+}
+
+fn ld_r_from_w(destination: WordRegister) -> Box<Opcode> {
     Box::new(Load {
         destination: destination,
         source: ImmediateWord {},
@@ -181,6 +209,5 @@ impl<X, L: LeftOperand<X> + AsString, R: RightOperand<X> + AsString> Opcode for 
 
     fn to_string(&self, cpu: &ComputerUnit) -> String {
         format!("{:<4} {} {}", "ld", self.destination.to_string(cpu), self.source.to_string(cpu))
-
     }
 }

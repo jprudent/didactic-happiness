@@ -71,6 +71,7 @@ pas de null
 
 - quand ça compile, on est à peu près sûr que ça marche
 
+- il y a un lien sur chaque erreur avec un exemple typique et une résolution possible. Par [exemple](https://doc.rust-lang.org/error-index.html#E0389).
 
 # journal de bord
 Après avoir essayé Guns Riders, je m'attaque à la rom de test.

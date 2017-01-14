@@ -1,4 +1,4 @@
-use super::cpu::Word;
+use super::Word;
 
 pub struct Program {
     pub name: &'static str,
@@ -13,6 +13,7 @@ struct MemoryProgramLoader {
     data: Vec<Word>
 }
 
+#[allow(dead_code)]
 pub fn memory_program_loader(data: &Vec<Word>) -> Box<ProgramLoader> {
     // TODO Clone is really not the thing to do but I can't make reference working (fighting the borrow checker)
     Box::new(MemoryProgramLoader { data: data.clone() })

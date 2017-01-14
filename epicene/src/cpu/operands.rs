@@ -1,5 +1,6 @@
 // todo ComputerUnit should be a trait (or not ?). Because struct has fielf visibility, it can be perceived as a type
-use super::{Word, Double, Address, ComputerUnit, set_low_word};
+use super::{Word, Double, ComputerUnit, set_low_word};
+use super::super::{Address};
 use std::marker::PhantomData;
 
 pub trait RightOperand<R> {
