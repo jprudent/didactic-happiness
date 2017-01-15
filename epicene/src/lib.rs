@@ -25,16 +25,19 @@ pub type Address = Double;
 pub type Cycle = u16;
 
 trait Device {
+    // todo a device should only depends on cycles and memory
     fn update(&mut self, cpu: &mut ComputerUnit);
 }
 
 mod timer {
     use super::{Device, Cycle, Word};
     use super::cpu::ComputerUnit;
+    use super::cpu::Opcode;
 
-    enum Frequency {
+    enum Period {
         Hz16384 = 256
     }
+
     pub struct DividerTimer {
         last_cpu_cycles: Cycle,
         counter: Word
@@ -50,17 +53,68 @@ mod timer {
     }
 
     impl Device for DividerTimer {
-        fn update(& mut self, cpu: &mut ComputerUnit) {
-            if (cpu.cycles() % Frequency::Hz16384 as u16) == 0 {
+        fn update(&mut self, cpu: &mut ComputerUnit) {
+            let cpu_cycles = cpu.cycles() % Period::Hz16384 as Cycle;
+
+            if self.last_cpu_cycles > cpu_cycles {
                 self.counter = self.counter.wrapping_add(1);
             }
+            self.last_cpu_cycles = cpu_cycles;
         }
     }
 
-    #[test]
-    fn should_update_the_timer() {
-        let timer = DividerTimer::new();
-        let mut cpu = ComputerUnit::new();
+    mod test {
+        use super::*;
+        use super::super::cpu::{Size, ComputerUnit, Opcode};
+        use super::super::{Cycle, Device};
+
+        struct FakeInstr(Cycle);
+
+        impl Opcode for FakeInstr {
+            fn exec(&self, cpu: &mut ComputerUnit) {}
+
+            fn size(&self) -> Size {
+                0
+            }
+
+            fn cycles(&self, _: &ComputerUnit) -> Cycle {
+                self.0
+            }
+
+            fn to_string(&self, cpu: &ComputerUnit) -> String {
+                "fake".to_string()
+            }
+        }
+
+        #[test]
+        fn should_update_the_timer_when_it_reaches_its_period() {
+            let mut timer = DividerTimer::new();
+            let mut cpu = ComputerUnit::new();
+
+            let opcode: Box<Opcode> = Box::new(FakeInstr(200));
+
+            cpu.exec(&opcode);
+            timer.update(&mut cpu);
+            assert_eq!(timer.counter, 0);
+
+            cpu.exec(&opcode);
+            timer.update(&mut cpu);
+            assert_eq!(timer.counter, 1)
+        }
+
+        #[test]
+        fn should_not_update_the_timer_until_it_reaches_its_period() {
+            let timer = DividerTimer::new();
+            let mut cpu = ComputerUnit::new();
+
+            let opcode: Box<Opcode> = Box::new(FakeInstr(4));
+
+            cpu.exec(&opcode);
+            assert_eq!(timer.counter, 0);
+
+            cpu.exec(&opcode);
+            assert_eq!(timer.counter, 0)
+        }
     }
 }
 
@@ -84,8 +138,8 @@ pub fn play(rompath: &str) {
 }
 
 pub fn run_debug<'a>(rompath: &str,
-                cpu_hooks: Vec<&'a mut ExecHook>,
-                memory_hooks: Vec<&'a mut MemoryWriteHook>) {
+                     cpu_hooks: Vec<&'a mut ExecHook>,
+                     memory_hooks: Vec<&'a mut MemoryWriteHook>) {
     let pg_loader = file_loader(&rompath.to_string());
     let pg = pg_loader.load();
 
@@ -136,6 +190,5 @@ impl<'a> GameBoy<'a> {
         }
 
         self.interrupt_handler.interrupt(&mut self.cpu);
-
     }
 }

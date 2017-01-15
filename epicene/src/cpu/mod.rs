@@ -6,7 +6,7 @@ use super::{Address, Cycle, Word, Double};
 mod opcodes;
 mod alu;
 
-type Size = u16;
+pub type Size = u16;
 
 pub fn high_word(double: Double) -> Word {
     double.wrapping_shr(8) as Word
@@ -166,7 +166,7 @@ pub trait Opcode {
     fn exec(&self, cpu: &mut ComputerUnit);
     fn size(&self) -> Size;
     fn cycles(&self, &ComputerUnit) -> Cycle;
-    fn to_string(&self, cpu: &ComputerUnit) -> String;
+    fn to_string(&self, cpu: &ComputerUnit) -> String; // todo return &str
 }
 
 
