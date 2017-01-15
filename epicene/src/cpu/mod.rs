@@ -704,7 +704,6 @@ impl<'a> ComputerUnit<'a> {
     }
 
     pub fn push(&mut self, double: Double) {
-        println!("push {:04X}", double);
         let original_sp = self.get_sp_register();
         self.set_register_sp(original_sp - 2);
         let sp = self.get_sp_register();
@@ -714,7 +713,6 @@ impl<'a> ComputerUnit<'a> {
     fn pop(&mut self) -> Double {
         let sp = self.get_sp_register();
         let value = self.double_at(sp);
-        println!("pop {:04X}", value);
         self.set_register_sp(sp + 2);
         value
     }

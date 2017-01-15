@@ -16,7 +16,6 @@ pub fn ret() -> Box<Opcode> {
 impl Opcode for UnconditionalReturn {
     fn exec(&self, cpu: &mut ComputerUnit) {
         let address = cpu.pop();
-        println!("ret {:04X}", address);
         cpu.set_register_pc(address - self.size())
     }
 

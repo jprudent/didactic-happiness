@@ -51,8 +51,8 @@ impl InterruptHandler {
             for interrupt in self.interrupts.iter() {
                 if interrupt.is_enabled(cpu) && interrupt.is_requested(cpu) {
                     interrupt.mark_processed(cpu);
-                    let sp = cpu.get_sp_register();
-                    cpu.push(sp);
+                    let pc = cpu.get_pc_register();
+                    cpu.push(pc);
                     cpu.disable_interrupt_master();
                     let handler = interrupt.handler();
                     cpu.set_register_pc(handler);
