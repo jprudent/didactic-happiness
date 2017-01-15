@@ -1,5 +1,6 @@
-use super::super::{Cycle, Word, Size, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, Constant, WordRegister, RightOperand, LeftOperand, RegisterPointer};
+use super::super::super::{Cycle, Word};
 
 struct Res<S: RightOperand<Word> + LeftOperand<Word>+ AsString> {
     bit: Constant,

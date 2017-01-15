@@ -1,5 +1,7 @@
-use super::super::{Cycle, Word, Size, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, Constant, WordRegister, RightOperand, RegisterPointer};
+use super::super::super::{Cycle, Word};
+
 
 struct Bit<S: RightOperand<Word> + AsString> {
     n: Constant,

@@ -1,4 +1,5 @@
-use super::super::{Cycle, Size, Opcode, ComputerUnit};
+use super::super::{ComputerUnit, Opcode, Size};
+use super::super::super::{Cycle};
 
 struct DisableInterrupts {
     size: Size,

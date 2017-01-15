@@ -1,6 +1,8 @@
-use super::super::{Cycle, Word, Double, Size, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, LeftOperand, Carry, Constant, DoubleRegister, WordRegister, RightOperand, ImmediateWord, RegisterPointer};
 use super::super::alu::{ArithmeticResult, ArithmeticLogicalUnit};
+use super::super::super::{Cycle, Word, Double};
+
 
 struct ArithmeticOperation<X, Y, D: LeftOperand<X> + RightOperand<X> + AsString, S: RightOperand<Y> + AsString> {
     source: S,

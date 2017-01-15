@@ -1,7 +1,9 @@
-use super::super::{Double, Size, Cycle, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, RightOperand, ImmediateDouble, DoubleRegister};
 use super::JmpCondition;
 use std::marker::PhantomData;
+use super::super::super::{Cycle, Double};
+
 
 struct AbsoluteJump<X, A: RightOperand<X> + AsString> {
     address: A,

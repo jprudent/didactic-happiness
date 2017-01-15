@@ -1,4 +1,5 @@
-use super::super::{Size, Cycle, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
+use super::super::super::{Cycle};
 
 // TODO use the same structure as ret_cond using JmpCondition::ALWAYS
 struct UnconditionalReturn {

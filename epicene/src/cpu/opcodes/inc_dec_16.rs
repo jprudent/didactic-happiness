@@ -1,5 +1,6 @@
-use super::super::{Cycle, Size, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, DoubleRegister, RightOperand, LeftOperand};
+use super::super::super::{Cycle};
 
 
 struct Dec {

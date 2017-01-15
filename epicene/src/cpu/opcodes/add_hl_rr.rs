@@ -1,5 +1,6 @@
-use super::super::{Cycle, Double, Size, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, DoubleRegister, RightOperand};
+use super::super::super::{Cycle, Double};
 
 struct AddHlDoubleRegister {
     source: DoubleRegister,

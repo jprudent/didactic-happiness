@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
-use super::super::{Word, Double, Cycle, Size, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, WordRegister, DoubleRegister, ImmediateDouble, ImmediateWord, RightOperand, LeftOperand, HighMemoryPointer, ImmediatePointer, RegisterPointer, HlOp, SpRelative};
+use super::super::super::{Cycle, Word, Double};
+
 
 struct Load<X, L: LeftOperand<X> + AsString, R: RightOperand<X> + AsString> {
     destination: L,

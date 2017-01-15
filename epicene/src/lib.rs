@@ -8,6 +8,7 @@ use self::cpu::Decoder;
 use self::interrupts::{InterruptHandler, INTERRUPTS};
 use self::debug::{ExecHook, MemoryWriteHook};
 use self::program::file_loader;
+use self::timer::{DividerTimer};
 
 mod cpu;
 mod display;
@@ -21,9 +22,46 @@ mod memory;
 pub type Word = u8;
 type Double = u16;
 pub type Address = Double;
+pub type Cycle = u16;
 
 trait Device {
-    fn update(&self, cpu: &mut ComputerUnit);
+    fn update(&mut self, cpu: &mut ComputerUnit);
+}
+
+mod timer {
+    use super::{Device, Cycle, Word};
+    use super::cpu::ComputerUnit;
+
+    enum Frequency {
+        Hz16384 = 256
+    }
+    pub struct DividerTimer {
+        last_cpu_cycles: Cycle,
+        counter: Word
+    }
+
+    impl DividerTimer {
+        pub fn new() -> DividerTimer {
+            DividerTimer {
+                last_cpu_cycles: 0,
+                counter: 0
+            }
+        }
+    }
+
+    impl Device for DividerTimer {
+        fn update(& mut self, cpu: &mut ComputerUnit) {
+            if (cpu.cycles() % Frequency::Hz16384 as u16) == 0 {
+                self.counter = self.counter.wrapping_add(1);
+            }
+        }
+    }
+
+    #[test]
+    fn should_update_the_timer() {
+        let timer = DividerTimer::new();
+        let mut cpu = ComputerUnit::new();
+    }
 }
 
 pub fn play(rompath: &str) {
@@ -59,7 +97,7 @@ pub fn run_debug<'a>(rompath: &str,
     let mut gb = GameBoy {
         cpu: cpu,
         interrupt_handler: INTERRUPTS,
-        devices: vec!(),
+        devices: vec!(Box::new(DividerTimer::new())),
         cpu_hooks: cpu_hooks,
     };
 
@@ -93,10 +131,11 @@ impl<'a> GameBoy<'a> {
 
         self.cpu.exec(opcode);
 
-        for device in &self.devices {
+        for device in self.devices.iter_mut() {
             device.update(&mut self.cpu);
         }
 
         self.interrupt_handler.interrupt(&mut self.cpu);
+
     }
 }

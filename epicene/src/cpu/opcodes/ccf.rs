@@ -1,4 +1,6 @@
-use super::super::{Size, Cycle, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
+use super::super::super::{Cycle};
+
 
 struct Ccf {
     size: Size,

@@ -1,5 +1,7 @@
-use super::super::{Word, Cycle, Size, Opcode, ComputerUnit, Decoder};
+use super::super::{Size, Opcode, ComputerUnit, Decoder};
 use super::super::operands::{WordRegister};
+use super::super::super::{Cycle, Word};
+
 
 struct PrefixCb {
     decoder: Decoder

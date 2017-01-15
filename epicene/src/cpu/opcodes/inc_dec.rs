@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
-use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, WordRegister, RightOperand, LeftOperand, RegisterPointer};
 use super::super::alu::{ArithmeticLogicalUnit};
+use super::super::super::{Cycle, Word};
+
 
 struct Dec<X, D: LeftOperand<X> + RightOperand<X> + AsString> {
     destination: D,

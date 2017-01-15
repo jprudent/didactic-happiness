@@ -1,4 +1,5 @@
-use super::super::{Word, Size, Cycle, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
+use super::super::super::{Cycle, Word};
 
 struct NotImplemented(Word);
 

@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 use super::JmpCondition;
-use super::super::{Word, Cycle, Size, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, ImmediateWord, RightOperand};
+use super::super::super::{Cycle, Word};
 
 struct RelativeJump<X, A: RightOperand<X> + AsString> {
     address: A,

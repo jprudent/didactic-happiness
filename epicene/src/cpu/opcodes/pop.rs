@@ -1,5 +1,7 @@
-use super::super::{Size, Cycle, Opcode, ComputerUnit};
+use super::super::super::{Cycle};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, LeftOperand, DoubleRegister};
+
 
 struct Pop {
     destination: DoubleRegister,

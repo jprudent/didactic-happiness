@@ -1,6 +1,7 @@
-use super::super::{Word, Size, Cycle, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, RightOperand, ImmediateWord, WordRegister, RegisterPointer};
 use super::super::alu::{ArithmeticLogicalUnit};
+use super::super::super::{Cycle, Word};
 
 struct CompareA<S: RightOperand<Word> + AsString> {
     source: S,

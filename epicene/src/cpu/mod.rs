@@ -1,15 +1,11 @@
-mod opcodes;
-mod alu;
-
 use std::ops::IndexMut;
 use std::ops::Index;
 use self::operands::{WordRegister, DoubleRegister, RegisterPointer, HlOp};
-use super::{Address};
+use super::{Address, Cycle, Word, Double};
 
-// todo duplicated in super::
-pub type Word = u8;
-type Double = u16;
-type Cycle = u8;
+mod opcodes;
+mod alu;
+
 type Size = u16;
 
 pub fn high_word(double: Double) -> Word {
@@ -500,7 +496,7 @@ impl<'a> ComputerUnit<'a> {
             memory: ArrayBasedMemory::new(),
             write_memory_hooks: memory_hooks,
             ime: true,
-            cycles: 0xA0, // this is some random value
+            cycles: 0
         }
     }
 
@@ -523,8 +519,9 @@ impl<'a> ComputerUnit<'a> {
 
     pub fn exec(&mut self, opcode: &Box<Opcode>) {
         opcode.exec(self);
+        let cycles = opcode.cycles(self);
         self.inc_pc(opcode.size());
-        self.cycles = self.cycles.wrapping_add(opcode.cycles(self));
+        self.cycles = self.cycles.wrapping_add(cycles);
     }
 
     // TODO maybe a constructor would be better
@@ -715,6 +712,10 @@ impl<'a> ComputerUnit<'a> {
         let value = self.double_at(sp);
         self.set_register_sp(sp + 2);
         value
+    }
+
+    pub fn cycles(&self) -> Cycle {
+        self.cycles
     }
 }
 

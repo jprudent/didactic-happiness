@@ -1,5 +1,7 @@
 use super::JmpCondition;
-use super::super::{Size, Cycle, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
+use super::super::super::{Cycle};
+
 
 struct ConditionalReturn {
     condition: JmpCondition,

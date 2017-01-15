@@ -1,5 +1,6 @@
-use super::super::{Size, Word, Cycle, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{WordRegister, AsString, RightOperand, LeftOperand, RegisterPointer};
+use super::super::super::{Cycle, Word};
 
 struct Rlc<T: RightOperand<Word> + LeftOperand<Word> + AsString> {
     target: T,

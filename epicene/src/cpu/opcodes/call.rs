@@ -1,5 +1,5 @@
-use super::super::{Size, Cycle, Opcode, Double, ComputerUnit};
-use super::super::super::{Address};
+use super::super::super::{Address, Cycle, Double};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{AsString, RightOperand, ImmediateDouble, ConstantAddress};
 use super::{JmpCondition};
 

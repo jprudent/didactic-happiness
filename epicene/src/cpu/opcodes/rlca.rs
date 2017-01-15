@@ -1,5 +1,6 @@
-use super::super::{Size, Cycle, Opcode, ComputerUnit};
+use super::super::{Size, Opcode, ComputerUnit};
 use super::super::operands::{WordRegister, RightOperand, LeftOperand};
+use super::super::super::{Cycle};
 
 struct Rlca {
     size: Size,
