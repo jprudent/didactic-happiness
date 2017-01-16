@@ -1,0 +1,6 @@
+[package]
+name = "play-with-rust-channels"
+version = "0.1.0"
+authors = ["Jérôme Prudent <jprudent@gmail.com>"]
+
+[dependencies]
