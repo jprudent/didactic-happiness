@@ -25,114 +25,34 @@ pub type Address = Double;
 pub type Cycle = u16;
 
 trait Device {
-    // todo a device should only depends on cycles and memory
-    fn update(&mut self, cpu: &mut ComputerUnit);
+    fn update(&mut self, cycles: Cycle);
 }
 
-mod timer {
-    use super::{Device, Cycle, Word};
-    use super::cpu::ComputerUnit;
-    use super::cpu::Opcode;
 
-    enum Period {
-        Hz16384 = 256
-    }
-
-    pub struct DividerTimer {
-        last_cpu_cycles: Cycle,
-        counter: Word
-    }
-
-    impl DividerTimer {
-        pub fn new() -> DividerTimer {
-            DividerTimer {
-                last_cpu_cycles: 0,
-                counter: 0
-            }
-        }
-    }
-
-    impl Device for DividerTimer {
-        fn update(&mut self, cpu: &mut ComputerUnit) {
-            let cpu_cycles = cpu.cycles() % Period::Hz16384 as Cycle;
-
-            if self.last_cpu_cycles > cpu_cycles {
-                self.counter = self.counter.wrapping_add(1);
-            }
-            self.last_cpu_cycles = cpu_cycles;
-        }
-    }
-
-    mod test {
-        use super::*;
-        use super::super::cpu::{Size, ComputerUnit, Opcode};
-        use super::super::{Cycle, Device};
-
-        struct FakeInstr(Cycle);
-
-        impl Opcode for FakeInstr {
-            fn exec(&self, cpu: &mut ComputerUnit) {}
-
-            fn size(&self) -> Size {
-                0
-            }
-
-            fn cycles(&self, _: &ComputerUnit) -> Cycle {
-                self.0
-            }
-
-            fn to_string(&self, cpu: &ComputerUnit) -> String {
-                "fake".to_string()
-            }
-        }
-
-        #[test]
-        fn should_update_the_timer_when_it_reaches_its_period() {
-            let mut timer = DividerTimer::new();
-            let mut cpu = ComputerUnit::new();
-
-            let opcode: Box<Opcode> = Box::new(FakeInstr(200));
-
-            cpu.exec(&opcode);
-            timer.update(&mut cpu);
-            assert_eq!(timer.counter, 0);
-
-            cpu.exec(&opcode);
-            timer.update(&mut cpu);
-            assert_eq!(timer.counter, 1)
-        }
-
-        #[test]
-        fn should_not_update_the_timer_until_it_reaches_its_period() {
-            let timer = DividerTimer::new();
-            let mut cpu = ComputerUnit::new();
-
-            let opcode: Box<Opcode> = Box::new(FakeInstr(4));
-
-            cpu.exec(&opcode);
-            assert_eq!(timer.counter, 0);
-
-            cpu.exec(&opcode);
-            assert_eq!(timer.counter, 0)
-        }
-    }
+pub trait MemoryInterface {
+    fn word_at(&self, Address) -> Word;
+    fn set_word_at(&mut self, Address, Word);
 }
+
+
+mod timer;
 
 pub fn play(rompath: &str) {
     let pg_loader = file_loader(&rompath.to_string());
     let pg = pg_loader.load();
-
-    let mut cpu = ComputerUnit::new();
-
-    cpu.load(&pg);
-    cpu.set_register_pc(0x100);
+    let mut timer = DividerTimer::new();
 
     let mut gb = GameBoy {
-        cpu: cpu,
         interrupt_handler: INTERRUPTS,
-        devices: vec!(),
+        devices: vec!(Box::new(timer)),
         cpu_hooks: vec!(),
+        cpu: ComputerUnit::new(&mut timer),
     };
+
+    gb.
+
+    gb.cpu.load(&pg);
+    gb.cpu.set_register_pc(0x100);
 
     gb.game_loop();
 }
@@ -142,8 +62,8 @@ pub fn run_debug<'a>(rompath: &str,
                      memory_hooks: Vec<&'a mut MemoryWriteHook>) {
     let pg_loader = file_loader(&rompath.to_string());
     let pg = pg_loader.load();
-
-    let mut cpu = ComputerUnit::hooked(memory_hooks);
+    let mut timer = DividerTimer::new();
+    let mut cpu = ComputerUnit::hooked(memory_hooks, &mut timer);
 
     cpu.load(&pg);
     cpu.set_register_pc(0x100);
@@ -151,7 +71,7 @@ pub fn run_debug<'a>(rompath: &str,
     let mut gb = GameBoy {
         cpu: cpu,
         interrupt_handler: INTERRUPTS,
-        devices: vec!(Box::new(DividerTimer::new())),
+        devices: vec!(Box::new(timer)),
         cpu_hooks: cpu_hooks,
     };
 
@@ -186,7 +106,7 @@ impl<'a> GameBoy<'a> {
         self.cpu.exec(opcode);
 
         for device in self.devices.iter_mut() {
-            device.update(&mut self.cpu);
+            device.update(self.cpu.cycles());
         }
 
         self.interrupt_handler.interrupt(&mut self.cpu);

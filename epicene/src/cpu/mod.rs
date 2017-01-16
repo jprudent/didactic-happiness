@@ -2,6 +2,10 @@ use std::ops::IndexMut;
 use std::ops::Index;
 use self::operands::{WordRegister, DoubleRegister, RegisterPointer, HlOp};
 use super::{Address, Cycle, Word, Double};
+use super::program::Program;
+use super::memory::{ArrayBasedMemory, Mmu, Memory};
+use super::debug::MemoryWriteHook;
+use super::timer::{DividerTimer};
 
 mod opcodes;
 mod alu;
@@ -477,31 +481,27 @@ impl IndexMut<Word> for Decoder {
     }
 }
 
-use super::program::Program;
-use super::memory::ArrayBasedMemory;
-use super::debug::MemoryWriteHook;
-
 pub struct ComputerUnit<'a> {
     registers: Registers,
-    memory: ArrayBasedMemory,
+    memory: Mmu<'a>,
     write_memory_hooks: Vec<&'a mut MemoryWriteHook>,
     cycles: Cycle,
     ime: bool,
 }
 
 impl<'a> ComputerUnit<'a> {
-    pub fn hooked(memory_hooks: Vec<&mut MemoryWriteHook>) -> ComputerUnit {
+    pub fn hooked(memory_hooks: Vec<&'a mut MemoryWriteHook>, timer: &'a mut DividerTimer) -> ComputerUnit<'a> {
         ComputerUnit {
             registers: Registers::new(),
-            memory: ArrayBasedMemory::new(),
+            memory: Mmu::new(timer),
             write_memory_hooks: memory_hooks,
             ime: true,
             cycles: 0
         }
     }
 
-    pub fn new() -> ComputerUnit<'a> {
-        ComputerUnit::hooked(vec!())
+    pub fn new(timer: &'a mut DividerTimer) -> ComputerUnit<'a> {
+        ComputerUnit::hooked(vec!(), timer)
     }
 
     fn inc_pc(&mut self, length: Double) {
