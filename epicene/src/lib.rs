@@ -3,8 +3,6 @@ extern crate graphics;
 extern crate glutin_window;
 extern crate opengl_graphics;
 
-use std::cell::RefCell;
-
 use self::cpu::ComputerUnit;
 use self::cpu::Decoder;
 use self::interrupts::{InterruptHandler, INTERRUPTS};
@@ -20,111 +18,16 @@ mod program;
 mod interrupts;
 mod memory;
 
-//TODO types are duplicated in CPU
 pub type Word = u8;
 type Double = u16;
 pub type Address = Double;
 pub type Cycle = u16;
 
 trait Device {
-    // todo a device should only depends on cycles and memory
-    fn update(&self, cpu: &ComputerUnit);
+    fn synchronize(&self, cpu_cycles: Cycle);
 }
 
-mod timer {
-    use super::{Device, Cycle, Word};
-    use super::cpu::ComputerUnit;
-    use super::cpu::Opcode;
-
-    use std::cell::RefCell;
-
-    enum Period {
-        Hz16384 = 256
-    }
-
-    pub struct DividerTimer {
-        last_cpu_cycles: RefCell<Cycle>,
-        counter: RefCell<Word>
-    }
-
-    impl DividerTimer {
-        pub fn new() -> DividerTimer {
-            DividerTimer {
-                last_cpu_cycles: RefCell::new(0),
-                counter: RefCell::new(0)
-            }
-        }
-    }
-
-    impl Device for DividerTimer {
-        fn update(&self, cpu: &ComputerUnit) {
-            let cpu_cycles = cpu.cycles() % Period::Hz16384 as Cycle;
-
-            if *self.last_cpu_cycles.borrow() > cpu_cycles {
-                let mut counter = self.counter.borrow_mut();
-                *counter = counter.wrapping_add(1);
-            }
-            let mut last_cpu_cycles = self.last_cpu_cycles.borrow_mut();
-            *last_cpu_cycles = cpu_cycles;
-        }
-    }
-
-    mod test {
-        use super::*;
-        use super::super::cpu::{Size, ComputerUnit, Opcode};
-        use super::super::{Cycle, Device};
-
-        struct FakeInstr(Cycle);
-
-        impl Opcode for FakeInstr {
-            fn exec(&self, cpu: &mut ComputerUnit) {}
-
-            fn size(&self) -> Size {
-                0
-            }
-
-            fn cycles(&self, _: &ComputerUnit) -> Cycle {
-                self.0
-            }
-
-            fn to_string(&self, cpu: &ComputerUnit) -> String {
-                "fake".to_string()
-            }
-        }
-
-        #[test]
-        fn should_update_the_timer_when_it_reaches_its_period() {
-            let mut timer = DividerTimer::new();
-            let mut cpu = ComputerUnit::new();
-
-            let opcode: Box<Opcode> = Box::new(FakeInstr(200));
-
-            cpu.exec(&opcode);
-            timer.update(&mut cpu);
-            assert_eq!(*timer.counter.borrow(), 0);
-
-            cpu.exec(&opcode);
-            timer.update(&mut cpu);
-            let v = *timer.counter.borrow();
-            assert_eq!(v, 1)
-        }
-
-        #[test]
-        fn should_not_update_the_timer_until_it_reaches_its_period() {
-            let timer = DividerTimer::new();
-            let mut cpu = ComputerUnit::new();
-
-            let opcode: Box<Opcode> = Box::new(FakeInstr(4));
-
-            cpu.exec(&opcode);
-            assert_eq!(*timer.counter.borrow(), 0);
-
-            cpu.exec(&opcode);
-            let v = *timer.counter.borrow();
-            assert_eq!(v, 0)
-        }
-    }
-}
+mod timer;
 
 pub fn play(rompath: &str) {
     let pg_loader = file_loader(&rompath.to_string());
@@ -156,24 +59,26 @@ pub fn run_debug<'a>(rompath: &str,
     cpu.load(&pg);
     cpu.set_register_pc(0x100);
 
+    let divider_timer = DividerTimer::new();
+
     let mut gb = GameBoy {
         cpu: cpu,
         interrupt_handler: INTERRUPTS,
-        devices: vec!(Box::new(DividerTimer::new())),
+        devices: vec!(&divider_timer),
         cpu_hooks: cpu_hooks,
     };
 
     gb.game_loop();
 }
 
-struct GameBoy<'a> {
+struct GameBoy<'a, 'device> {
     cpu: ComputerUnit<'a>,
     cpu_hooks: Vec<&'a mut ExecHook>,
     interrupt_handler: InterruptHandler,
-    devices: Vec<Box<Device>>,
+    devices: Vec<&'device Device>,
 }
 
-impl<'a> GameBoy<'a> {
+impl<'a, 'b> GameBoy<'a, 'b> {
     #[allow(while_true)]
     fn game_loop(&mut self) {
         let decoder = Decoder::new_basic();
@@ -194,7 +99,7 @@ impl<'a> GameBoy<'a> {
         self.cpu.exec(opcode);
 
         for device in self.devices.iter_mut() {
-            device.update(&mut self.cpu);
+            device.synchronize(self.cpu.cycles());
         }
 
         self.interrupt_handler.interrupt(&mut self.cpu);
