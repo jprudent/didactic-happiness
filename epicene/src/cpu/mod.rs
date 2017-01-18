@@ -477,31 +477,26 @@ impl IndexMut<Word> for Decoder {
     }
 }
 
-use super::program::Program;
-use super::memory::ArrayBasedMemory;
 use super::debug::MemoryWriteHook;
+use super::memory::Mmu;
 
-pub struct ComputerUnit<'a> {
+pub struct ComputerUnit<'a, 'b> {
     registers: Registers,
-    memory: ArrayBasedMemory,
+    memory: Mmu<'b>,
     write_memory_hooks: Vec<&'a mut MemoryWriteHook>,
     cycles: Cycle,
     ime: bool,
 }
 
-impl<'a> ComputerUnit<'a> {
-    pub fn hooked(memory_hooks: Vec<&mut MemoryWriteHook>) -> ComputerUnit {
+impl<'a, 'b> ComputerUnit<'a, 'b> {
+    pub fn new(memory_hooks: Vec<&'a mut MemoryWriteHook>, mmu: Mmu<'b>) -> ComputerUnit<'a, 'b> {
         ComputerUnit {
             registers: Registers::new(),
-            memory: ArrayBasedMemory::new(),
+            memory: mmu,
             write_memory_hooks: memory_hooks,
             ime: true,
             cycles: 0
         }
-    }
-
-    pub fn new() -> ComputerUnit<'a> {
-        ComputerUnit::hooked(vec!())
     }
 
     fn inc_pc(&mut self, length: Double) {
@@ -522,11 +517,6 @@ impl<'a> ComputerUnit<'a> {
         let cycles = opcode.cycles(self);
         self.inc_pc(opcode.size());
         self.cycles = self.cycles.wrapping_add(cycles);
-    }
-
-    // TODO maybe a constructor would be better
-    pub fn load(&mut self, program: &Program) {
-        self.memory.map(&program)
     }
 
     pub fn get_a_register(&self) -> Word {

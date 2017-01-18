@@ -1,4 +1,5 @@
-use super::Word;
+use super::{Address, Word};
+use super::memory::MemoryBacked;
 
 pub struct Program {
     pub name: &'static str,
@@ -51,5 +52,15 @@ impl ProgramLoader for FileProgramLoader {
             name: "cpu_instrs.gb",
             content: s
         }
+    }
+}
+
+impl MemoryBacked for Program {
+    fn word_at(&self, address: Address) -> Word {
+        self.content[address as usize]
+    }
+
+    fn set_word_at(&mut self, address: Address, word: Word) {
+        self.content[address as usize] = word
     }
 }

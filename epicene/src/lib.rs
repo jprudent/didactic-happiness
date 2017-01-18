@@ -9,6 +9,7 @@ use self::interrupts::{InterruptHandler, INTERRUPTS};
 use self::debug::{ExecHook, MemoryWriteHook};
 use self::program::file_loader;
 use self::timer::{DividerTimer};
+use self::memory::Mmu;
 
 mod cpu;
 mod display;
@@ -29,34 +30,14 @@ trait Device {
 
 mod timer;
 
-pub fn play(rompath: &str) {
-    let pg_loader = file_loader(&rompath.to_string());
-    let pg = pg_loader.load();
-
-    let mut cpu = ComputerUnit::new();
-
-    cpu.load(&pg);
-    cpu.set_register_pc(0x100);
-
-    let mut gb = GameBoy {
-        cpu: cpu,
-        interrupt_handler: INTERRUPTS,
-        devices: vec!(),
-        cpu_hooks: vec!(),
-    };
-
-    gb.game_loop();
-}
-
 pub fn run_debug<'a>(rompath: &str,
                      cpu_hooks: Vec<&'a mut ExecHook>,
                      memory_hooks: Vec<&'a mut MemoryWriteHook>) {
     let pg_loader = file_loader(&rompath.to_string());
-    let pg = pg_loader.load();
+    let mut pg = pg_loader.load();
+    let mmu = Mmu::new(&mut pg);
+    let mut cpu = ComputerUnit::new(memory_hooks, mmu);
 
-    let mut cpu = ComputerUnit::hooked(memory_hooks);
-
-    cpu.load(&pg);
     cpu.set_register_pc(0x100);
 
     let divider_timer = DividerTimer::new();
@@ -71,14 +52,14 @@ pub fn run_debug<'a>(rompath: &str,
     gb.game_loop();
 }
 
-struct GameBoy<'a, 'device> {
-    cpu: ComputerUnit<'a>,
+struct GameBoy<'a, 'b, 'device> {
+    cpu: ComputerUnit<'a, 'b>,
     cpu_hooks: Vec<&'a mut ExecHook>,
     interrupt_handler: InterruptHandler,
     devices: Vec<&'device Device>,
 }
 
-impl<'a, 'b> GameBoy<'a, 'b> {
+impl<'a, 'b, 'device> GameBoy<'a, 'b, 'device> {
     #[allow(while_true)]
     fn game_loop(&mut self) {
         let decoder = Decoder::new_basic();
