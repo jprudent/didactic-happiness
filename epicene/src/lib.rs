@@ -3,6 +3,8 @@ extern crate graphics;
 extern crate glutin_window;
 extern crate opengl_graphics;
 
+use std::cell::RefCell;
+
 use self::cpu::ComputerUnit;
 use self::cpu::Decoder;
 use self::interrupts::{InterruptHandler, INTERRUPTS};
@@ -26,7 +28,7 @@ pub type Cycle = u16;
 
 trait Device {
     // todo a device should only depends on cycles and memory
-    fn update(&mut self, cpu: &mut ComputerUnit);
+    fn update(&self, cpu: &ComputerUnit);
 }
 
 mod timer {
@@ -34,32 +36,36 @@ mod timer {
     use super::cpu::ComputerUnit;
     use super::cpu::Opcode;
 
+    use std::cell::RefCell;
+
     enum Period {
         Hz16384 = 256
     }
 
     pub struct DividerTimer {
-        last_cpu_cycles: Cycle,
-        counter: Word
+        last_cpu_cycles: RefCell<Cycle>,
+        counter: RefCell<Word>
     }
 
     impl DividerTimer {
         pub fn new() -> DividerTimer {
             DividerTimer {
-                last_cpu_cycles: 0,
-                counter: 0
+                last_cpu_cycles: RefCell::new(0),
+                counter: RefCell::new(0)
             }
         }
     }
 
     impl Device for DividerTimer {
-        fn update(&mut self, cpu: &mut ComputerUnit) {
+        fn update(&self, cpu: &ComputerUnit) {
             let cpu_cycles = cpu.cycles() % Period::Hz16384 as Cycle;
 
-            if self.last_cpu_cycles > cpu_cycles {
-                self.counter = self.counter.wrapping_add(1);
+            if *self.last_cpu_cycles.borrow() > cpu_cycles {
+                let mut counter = self.counter.borrow_mut();
+                *counter = counter.wrapping_add(1);
             }
-            self.last_cpu_cycles = cpu_cycles;
+            let mut last_cpu_cycles = self.last_cpu_cycles.borrow_mut();
+            *last_cpu_cycles = cpu_cycles;
         }
     }
 
@@ -95,11 +101,12 @@ mod timer {
 
             cpu.exec(&opcode);
             timer.update(&mut cpu);
-            assert_eq!(timer.counter, 0);
+            assert_eq!(*timer.counter.borrow(), 0);
 
             cpu.exec(&opcode);
             timer.update(&mut cpu);
-            assert_eq!(timer.counter, 1)
+            let v = *timer.counter.borrow();
+            assert_eq!(v, 1)
         }
 
         #[test]
@@ -110,10 +117,11 @@ mod timer {
             let opcode: Box<Opcode> = Box::new(FakeInstr(4));
 
             cpu.exec(&opcode);
-            assert_eq!(timer.counter, 0);
+            assert_eq!(*timer.counter.borrow(), 0);
 
             cpu.exec(&opcode);
-            assert_eq!(timer.counter, 0)
+            let v = *timer.counter.borrow();
+            assert_eq!(v, 0)
         }
     }
 }
