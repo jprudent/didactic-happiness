@@ -1,8 +1,8 @@
 use super::{Word, Address, Double, MemoryInterface};
 use super::cpu::{set_high_word, set_low_word, low_word, high_word};
 use super::program::Program;
-use super::timer::DividerTimer;
-use std::collections::HashMap;
+use super::timer::{TimerCommand};
+use super::bus::MemoryEnd;
 
 pub trait Memory {
     fn word_at(&self, address: Address) -> Word;
@@ -10,46 +10,6 @@ pub trait Memory {
     fn map(&mut self, p: &Program);
     fn set_word_at(&mut self, address: Address, word: Word);
     fn set_double_at(&mut self, address: Address, double: Double);
-}
-
-pub struct ArrayBasedMemory {
-    words: [Word; 0xFFFF + 1]
-}
-
-impl ArrayBasedMemory {
-    pub fn new() -> ArrayBasedMemory {
-        ArrayBasedMemory {
-            words: [0xAA; 0xFFFF + 1]
-        }
-    }
-}
-
-impl Memory for ArrayBasedMemory {
-    fn word_at(&self, address: Address) -> Word {
-        self.words[address as usize]
-    }
-
-    fn double_at(&self, address: Address) -> Double {
-        let high = self.word_at(address + 1);
-        let low = self.word_at(address);
-        set_low_word(set_high_word(0, high), low)
-    }
-
-    fn map(&mut self, p: &Program) {
-        for i in 0..p.content.len() {
-            self.words[i] = p.content[i];
-        }
-    }
-
-    fn set_word_at(&mut self, address: Address, word: Word) {
-        self.words[address as usize] = word;
-    }
-
-    fn set_double_at(&mut self, address: Address, double: Double) {
-        let i = address as usize;
-        self.words[i] = low_word(double);
-        self.words[i + 1] = high_word(double);
-    }
 }
 
 pub struct Ram {
@@ -76,23 +36,22 @@ impl MemoryInterface for Ram {
 
 pub struct Mmu<'a> {
     ram: Ram,
-    divider_timer: &'a mut MemoryInterface
+    timer_bus: &'a MemoryEnd
 }
 
 impl<'a> Mmu<'a> {
-    pub fn new(divider_timer: &mut DividerTimer) -> Mmu {
+    pub fn new(timer_bus: &MemoryEnd) -> Mmu{
         Mmu {
             ram: Ram::new(),
-            divider_timer: divider_timer
+            timer_bus: timer_bus
         }
     }
 }
 
 impl<'a> Memory for Mmu<'a> {
     fn word_at(&self, address: Address) -> Word {
-        assert!(address <= 0xFFFF);
         if address == 0xFF04 {
-            self.divider_timer.word_at(address)
+            self.timer_bus.ask(TimerCommand::Read(address))
         } else {
             self.ram.word_at(address)
         }
@@ -105,20 +64,20 @@ impl<'a> Memory for Mmu<'a> {
     }
 
     fn map(&mut self, p: &Program) {
-        unimplemented!()
+        for i in 0..0x8000 {
+            self.ram.words[i] = p.content[i];
+        }
     }
 
     fn set_word_at(&mut self, address: Address, word: Word) {
-        assert!(address <= 0xFFFF);
         if address == 0xFF04 {
-            self.divider_timer.set_word_at(address, word)
+            self.timer_bus.send(TimerCommand::Write(address, word));
         } else {
             self.ram.set_word_at(address, word)
         }
     }
 
     fn set_double_at(&mut self, address: Address, double: Double) {
-        let i = address as usize;
         self.set_word_at(address, low_word(double));
         self.set_word_at(address.wrapping_add(1), high_word(double));
     }
