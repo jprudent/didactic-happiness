@@ -8,7 +8,7 @@ use self::cpu::Decoder;
 use self::interrupts::{InterruptHandler, INTERRUPTS};
 use self::debug::{ExecHook, MemoryWriteHook};
 use self::program::file_loader;
-use self::timer::{DividerTimer};
+use self::timer::divider::{DividerTimer};
 use self::memory::Mmu;
 
 mod cpu;
