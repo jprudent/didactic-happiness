@@ -40,15 +40,15 @@ mod test {
 
     #[test]
     fn should_update_the_timer_when_it_reaches_its_period() {
-        let timer = DividerTimer::new();
-        timer.synchronize(200);
-        assert_eq!(*timer.counter.borrow(), 0);
+        let divider_timer = DividerTimer::new();
+        divider_timer.synchronize(200);
+        assert_eq!(*divider_timer.counter.borrow(), 0);
 
-        timer.synchronize(400);
-        assert_eq!(*timer.counter.borrow(), 1);
+        divider_timer.synchronize(400);
+        assert_eq!(*divider_timer.counter.borrow(), 1);
 
-        timer.synchronize(0);
-        let v = *timer.counter.borrow();
+        divider_timer.synchronize(0);
+        let v = *divider_timer.counter.borrow();
         assert_eq!(v, 2)
     }
 }

@@ -18,6 +18,7 @@ mod lcd;
 mod program;
 mod interrupts;
 mod memory;
+mod timer;
 
 pub type Word = u8;
 type Double = u16;
@@ -28,7 +29,6 @@ trait Device {
     fn synchronize(&self, cpu_cycles: Cycle);
 }
 
-mod timer;
 
 pub fn run_debug<'a>(rompath: &str,
                      cpu_hooks: Vec<&'a mut ExecHook>,
