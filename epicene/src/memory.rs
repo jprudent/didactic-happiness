@@ -104,7 +104,7 @@ impl<'a> Mmu<'a> {
             address if Mmu::in_range(address, 0xD000, 0xDFFF) => &self.wram_bank2,
             address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,
             0xFF0F => self.interrupt_requested_register,
-            0xFF26 => self.sound,
+            address if Mmu::in_range(address, 0xFF24, 0xFF26) => self.sound,
             0xFFFF => &self.interrupt_enabled_register,
             _ => panic!("not implemented memory backend at {:04X}", address)
         }
