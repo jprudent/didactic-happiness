@@ -40,7 +40,7 @@ pub fn run_debug<'a>(rompath: &str,
     let interrupt_request_register = InterruptRequestRegister::new();
     let mut timer = Timer::new(&interrupt_request_register);
 
-    let mmu = Mmu::new(&mut pg, &timer);
+    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register);
 
     let mut cpu = ComputerUnit::new(memory_hooks, mmu);
 

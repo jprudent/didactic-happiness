@@ -2,6 +2,7 @@ use super::{Word, Address, Double};
 use super::cpu::{set_high_word, set_low_word, low_word, high_word};
 use super::program::Program;
 use super::timer::timer::Timer;
+
 use std::cell::RefCell;
 
 pub trait MemoryBacked {
@@ -55,11 +56,14 @@ pub struct Mmu<'a> {
     interrupt_enabled_register: MemoryRegister,
     wram_bank1: Wram,
     wram_bank2: Wram,
-    timer: &'a MemoryBacked
+    timer: &'a MemoryBacked,
+    interrupt_requested_register: &'a MemoryBacked
 }
 
 impl<'a> Mmu<'a> {
-    pub fn new(program: &'a mut Program, timer: &'a MemoryBacked) -> Mmu<'a> {
+    pub fn new(program: &'a mut Program,
+               timer: &'a MemoryBacked,
+               interrupt_requested_register: &'a MemoryBacked) -> Mmu<'a> {
         Mmu {
             program: program,
             interrupt_enabled_register: MemoryRegister { word: RefCell::new(0) },
@@ -71,24 +75,13 @@ impl<'a> Mmu<'a> {
                 words: RefCell::new([0; 0x1000]),
                 starting_offset: 0xD000
             },
-            timer: timer
+            timer: timer,
+            interrupt_requested_register: interrupt_requested_register
         }
     }
 
     pub fn word_at(&self, address: Address) -> Word {
-        if address < 0x8000 {
-            self.program.word_at(address)
-        } else if address >= 0xC000 && address <= 0xCFFF {
-            self.wram_bank1.word_at(address)
-        } else if address >= 0xD000 && address <= 0xDFFF {
-            self.wram_bank2.word_at(address)
-        } else if Mmu::in_range(address, 0xFF05, 0xFF07) {
-            self.timer.word_at(address)
-        } else if address == 0xFFFF {
-            self.interrupt_enabled_register.word_at(address)
-        } else {
-            panic!("not implemented memory at {:04X}", address)
-        }
+        self.memory_backend(address).word_at(address)
     }
 
     pub fn double_at(&self, address: Address) -> Double {
@@ -98,18 +91,18 @@ impl<'a> Mmu<'a> {
     }
 
     pub fn set_word_at(&mut self, address: Address, word: Word) {
-        if address < 0x8000 {
-            self.program.set_word_at(address, word)
-        } else if Mmu::in_range(address, 0xC000, 0xCFFF) {
-            self.wram_bank1.set_word_at(address, word)
-        } else if Mmu::in_range(address, 0xD000, 0xDFFF) {
-            self.wram_bank2.set_word_at(address, word)
-        } else if Mmu::in_range(address, 0xFF05, 0xFF07) {
-            self.timer.set_word_at(address, word)
-        } else if address == 0xFFFF {
-            self.interrupt_enabled_register.set_word_at(address, word)
-        } else {
-            panic!("not implemented memory at {:04X}", address)
+        self.memory_backend(address).set_word_at(address, word);
+    }
+
+    fn memory_backend(&'a self, address: Address) -> &'a MemoryBacked {
+        match address {
+            address if address < 0x8000 => self.program,
+            address if Mmu::in_range(address, 0xC000, 0xCFFF) => &self.wram_bank1,
+            address if Mmu::in_range(address, 0xD000, 0xDFFF) => &self.wram_bank2,
+            address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,
+            0xFF0F => self.interrupt_requested_register,
+            0xFFFF => &self.interrupt_enabled_register,
+            _ => panic!("not implemented memory backend at {:04X}", address)
         }
     }
 

@@ -132,15 +132,17 @@ pub mod timer {
             };
             let mut counter = self.counter.borrow_mut();
             let step = (diff / period) as u8;
-            println!("diff {}, period {}, step {}", diff, period, step);
-            match counter.checked_add(step) {
-                Some(v) => *counter = v,
-                None => {
-                    *counter = self.modulo.borrow().clone();
-                    self.interrupt_request_register.request_timer_interrupt()
-                }
+            println!("diff {}, period {}, step {}, last {}, cpu {}, counter {}", diff, period, step, *last, cpu_cycles, *counter);
+            if step > 0 {
+                match counter.checked_add(step) {
+                    Some(v) => *counter = v,
+                    None => {
+                        *counter = self.modulo.borrow().clone();
+                        self.interrupt_request_register.request_timer_interrupt()
+                    }
+                };
+                *last = cpu_cycles
             }
-                * last = cpu_cycles
         }
     }
 
