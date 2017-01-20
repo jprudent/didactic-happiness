@@ -18,6 +18,7 @@ impl ColorPalette {
 pub struct Lcd {
     control: MutableWord,
     y_coordinate: MutableWord,
+    x_scroll: MutableWord,
     gbc_color_palette: ColorPalette,
     gbc_ram_bank_selector: MutableWord,
 }
@@ -27,6 +28,7 @@ impl Lcd {
         Lcd {
             control: MutableWord::new(0x91), // initial value described in GBCPUman.pdf
             y_coordinate: MutableWord::new(0),
+            x_scroll: MutableWord::new(0),
             gbc_color_palette: ColorPalette::new(),
             gbc_ram_bank_selector: MutableWord::new(0)
         }
@@ -37,6 +39,7 @@ impl MemoryBacked for Lcd {
     fn word_at(&self, address: Address) -> Word {
         match address {
             0xFF40 => &self.control,
+            0xFF43 => &self.x_scroll,
             0xFF44 => &self.y_coordinate,
             0xFF4F => &self.gbc_ram_bank_selector,
             0xFF68 => &self.gbc_color_palette.background_index,
@@ -48,6 +51,7 @@ impl MemoryBacked for Lcd {
     fn set_word_at(&self, address: Address, word: Word) {
         match address {
             0xFF40 => self.control.set(word),
+            0xFF43 => self.x_scroll.set(word),
             0xFF44 => self.y_coordinate.set(0),
             0xFF4F => self.gbc_ram_bank_selector.set(word),
             0xFF68 => self.gbc_color_palette.background_index.set(word),
