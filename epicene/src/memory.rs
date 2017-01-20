@@ -26,18 +26,18 @@ impl MemoryBacked for MemoryRegister {
     }
 }
 
-struct Wram {
+struct Ram {
     words: RefCell<[Word; 0x1000]>,
     starting_offset: Address
 }
 
-impl Wram {
+impl Ram {
     fn relative_index(&self, absolute_address: Address) -> usize {
         (absolute_address - self.starting_offset) as usize
     }
 }
 
-impl MemoryBacked for Wram {
+impl MemoryBacked for Ram {
     fn word_at(&self, address: Address) -> Word {
         let i = self.relative_index(address);
         let words = self.words.borrow();
@@ -54,32 +54,40 @@ impl MemoryBacked for Wram {
 pub struct Mmu<'a> {
     program: &'a MemoryBacked,
     interrupt_enabled_register: MemoryRegister,
-    wram_bank1: Wram,
-    wram_bank2: Wram,
+    wram_bank1: Ram,
+    wram_bank2: Ram,
     timer: &'a MemoryBacked,
     interrupt_requested_register: &'a MemoryBacked,
-    sound: &'a MemoryBacked
+    sound: &'a MemoryBacked,
+    hram: Ram,
+    lcd: &'a MemoryBacked,
 }
 
 impl<'a> Mmu<'a> {
     pub fn new(program: &'a mut Program,
                timer: &'a MemoryBacked,
                interrupt_requested_register: &'a MemoryBacked,
-               sound: &'a MemoryBacked) -> Mmu<'a> {
+               sound: &'a MemoryBacked,
+               lcd: &'a MemoryBacked) -> Mmu<'a> {
         Mmu {
             program: program,
             interrupt_enabled_register: MemoryRegister { word: RefCell::new(0) },
-            wram_bank1: Wram {
+            wram_bank1: Ram {
                 words: RefCell::new([0; 0x1000]),
                 starting_offset: 0xC000
             },
-            wram_bank2: Wram {
+            wram_bank2: Ram {
                 words: RefCell::new([0; 0x1000]),
                 starting_offset: 0xD000
             },
             timer: timer,
             interrupt_requested_register: interrupt_requested_register,
-            sound: sound
+            sound: sound,
+            hram: Ram {
+                words: RefCell::new([0; 0x1000]),
+                starting_offset: 0xFF80
+            },
+            lcd: lcd,
         }
     }
 
@@ -105,6 +113,9 @@ impl<'a> Mmu<'a> {
             address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,
             0xFF0F => self.interrupt_requested_register,
             address if Mmu::in_range(address, 0xFF24, 0xFF26) => self.sound,
+            0xFF40 => self.lcd,
+            0xFF44 => self.lcd,
+            address if Mmu::in_range(address, 0xFF80, 0xFFFE) => &self.hram,
             0xFFFF => &self.interrupt_enabled_register,
             _ => panic!("not implemented memory backend at {:04X}", address)
         }

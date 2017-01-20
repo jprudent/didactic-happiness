@@ -12,6 +12,7 @@ use self::timer::divider::{DividerTimer};
 use self::timer::timer::{Timer};
 use self::memory::Mmu;
 use self::sound::Sound;
+use self::lcd::Lcd;
 
 mod cpu;
 mod display;
@@ -42,8 +43,9 @@ pub fn run_debug<'a>(rompath: &str,
     let interrupt_request_register = InterruptRequestRegister::new();
     let timer = Timer::new(&interrupt_request_register);
     let sound = Sound::new();
+    let lcd = Lcd::new();
 
-    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &sound);
+    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &sound, &lcd);
 
     let mut cpu = ComputerUnit::new(memory_hooks, mmu);
 
@@ -53,8 +55,8 @@ pub fn run_debug<'a>(rompath: &str,
 
     let mut gb = GameBoy {
         cpu: cpu,
-        interrupt_handler: InterruptHandler{},
-        devices: vec!(&divider_timer, &timer, &sound),
+        interrupt_handler: InterruptHandler {},
+        devices: vec!(&divider_timer, &timer, &sound, &lcd),
         cpu_hooks: cpu_hooks,
     };
 

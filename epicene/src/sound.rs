@@ -82,8 +82,7 @@ impl Device for Sound {
 }
 
 mod test {
-    use super::*;
-    use std::cell::RefCell;
+    use super::Sound;
 
     #[test]
     fn only_bit_7_of_nr_52_is_writable() {
