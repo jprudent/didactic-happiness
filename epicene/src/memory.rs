@@ -27,11 +27,19 @@ impl MemoryBacked for MemoryRegister {
 }
 
 struct Ram {
-    words: RefCell<[Word; 0x1000]>,
+    words: RefCell<Vec<Word>>,
     starting_offset: Address
 }
 
 impl Ram {
+    fn new(size: usize, starting_offset: Address) -> Ram {
+        let mut words = vec!();
+        words.resize(size, 0);
+        Ram {
+            starting_offset: starting_offset,
+            words: RefCell::new(words),
+        }
+    }
     fn relative_index(&self, absolute_address: Address) -> usize {
         (absolute_address - self.starting_offset) as usize
     }
@@ -61,6 +69,7 @@ pub struct Mmu<'a> {
     sound: &'a MemoryBacked,
     hram: Ram,
     lcd: &'a MemoryBacked,
+    video_ram: Ram
 }
 
 impl<'a> Mmu<'a> {
@@ -72,22 +81,14 @@ impl<'a> Mmu<'a> {
         Mmu {
             program: program,
             interrupt_enabled_register: MemoryRegister { word: RefCell::new(0) },
-            wram_bank1: Ram {
-                words: RefCell::new([0; 0x1000]),
-                starting_offset: 0xC000
-            },
-            wram_bank2: Ram {
-                words: RefCell::new([0; 0x1000]),
-                starting_offset: 0xD000
-            },
+            wram_bank1: Ram::new(0x1000, 0xC000),
+            wram_bank2: Ram::new(0x1000, 0xD000),
             timer: timer,
             interrupt_requested_register: interrupt_requested_register,
             sound: sound,
-            hram: Ram {
-                words: RefCell::new([0; 0x1000]),
-                starting_offset: 0xFF80
-            },
+            hram: Ram::new(127, 0xFF80),
             lcd: lcd,
+            video_ram: Ram::new(0x2000, 0x8000),
         }
     }
 
@@ -108,6 +109,7 @@ impl<'a> Mmu<'a> {
     fn memory_backend(&'a self, address: Address) -> &'a MemoryBacked {
         match address {
             address if address < 0x8000 => self.program,
+            address if Mmu::in_range(address, 0x8000, 0x9FFF) => &self.video_ram,
             address if Mmu::in_range(address, 0xC000, 0xCFFF) => &self.wram_bank1,
             address if Mmu::in_range(address, 0xD000, 0xDFFF) => &self.wram_bank2,
             address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,
