@@ -10,22 +10,42 @@ pub trait MemoryBacked {
     fn set_word_at(&self, address: Address, word: Word);
 }
 
-struct MemoryRegister {
-    word: RefCell<Word>
+struct InterruptEnableRegister {
+    word: MutableWord
 }
 
-impl MemoryBacked for MemoryRegister {
+impl MemoryBacked for InterruptEnableRegister {
     fn word_at(&self, _: Address) -> Word {
-        let word = self.word.borrow();
-        *word
+       self.word.get()
     }
 
     fn set_word_at(&self, _: Address, new_word: Word) {
-        let mut word = self.word.borrow_mut();
-        *word = new_word
+        self.word.set(new_word)
     }
 }
 
+pub struct MutableWord {
+    word: RefCell<Word>
+}
+
+// This program is single threaded, so we don't need to worry about concurrent race condition.
+// Using this struct kill the benefit of "borrowing"
+impl MutableWord {
+    pub fn new(init: Word) -> MutableWord {
+        MutableWord {
+            word: RefCell::new(init)
+        }
+    }
+
+    pub fn set(&self, new_word: Word) {
+        let mut word = self.word.borrow_mut();
+        *word = new_word;
+    }
+
+    pub fn get(&self) -> Word {
+        self.word.borrow().clone()
+    }
+}
 struct Ram {
     words: RefCell<Vec<Word>>,
     starting_offset: Address
@@ -61,7 +81,7 @@ impl MemoryBacked for Ram {
 
 pub struct Mmu<'a> {
     program: &'a MemoryBacked,
-    interrupt_enabled_register: MemoryRegister,
+    interrupt_enabled_register: InterruptEnableRegister,
     wram_bank1: Ram,
     wram_bank2: Ram,
     timer: &'a MemoryBacked,
@@ -80,7 +100,7 @@ impl<'a> Mmu<'a> {
                lcd: &'a MemoryBacked) -> Mmu<'a> {
         Mmu {
             program: program,
-            interrupt_enabled_register: MemoryRegister { word: RefCell::new(0) },
+            interrupt_enabled_register: InterruptEnableRegister { word: MutableWord::new(0) },
             wram_bank1: Ram::new(0x1000, 0xC000),
             wram_bank2: Ram::new(0x1000, 0xD000),
             timer: timer,
