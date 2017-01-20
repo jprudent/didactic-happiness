@@ -11,6 +11,7 @@ use self::program::file_loader;
 use self::timer::divider::{DividerTimer};
 use self::timer::timer::{Timer};
 use self::memory::Mmu;
+use self::sound::Sound;
 
 mod cpu;
 mod display;
@@ -20,6 +21,7 @@ mod program;
 mod interrupts;
 mod memory;
 mod timer;
+mod sound;
 
 pub type Word = u8;
 type Double = u16;
@@ -38,9 +40,10 @@ pub fn run_debug<'a>(rompath: &str,
     let mut pg = pg_loader.load();
 
     let interrupt_request_register = InterruptRequestRegister::new();
-    let mut timer = Timer::new(&interrupt_request_register);
+    let timer = Timer::new(&interrupt_request_register);
+    let sound = Sound::new();
 
-    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register);
+    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &sound);
 
     let mut cpu = ComputerUnit::new(memory_hooks, mmu);
 
@@ -51,7 +54,7 @@ pub fn run_debug<'a>(rompath: &str,
     let mut gb = GameBoy {
         cpu: cpu,
         interrupt_handler: InterruptHandler{},
-        devices: vec!(&divider_timer, &timer),
+        devices: vec!(&divider_timer, &timer, &sound),
         cpu_hooks: cpu_hooks,
     };
 

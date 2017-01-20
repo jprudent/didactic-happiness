@@ -57,13 +57,15 @@ pub struct Mmu<'a> {
     wram_bank1: Wram,
     wram_bank2: Wram,
     timer: &'a MemoryBacked,
-    interrupt_requested_register: &'a MemoryBacked
+    interrupt_requested_register: &'a MemoryBacked,
+    sound: &'a MemoryBacked
 }
 
 impl<'a> Mmu<'a> {
     pub fn new(program: &'a mut Program,
                timer: &'a MemoryBacked,
-               interrupt_requested_register: &'a MemoryBacked) -> Mmu<'a> {
+               interrupt_requested_register: &'a MemoryBacked,
+               sound: &'a MemoryBacked) -> Mmu<'a> {
         Mmu {
             program: program,
             interrupt_enabled_register: MemoryRegister { word: RefCell::new(0) },
@@ -76,7 +78,8 @@ impl<'a> Mmu<'a> {
                 starting_offset: 0xD000
             },
             timer: timer,
-            interrupt_requested_register: interrupt_requested_register
+            interrupt_requested_register: interrupt_requested_register,
+            sound: sound
         }
     }
 
@@ -101,6 +104,7 @@ impl<'a> Mmu<'a> {
             address if Mmu::in_range(address, 0xD000, 0xDFFF) => &self.wram_bank2,
             address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,
             0xFF0F => self.interrupt_requested_register,
+            0xFF26 => self.sound,
             0xFFFF => &self.interrupt_enabled_register,
             _ => panic!("not implemented memory backend at {:04X}", address)
         }
