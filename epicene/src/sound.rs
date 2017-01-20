@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use super::{Word, Address, Device, Cycle};
 use super::memory::{MemoryBacked, MutableWord};
 
@@ -24,13 +23,14 @@ impl Sound {
     }
 
     fn set_all_sound_interrupt(&self, status: bool) {
-        let mut nr_52 = self.nr_52_on_off.get();
-        self.nr_52_on_off.set(
-            if status {
-                nr_52 | 0b1000_0000
-            } else {
-                nr_52 & 0b0111_1111
-            })
+        let nr_52 = self.nr_52_on_off.get();
+        let new_val = if status {
+            nr_52 | 0b1000_0000
+        } else {
+            nr_52 & 0b0111_1111
+        };
+        println!("new val {}", new_val);
+        self.nr_52_on_off.set(new_val)
     }
 }
 
@@ -55,19 +55,20 @@ impl MemoryBacked for Sound {
 }
 
 impl Device for Sound {
-    fn synchronize(&self, cpu_cycles: Cycle) {
+    fn synchronize(&self, _: Cycle) {
         //TODO FIXME
     }
 }
 
 mod test {
     use super::Sound;
+    use super::super::memory::MemoryBacked;
 
     #[test]
     fn only_bit_7_of_nr_52_is_writable() {
         let sound = Sound::new();
-
-        sound.set_nr_52_on_off(0xFF);
-        assert_eq!(sound.nr_52_on_off(), 0x80)
+        sound.nr_52_on_off.set(1);
+        sound.set_word_at(0xFF26, 0xFF);
+        assert_eq!(sound.nr_52_on_off.get(), 0x81)
     }
 }

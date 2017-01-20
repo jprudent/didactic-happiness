@@ -1,7 +1,6 @@
 use super::cpu::ComputerUnit;
 use super::{Word, Address};
-use super::memory::MemoryBacked;
-use std::cell::RefCell;
+use super::memory::{MutableWord, MemoryBacked};
 
 pub struct Interrupt {
     handler: Address,
@@ -27,12 +26,10 @@ impl Interrupt {
             InterruptKind::Joypad => Interrupt { handler: 0x60, mask: 0b10000 },
         }
     }
-
-
 }
 
 pub struct InterruptRequestRegister {
-    register: RefCell<Word>,
+    register: MutableWord,
     vblank: Interrupt,
     lcd_stat: Interrupt,
     timer: Interrupt,
@@ -44,7 +41,7 @@ pub struct InterruptRequestRegister {
 impl InterruptRequestRegister {
     pub fn new() -> InterruptRequestRegister {
         InterruptRequestRegister {
-            register: RefCell::new(0),
+            register: MutableWord::new(0),
             vblank: Interrupt::new(InterruptKind::VBlank),
             lcd_stat: Interrupt::new(InterruptKind::LcdStat),
             timer: Interrupt::new(InterruptKind::Timer),
@@ -54,24 +51,21 @@ impl InterruptRequestRegister {
     }
 
     pub fn timer(&self) -> bool {
-        let register = self.register.borrow();
-        *register & self.timer.mask == self.timer.mask
+        self.register.get() & self.timer.mask == self.timer.mask
     }
 
     pub fn request_timer_interrupt(&self) {
-        let mut register = self.register.borrow_mut();
-        *register = *register | self.timer.mask
+        self.register.set(self.register.get() | self.timer.mask)
     }
 }
 
 impl MemoryBacked for InterruptRequestRegister {
-    fn word_at(&self, address: Address) -> Word {
-        self.register.borrow().clone()
+    fn word_at(&self, _: Address) -> Word {
+        self.register.get()
     }
 
-    fn set_word_at(&self, address: Address, word: Word) {
-        let mut register = self.register.borrow_mut();
-        *register = word
+    fn set_word_at(&self, _: Address, word: Word) {
+        self.register.set(word)
     }
 }
 

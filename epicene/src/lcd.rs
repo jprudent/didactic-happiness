@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use super::{Word, Address, Device, Cycle};
-use super::cpu::ComputerUnit;
 use super::memory::{MemoryBacked, MutableWord};
 
 struct ColorPalette {
@@ -60,13 +58,13 @@ impl MemoryBacked for Lcd {
 }
 
 impl Device for Lcd {
-    fn synchronize(&self, cpu_cycles: Cycle) {
+    fn synchronize(&self, _: Cycle) {
         // TODO FIXME
     }
 }
 
 mod test {
-    use super::*;
+    use super::Lcd;
     use super::super::memory::MemoryBacked;
 
     #[test]
@@ -74,6 +72,6 @@ mod test {
         let lcd = Lcd::new();
         lcd.y_coordinate.set(0xFF);
         lcd.set_word_at(0xFF44, 42);
-        assert_eq!(lcd.y_coordinate(), 0)
+        assert_eq!(lcd.y_coordinate.get(), 0)
     }
 }

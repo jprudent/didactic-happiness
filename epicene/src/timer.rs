@@ -8,7 +8,7 @@ enum Period {
 
 pub mod divider {
     use std::cell::RefCell;
-    use super::super::{Device, Cycle, Word};
+    use super::super::{Device, Cycle};
     use super::super::memory::MutableWord;
     use super::Period;
 
@@ -48,13 +48,13 @@ pub mod divider {
         fn should_update_the_timer_when_it_reaches_its_period() {
             let divider_timer = DividerTimer::new();
             divider_timer.synchronize(200);
-            assert_eq!(*divider_timer.counter.borrow(), 0);
+            assert_eq!(divider_timer.counter.get(), 0);
 
             divider_timer.synchronize(400);
-            assert_eq!(*divider_timer.counter.borrow(), 1);
+            assert_eq!(divider_timer.counter.get(), 1);
 
             divider_timer.synchronize(0);
-            let v = *divider_timer.counter.borrow();
+            let v = divider_timer.counter.get();
             assert_eq!(v, 2)
         }
     }
@@ -191,13 +191,13 @@ pub mod timer {
             timer.synchronize(cpu_cycles);
             cpu_cycles += 16
         }
-        let actual = *timer.counter.borrow();
+        let actual = timer.counter.get();
         assert_eq!(actual, 0xFF);
 
         timer.modulo.set(42);
         // it will overflow :
         timer.synchronize(16);
-        let actual = *timer.counter.borrow();
+        let actual = timer.counter.get();
         assert_eq!(actual, 42, "When the TIMA overflows, modulo is loaded.");
         assert!(interrupt_request_register.timer(), "When the TIMA overflows, an interrupt is requested");
     }

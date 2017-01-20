@@ -1,7 +1,6 @@
 use super::{Word, Address, Double};
 use super::cpu::{set_high_word, set_low_word, low_word, high_word};
 use super::program::Program;
-use super::timer::timer::Timer;
 
 use std::cell::RefCell;
 
