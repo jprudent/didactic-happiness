@@ -115,6 +115,9 @@ impl<'a> Mmu<'a> {
             address if Mmu::in_range(address, 0xFF24, 0xFF26) => self.sound,
             0xFF40 => self.lcd,
             0xFF44 => self.lcd,
+            0xFF4F => self.lcd,
+            0xFF68 => self.lcd,
+            0xFF69 => self.lcd,
             address if Mmu::in_range(address, 0xFF80, 0xFFFE) => &self.hram,
             0xFFFF => &self.interrupt_enabled_register,
             _ => panic!("not implemented memory backend at {:04X}", address)
