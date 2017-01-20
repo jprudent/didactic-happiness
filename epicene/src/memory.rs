@@ -15,7 +15,7 @@ struct InterruptEnableRegister {
 
 impl MemoryBacked for InterruptEnableRegister {
     fn word_at(&self, _: Address) -> Word {
-       self.word.get()
+        self.word.get()
     }
 
     fn set_word_at(&self, _: Address, new_word: Word) {
@@ -45,6 +45,7 @@ impl MutableWord {
         self.word.borrow().clone()
     }
 }
+
 struct Ram {
     words: RefCell<Vec<Word>>,
     starting_offset: Address
@@ -88,7 +89,8 @@ pub struct Mmu<'a> {
     sound: &'a MemoryBacked,
     hram: Ram,
     lcd: &'a MemoryBacked,
-    video_ram: Ram
+    video_ram: Ram,
+    serial: &'a MemoryBacked
 }
 
 impl<'a> Mmu<'a> {
@@ -96,7 +98,8 @@ impl<'a> Mmu<'a> {
                timer: &'a MemoryBacked,
                interrupt_requested_register: &'a MemoryBacked,
                sound: &'a MemoryBacked,
-               lcd: &'a MemoryBacked) -> Mmu<'a> {
+               lcd: &'a MemoryBacked,
+               serial: &'a MemoryBacked) -> Mmu<'a> {
         Mmu {
             program: program,
             interrupt_enabled_register: InterruptEnableRegister { word: MutableWord::new(0) },
@@ -108,6 +111,7 @@ impl<'a> Mmu<'a> {
             hram: Ram::new(127, 0xFF80),
             lcd: lcd,
             video_ram: Ram::new(0x2000, 0x8000),
+            serial: serial,
         }
     }
 
@@ -131,6 +135,7 @@ impl<'a> Mmu<'a> {
             address if Mmu::in_range(address, 0x8000, 0x9FFF) => &self.video_ram,
             address if Mmu::in_range(address, 0xC000, 0xCFFF) => &self.wram_bank1,
             address if Mmu::in_range(address, 0xD000, 0xDFFF) => &self.wram_bank2,
+            address if Mmu::in_range(address, 0xFF01, 0xFF02) => self.serial,
             address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,
             0xFF0F => self.interrupt_requested_register,
             address if Mmu::in_range(address, 0xFF24, 0xFF26) => self.sound,

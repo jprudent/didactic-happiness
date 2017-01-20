@@ -13,6 +13,7 @@ use self::timer::timer::{Timer};
 use self::memory::Mmu;
 use self::sound::Sound;
 use self::lcd::Lcd;
+use self::serial::Serial;
 
 mod cpu;
 mod display;
@@ -23,6 +24,7 @@ mod interrupts;
 mod memory;
 mod timer;
 mod sound;
+mod serial;
 
 pub type Word = u8;
 type Double = u16;
@@ -44,8 +46,9 @@ pub fn run_debug<'a>(rompath: &str,
     let timer = Timer::new(&interrupt_request_register);
     let sound = Sound::new();
     let lcd = Lcd::new();
+    let serial = Serial::new();
 
-    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &sound, &lcd);
+    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &sound, &lcd, &serial);
 
     let mut cpu = ComputerUnit::new(memory_hooks, mmu);
 
@@ -56,7 +59,7 @@ pub fn run_debug<'a>(rompath: &str,
     let mut gb = GameBoy {
         cpu: cpu,
         interrupt_handler: InterruptHandler {},
-        devices: vec!(&divider_timer, &timer, &sound, &lcd),
+        devices: vec!(&divider_timer, &timer, &sound, &lcd, &serial),
         cpu_hooks: cpu_hooks,
     };
 
