@@ -5,10 +5,11 @@ extern crate opengl_graphics;
 
 use self::cpu::ComputerUnit;
 use self::cpu::Decoder;
-use self::interrupts::{InterruptHandler, INTERRUPTS};
+use self::interrupts::{InterruptHandler, InterruptRequestRegister};
 use self::debug::{ExecHook, MemoryWriteHook};
 use self::program::file_loader;
 use self::timer::divider::{DividerTimer};
+use self::timer::timer::{Timer};
 use self::memory::Mmu;
 
 mod cpu;
@@ -35,7 +36,12 @@ pub fn run_debug<'a>(rompath: &str,
                      memory_hooks: Vec<&'a mut MemoryWriteHook>) {
     let pg_loader = file_loader(&rompath.to_string());
     let mut pg = pg_loader.load();
-    let mmu = Mmu::new(&mut pg);
+
+    let interrupt_request_register = InterruptRequestRegister::new();
+    let mut timer = Timer::new(&interrupt_request_register);
+
+    let mmu = Mmu::new(&mut pg, &timer);
+
     let mut cpu = ComputerUnit::new(memory_hooks, mmu);
 
     cpu.set_register_pc(0x100);
@@ -44,8 +50,8 @@ pub fn run_debug<'a>(rompath: &str,
 
     let mut gb = GameBoy {
         cpu: cpu,
-        interrupt_handler: INTERRUPTS,
-        devices: vec!(&divider_timer),
+        interrupt_handler: InterruptHandler{},
+        devices: vec!(&divider_timer, &timer),
         cpu_hooks: cpu_hooks,
     };
 
@@ -83,6 +89,6 @@ impl<'a, 'b, 'device> GameBoy<'a, 'b, 'device> {
             device.synchronize(self.cpu.cycles());
         }
 
-        self.interrupt_handler.interrupt(&mut self.cpu);
+        self.interrupt_handler.process_requested(&mut self.cpu);
     }
 }

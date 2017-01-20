@@ -1,65 +1,97 @@
 use super::cpu::ComputerUnit;
 use super::{Word, Address};
-
-const INTERRUPT_ENABLED_ADDRESS: Address = 0xFFFF;
-const INTERRUPT_REQUEST_ADDRESS: Address = 0xFF0F;
+use super::memory::MemoryBacked;
+use std::cell::RefCell;
 
 pub struct Interrupt {
     handler: Address,
-    mask: Word
+    mask: Word,
+}
+
+
+enum InterruptKind {
+    VBlank,
+    LcdStat,
+    Timer,
+    Serial,
+    Joypad
 }
 
 impl Interrupt {
-    fn is_enabled(&self, cpu: &ComputerUnit) -> bool {
-        let intrerrupt_enabled = cpu.word_at(INTERRUPT_ENABLED_ADDRESS);
-        intrerrupt_enabled & self.mask != 0
+    fn new(interrupt: InterruptKind) -> Interrupt {
+        match interrupt {
+            InterruptKind::VBlank => Interrupt { handler: 0x40, mask: 0b0001 },
+            InterruptKind::LcdStat => Interrupt { handler: 0x48, mask: 0b0010 },
+            InterruptKind::Timer => Interrupt { handler: 0x50, mask: 0b0100 },
+            InterruptKind::Serial => Interrupt { handler: 0x58, mask: 0b1000 },
+            InterruptKind::Joypad => Interrupt { handler: 0x60, mask: 0b10000 },
+        }
     }
 
-    fn is_requested(&self, cpu: &ComputerUnit) -> bool {
-        let interrupt_flags = cpu.word_at(INTERRUPT_REQUEST_ADDRESS);
-        interrupt_flags & self.mask != 0
+
+}
+
+pub struct InterruptRequestRegister {
+    register: RefCell<Word>,
+    vblank: Interrupt,
+    lcd_stat: Interrupt,
+    timer: Interrupt,
+    serial: Interrupt,
+    joypad: Interrupt,
+}
+
+
+impl InterruptRequestRegister {
+    pub fn new() -> InterruptRequestRegister {
+        InterruptRequestRegister {
+            register: RefCell::new(0),
+            vblank: Interrupt::new(InterruptKind::VBlank),
+            lcd_stat: Interrupt::new(InterruptKind::LcdStat),
+            timer: Interrupt::new(InterruptKind::Timer),
+            serial: Interrupt::new(InterruptKind::Serial),
+            joypad: Interrupt::new(InterruptKind::Joypad),
+        }
     }
 
-    fn mark_processed(&self, cpu: &mut ComputerUnit) {
-        let interrupt_flags = cpu.word_at(INTERRUPT_REQUEST_ADDRESS);
-        let updated_interrupt_flags = (!self.mask) & interrupt_flags;
-        cpu.set_word_at(INTERRUPT_REQUEST_ADDRESS, updated_interrupt_flags)
+    pub fn timer(&self) -> bool {
+        let register = self.register.borrow();
+        *register & self.timer.mask == self.timer.mask
     }
 
-    fn handler(&self) -> Address {
-        self.handler
+    pub fn request_timer_interrupt(&self) {
+        let mut register = self.register.borrow_mut();
+        *register = *register | self.timer.mask
     }
 }
 
-pub struct InterruptHandler {
-    interrupts: [Interrupt; 5]
+impl MemoryBacked for InterruptRequestRegister {
+    fn word_at(&self, address: Address) -> Word {
+        self.register.borrow().clone()
+    }
+
+    fn set_word_at(&self, address: Address, word: Word) {
+        let mut register = self.register.borrow_mut();
+        *register = word
+    }
 }
 
-const VBLANK: Interrupt = Interrupt { handler: 0x40, mask: 0b0000_0001 };
-const LCD_STAT: Interrupt = Interrupt { handler: 0x48, mask: 0b0000_0010 };
-const TIMER: Interrupt = Interrupt { handler: 0x50, mask: 0b0000_0100 };
-const SERIAL: Interrupt = Interrupt { handler: 0x58, mask: 0b0000_1000 };
-const JOYPAD: Interrupt = Interrupt { handler: 0x60, mask: 0b0001_0000 };
-
-pub const INTERRUPTS: InterruptHandler = InterruptHandler {
-    interrupts: [VBLANK, LCD_STAT, TIMER, SERIAL, JOYPAD]
-};
+pub struct InterruptHandler {}
 
 impl InterruptHandler {
-    pub fn interrupt(&self, cpu: &mut ComputerUnit) {
+    pub fn process_requested(&self, cpu: &mut ComputerUnit) {
         if cpu.interrupt_master() {
-            for interrupt in self.interrupts.iter() {
-                if interrupt.is_enabled(cpu) && interrupt.is_requested(cpu) {
-                    interrupt.mark_processed(cpu);
-                    let pc = cpu.get_pc_register();
-                    cpu.push(pc);
-                    cpu.disable_interrupt_master();
-                    let handler = interrupt.handler();
-                    cpu.set_register_pc(handler);
-                    // Other interrupts will be processed later
-                    return;
-                }
-            }
+            //for interrupt in self.interrupts.iter() {
+            //if interrupt.is_enabled(cpu) && interrupt.is_requested(cpu) {
+            //    interrupt.mark_processed(cpu);
+            //    let pc = cpu.get_pc_register();
+            //    cpu.push(pc);
+            //    cpu.disable_interrupt_master();
+            //    let handler = interrupt.handler();
+            //    cpu.set_register_pc(handler);
+            //    // Other interrupts will be processed later
+            //    return;
+            //}
+            //}
         }
     }
 }

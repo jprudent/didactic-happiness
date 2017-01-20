@@ -1,9 +1,10 @@
 use super::{Address, Word};
 use super::memory::MemoryBacked;
+use std::cell::RefCell;
 
 pub struct Program {
     pub name: &'static str,
-    pub content: Vec<Word>
+    pub content: RefCell<Vec<Word>>
 }
 
 pub trait ProgramLoader {
@@ -26,7 +27,7 @@ impl ProgramLoader for MemoryProgramLoader {
         Program {
             name: "memory",
             // TODO Clone is really not the thing to do but I can't make reference working (fighting the borrow checker)
-            content: self.data.clone()
+            content: RefCell::new(self.data.clone())
         }
     }
 }
@@ -50,17 +51,19 @@ impl ProgramLoader for FileProgramLoader {
         f.read_to_end(&mut s).unwrap();
         Program {
             name: "cpu_instrs.gb",
-            content: s
+            content: RefCell::new(s)
         }
     }
 }
 
 impl MemoryBacked for Program {
     fn word_at(&self, address: Address) -> Word {
-        self.content[address as usize]
+        let content = self.content.borrow();
+        (*content)[address as usize]
     }
 
-    fn set_word_at(&mut self, address: Address, word: Word) {
-        self.content[address as usize] = word
+    fn set_word_at(&self, address: Address, word: Word) {
+        let mut content = self.content.borrow_mut();
+        (*content)[address as usize] = word
     }
 }
