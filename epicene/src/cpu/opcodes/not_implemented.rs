@@ -8,7 +8,7 @@ impl Opcode for NotImplemented {
         panic!("{:02X} not implemented at {:04X}", self.0, cpu.get_pc_register());
     }
     fn size(&self) -> Size {
-        unimplemented!()
+        0
     }
 
     fn cycles(&self, _: &ComputerUnit) -> Cycle {

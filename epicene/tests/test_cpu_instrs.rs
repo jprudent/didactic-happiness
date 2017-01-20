@@ -1,15 +1,15 @@
 extern crate epicene;
 
 use epicene::{Address, Word};
-use epicene::debug::{MemoryWriteHook, ExecHook};
+use epicene::debug::{MemoryWriteHook, ExecHook, cpu_file_logger};
 use epicene::run_debug;
 
 
-struct RecordChars {
+struct WatchTestStatus {
     record: String
 }
 
-impl MemoryWriteHook for RecordChars {
+impl MemoryWriteHook for WatchTestStatus {
     fn apply(&mut self, address: Address, c: Word) {
         if address == 0xFF01 {
             self.record.push(c as char);
@@ -25,14 +25,14 @@ impl MemoryWriteHook for RecordChars {
 }
 
 fn test_rom(path: &str) {
-    let mut recorder = RecordChars {
+    let mut watch_test_statuc = WatchTestStatus {
         record: "".to_string()
     };
 
     run_debug(
         &path.to_string(),
-        vec!() as Vec<&mut ExecHook>,
-        vec!(&mut recorder));
+        vec!(& mut cpu_file_logger("/tmp/epicene.debug")),
+        vec!(&mut watch_test_statuc));
 }
 
 #[test]

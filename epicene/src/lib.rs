@@ -5,7 +5,7 @@ extern crate opengl_graphics;
 
 use self::cpu::ComputerUnit;
 use self::cpu::Decoder;
-use self::interrupts::{InterruptHandler, InterruptRequestRegister};
+use self::interrupts::{InterruptHandler, InterruptRequestRegister, InterruptEnableRegister};
 use self::debug::{ExecHook, MemoryWriteHook};
 use self::program::file_loader;
 use self::timer::divider::{DividerTimer};
@@ -43,12 +43,13 @@ pub fn run_debug<'a>(rompath: &str,
     let mut pg = pg_loader.load();
 
     let interrupt_request_register = InterruptRequestRegister::new();
+    let interrupt_enable_register = InterruptEnableRegister::new();
     let timer = Timer::new(&interrupt_request_register);
     let sound = Sound::new();
     let lcd = Lcd::new();
     let serial = Serial::new();
 
-    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &sound, &lcd, &serial);
+    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &interrupt_enable_register, &sound, &lcd, &serial);
 
     let mut cpu = ComputerUnit::new(memory_hooks, mmu);
 
@@ -56,9 +57,11 @@ pub fn run_debug<'a>(rompath: &str,
 
     let divider_timer = DividerTimer::new();
 
+    let interrupt_handler = InterruptHandler::new(&interrupt_enable_register, &interrupt_request_register);
+
     let mut gb = GameBoy {
         cpu: cpu,
-        interrupt_handler: InterruptHandler {},
+        interrupt_handler: &interrupt_handler,
         devices: vec!(&divider_timer, &timer, &sound, &lcd, &serial),
         cpu_hooks: cpu_hooks,
     };
@@ -66,10 +69,10 @@ pub fn run_debug<'a>(rompath: &str,
     gb.game_loop();
 }
 
-struct GameBoy<'a, 'b, 'device> {
-    cpu: ComputerUnit<'a, 'b>,
-    cpu_hooks: Vec<&'a mut ExecHook>,
-    interrupt_handler: InterruptHandler,
+struct GameBoy<'hooks, 'mmu, 'device> {
+    cpu: ComputerUnit<'hooks, 'mmu>,
+    cpu_hooks: Vec<&'hooks mut ExecHook>,
+    interrupt_handler: &'device InterruptHandler<'device>,
     devices: Vec<&'device Device>,
 }
 

@@ -113,31 +113,38 @@ pub mod timer {
                 panic!("Can't infer frequency from {:02X}", control)
             }
         }
+
+        fn is_enabled(&self) -> bool {
+            self.control.get() & 0b100 == 0b100
+        }
     }
 
     impl<'a> Device for Timer<'a> {
+        //todo this code is horrible
         fn synchronize(&self, cpu_cycles: Cycle) {
-            let period = self.get_period() as Cycle;
-            let mut last = self.last_cpu_cycles.borrow_mut();
-            let diff = if cpu_cycles >= *last {
-                // no cycle overflow occured
-                cpu_cycles - *last
-            } else {
-                // there was an overflow
-                (u16::max_value() - *last) + cpu_cycles
-            };
-            let counter = self.counter.get();
-            let step = (diff / period) as u8;
-            println!("diff {}, period {}, step {}, last {}, cpu {}, counter {}", diff, period, step, *last, cpu_cycles, counter);
-            if step > 0 {
-                match counter.checked_add(step) {
-                    Some(v) => self.counter.set(v),
-                    None => {
-                        self.counter.set(self.modulo.get());
-                        self.interrupt_request_register.request_timer_interrupt()
-                    }
+            if self.is_enabled() {
+                let period = self.get_period() as Cycle;
+                let mut last = self.last_cpu_cycles.borrow_mut();
+                let diff = if cpu_cycles >= *last {
+                    // no cycle overflow occured
+                    cpu_cycles - *last
+                } else {
+                    // there was an overflow
+                    (u16::max_value() - *last) + cpu_cycles
                 };
-                *last = cpu_cycles
+                let counter = self.counter.get();
+                let step = (diff / period) as u8;
+                //println!("diff {}, period {}, step {}, last {}, cpu {}, counter {}", diff, period, step, *last, cpu_cycles, counter);
+                if step > 0 {
+                    match counter.checked_add(step) {
+                        Some(v) => self.counter.set(v),
+                        None => {
+                            self.counter.set(self.modulo.get());
+                            self.interrupt_request_register.request_timer_interrupt()
+                        }
+                    };
+                    *last = cpu_cycles
+                }
             }
         }
     }
@@ -159,6 +166,7 @@ pub mod timer {
                 0xFF07 => &self.control,
                 _ => panic!("wrong address mapping in timer at {:04X}", address)
             }.set(word);
+            println!("addr {:04X}, word: {:02X}", address, word)
         }
     }
 
@@ -185,14 +193,14 @@ pub mod timer {
         let interrupt_request_register = InterruptRequestRegister::new();
         let timer = Timer::new(&interrupt_request_register);
         assert!(!interrupt_request_register.timer(), "assuming not timer interrupt request");
-        timer.set_period(Period::Hz262144);
+        timer.set_word_at(0xFF07, 0b101); // enable + Hz262144
         let mut cpu_cycles = 16;
         for _ in 0..0xFF {
             timer.synchronize(cpu_cycles);
             cpu_cycles += 16
         }
         let actual = timer.counter.get();
-        assert_eq!(actual, 0xFF);
+        assert_eq!(actual, 0xFF); // almost overflowing
 
         timer.modulo.set(42);
         // it will overflow :
@@ -203,5 +211,11 @@ pub mod timer {
     }
 
     #[test]
-    fn when_the_timer_is_stopped_nothing_happens() {}
+    fn when_the_timer_is_stopped_nothing_happens() {
+        let interrupt_request_register = InterruptRequestRegister::new();
+        let timer = Timer::new(&interrupt_request_register);
+        timer.set_word_at(0xFF07, 0b001); // disable + Hz262144
+        timer.synchronize(16);
+        assert_eq!(timer.counter.get(), 0, "timer is not incremented because it is disabled");
+    }
 }

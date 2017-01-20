@@ -2,11 +2,11 @@ use super::cpu::ComputerUnit;
 use super::{Word, Address};
 use super::memory::{MutableWord, MemoryBacked};
 
+#[derive(Debug)]
 pub struct Interrupt {
     handler: Address,
     mask: Word,
 }
-
 
 enum InterruptKind {
     VBlank,
@@ -26,6 +26,18 @@ impl Interrupt {
             InterruptKind::Joypad => Interrupt { handler: 0x60, mask: 0b10000 },
         }
     }
+
+    fn is_set(&self, register: Word) -> bool {
+        register & self.mask == self.mask
+    }
+
+    pub fn unset(&self, register: Word) -> Word {
+        register & !self.mask
+    }
+
+    pub fn handler(&self) -> Address {
+        self.handler
+    }
 }
 
 pub struct InterruptRequestRegister {
@@ -36,7 +48,6 @@ pub struct InterruptRequestRegister {
     serial: Interrupt,
     joypad: Interrupt,
 }
-
 
 impl InterruptRequestRegister {
     pub fn new() -> InterruptRequestRegister {
@@ -57,6 +68,14 @@ impl InterruptRequestRegister {
     pub fn request_timer_interrupt(&self) {
         self.register.set(self.register.get() | self.timer.mask)
     }
+
+    fn mark_processed(&self, interrupt: &Interrupt) {
+        self.register.set(interrupt.unset(self.register.get()))
+    }
+
+    fn is_requested(&self, interrupt: &Interrupt) -> bool {
+        interrupt.is_set(self.register.get())
+    }
 }
 
 impl MemoryBacked for InterruptRequestRegister {
@@ -69,23 +88,74 @@ impl MemoryBacked for InterruptRequestRegister {
     }
 }
 
-pub struct InterruptHandler {}
+pub struct InterruptEnableRegister {
+    register: MutableWord
+}
 
-impl InterruptHandler {
+impl InterruptEnableRegister {
+    pub fn new() -> InterruptEnableRegister {
+        InterruptEnableRegister {
+            register: MutableWord::new(0)
+        }
+    }
+
+    pub fn is_enabled(&self, interrupt: &Interrupt) -> bool {
+        interrupt.is_set(self.register.get())
+    }
+}
+
+impl MemoryBacked for InterruptEnableRegister {
+    fn word_at(&self, _: Address) -> Word {
+        self.register.get()
+    }
+
+    fn set_word_at(&self, _: Address, new_word: Word) {
+        self.register.set(new_word)
+    }
+}
+
+pub struct InterruptHandler<'a> {
+    // order matters
+    interrupts: Vec<Interrupt>,
+    interrupt_enable_register: &'a InterruptEnableRegister,
+    interrupt_request_register: &'a InterruptRequestRegister,
+}
+
+impl<'a> InterruptHandler<'a> {
+    pub fn new(interrupt_enable_register: &'a InterruptEnableRegister,
+               interrupt_request_register: &'a InterruptRequestRegister) -> InterruptHandler<'a> {
+        InterruptHandler {
+            interrupts: vec!(
+                Interrupt::new(InterruptKind::VBlank),
+                Interrupt::new(InterruptKind::LcdStat),
+                Interrupt::new(InterruptKind::Timer),
+                Interrupt::new(InterruptKind::Serial),
+                Interrupt::new(InterruptKind::Joypad)),
+            interrupt_enable_register: interrupt_enable_register,
+            interrupt_request_register: interrupt_request_register
+        }
+    }
+
     pub fn process_requested(&self, cpu: &mut ComputerUnit) {
         if cpu.interrupt_master() {
-            //for interrupt in self.interrupts.iter() {
-            //if interrupt.is_enabled(cpu) && interrupt.is_requested(cpu) {
-            //    interrupt.mark_processed(cpu);
-            //    let pc = cpu.get_pc_register();
-            //    cpu.push(pc);
-            //    cpu.disable_interrupt_master();
-            //    let handler = interrupt.handler();
-            //    cpu.set_register_pc(handler);
-            //    // Other interrupts will be processed later
-            //    return;
-            //}
-            //}
+            for interrupt in self.interrupts.iter() {
+                if self.is_enabled_and_requested(interrupt) {
+                    println!("interrupted {:?}", interrupt);
+                    self.interrupt_request_register.mark_processed(interrupt);
+                    let pc = cpu.get_pc_register();
+                    cpu.push(pc);
+                    cpu.disable_interrupt_master();
+                    let handler = interrupt.handler();
+                    cpu.set_register_pc(handler);
+                    // Other interrupts will be processed later
+                    return;
+                }
+            }
         }
+    }
+
+    fn is_enabled_and_requested(&self, interrupt: &Interrupt) -> bool {
+        self.interrupt_enable_register.is_enabled(interrupt) &&
+            self.interrupt_request_register.is_requested(interrupt)
     }
 }

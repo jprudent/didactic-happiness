@@ -29,7 +29,6 @@ impl Sound {
         } else {
             nr_52 & 0b0111_1111
         };
-        println!("new val {}", new_val);
         self.nr_52_on_off.set(new_val)
     }
 }
