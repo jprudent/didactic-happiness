@@ -3,7 +3,7 @@ extern crate graphics;
 extern crate glutin_window;
 extern crate opengl_graphics;
 
-use self::cpu::ComputerUnit;
+use self::cpu::{CpuMode, ComputerUnit};
 use self::cpu::Decoder;
 use self::interrupts::{InterruptHandler, InterruptRequestRegister, InterruptEnableRegister};
 use self::debug::{ExecHook, MemoryWriteHook};
@@ -86,6 +86,30 @@ impl<'a, 'b, 'device> GameBoy<'a, 'b, 'device> {
     }
 
     fn one_cycle(&mut self, decoder: &Decoder) {
+        match self.cpu.mode() {
+            &CpuMode::Run => self.running_cpu(decoder),
+            &CpuMode::HaltContinue => self.halted_cpu(),
+            &CpuMode::HaltJumpInterruptVector => self.halted_cpu(),
+            &CpuMode::HaltBug => self.halted_buggy(),
+            _ => panic!("unhandled case of cpu mode")
+        }
+    }
+
+    fn halted_buggy(&mut self) {
+        // TODO FIXME implement this crap
+        // TODO (maybe replacing all code that do a get_register_pc() + 1 by a function that knows in this mode this is pc
+        self.cpu.enter(CpuMode::HaltContinue)
+    }
+
+    fn halted_cpu(&mut self) {
+        self.cpu.add_elapsed_cycles(1);
+        for device in self.devices.iter_mut() {
+            device.synchronize(self.cpu.cycles());
+        }
+        self.interrupt_handler.process_requested(&mut self.cpu);
+    }
+
+    fn running_cpu(&mut self, decoder: &Decoder) {
         let word = self.cpu.fetch();
 
         let opcode = self.cpu.decode(word, decoder);

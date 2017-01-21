@@ -33,6 +33,7 @@ pub mod rra;
 pub mod rlc;
 pub mod sra;
 pub mod add_hl_rr;
+pub mod halt;
 
 #[derive(Debug)]
 enum JmpCondition {

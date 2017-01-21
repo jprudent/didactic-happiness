@@ -1,7 +1,7 @@
 extern crate epicene;
 
 use epicene::{Address, Word};
-use epicene::debug::{MemoryWriteHook, ExecHook, cpu_file_logger};
+use epicene::debug::{MemoryWriteHook};
 use epicene::run_debug;
 
 
@@ -25,14 +25,14 @@ impl MemoryWriteHook for WatchTestStatus {
 }
 
 fn test_rom(path: &str) {
-    let mut watch_test_statuc = WatchTestStatus {
+    let mut watch_test_status = WatchTestStatus {
         record: "".to_string()
     };
 
     run_debug(
         &path.to_string(),
-        vec!(& mut cpu_file_logger("/tmp/epicene.debug")),
-        vec!(&mut watch_test_statuc));
+        vec!(),
+        vec!(&mut watch_test_status));
 }
 
 #[test]

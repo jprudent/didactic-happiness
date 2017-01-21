@@ -8,7 +8,7 @@ My parents never bought me this popular entertaining little piece of hardware
 that is the GameBoy. So 20 years later, I decided to make my own.
 Also, I never played Pokemon and wanted to give it a try the hard way.
 
-No, no, that's not a motivation for a grown up. Here is the truth :
+No, no, no, that's not a motivation for a grown up. Try this one :
  
 As a java developer, I have been too much time away from the hardware.
 Cool assembly hacks and hardware design is something my life is missing for.
@@ -24,10 +24,15 @@ little pet project for this purpose.
  
 # Technical Resources
 
+## Absolutely necessary
+
 - [Opcodes quick reference](http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html)
 - [A guide for writing games](http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf)
+- [Pandocs developer guide](http://bgb.bircd.org/pandocs.htm)
+- [The cycle accurate Game Boy Doucumentation](https://github.com/AntonioND/giibiiadvance/blob/master/docs/TCAGBD.pdf) is a good complement to pandoc.
+
+## Handy
 - [A walk through RealBoy](https://realboyemulator.wordpress.com/)
-- [Another developer guide](http://bgb.bircd.org/pandocs.htm)
 - [A Javascript implementation explained](http://imrannazar.com/GameBoy-Emulation-in-JavaScript)
 - [Yet another Game Boy instruction set](https://gist.github.com/sifton/4471555)
 - [Game Boy internals cheat sheet](http://www.chrisantonellis.com/files/gameboy/gb-cribsheet.pdfhttp://www.chrisantonellis.com/files/gameboy/gb-cribsheet.pdf)
@@ -39,6 +44,7 @@ little pet project for this purpose.
 - [Z80 user guide](http://www.zilog.com/appnotes_download.php?FromPage=DirectLink&dn=UM0080&ft=User%20Manual&f=YUhSMGNEb3ZMM2QzZHk1NmFXeHZaeTVqYjIwdlpHOWpjeTk2T0RBdlZVMHdNRGd3TG5Ca1pnPT0=) describes each instruction in length. Not enough example though.
 - [Nesdev](http://forum.nesdev.com). I've done numerous search on the forum via Google 'site:"nesdev.com" blabla'.
 - [Contains a chart explaining DAA](http://datasheets.chipdb.org/Zilog/Z80/z80-documented-0.90.pdf)
+- [The internal workings of video game consoles: The GameBoy](http://www.idt.mdh.se/utbildning/exjobb/files/TR1234.pdf)
 # Struggling with Rust :
 
 - Recursive generic type :

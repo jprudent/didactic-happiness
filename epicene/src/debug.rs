@@ -46,7 +46,7 @@ impl ExecHook for CpuFileLogger {
 }
 
 fn format_cpu(cpu: &ComputerUnit, opcode: &Box<Opcode>) -> String {
-    format!("@{:04X} {:<6}|{:<10}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}|{:02X}|{:02X}",
+    format!("@{:04X} {:<6}|{:<18}|af={:04X}|bc={:04X}|de={:04X}|hl={:04X}|sp={:04X}|{}{}{}{}|IF={:02X}|IE={:02X}|IME={}|{:?}",
             cpu.get_pc_register(),
             CpuLogger::instruction_bytes(cpu, opcode),
             opcode.to_string(cpu),
@@ -61,6 +61,8 @@ fn format_cpu(cpu: &ComputerUnit, opcode: &Box<Opcode>) -> String {
             if cpu.carry_flag() { "C" } else { "c" },
             cpu.word_at(0xFF0F),
             cpu.word_at(0xFFFF),
+            cpu.interrupt_master(),
+            cpu.mode()
     )
 }
 

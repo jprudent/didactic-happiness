@@ -41,7 +41,7 @@ interrupt_addr:
      jp   z,test_failed
      
      set_test 4,"Timer doesn't work"
-     wreg TAC,$05
+     wreg TAC,$05 // enable + 262144hz
      wreg TIMA,0
      wreg IF,0
      delay 500

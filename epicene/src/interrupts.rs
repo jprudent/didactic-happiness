@@ -1,4 +1,4 @@
-use super::cpu::ComputerUnit;
+use super::cpu::{CpuMode, ComputerUnit};
 use super::{Word, Address};
 use super::memory::{MutableWord, MemoryBacked};
 
@@ -42,22 +42,22 @@ impl Interrupt {
 
 pub struct InterruptRequestRegister {
     register: MutableWord,
-    vblank: Interrupt,
-    lcd_stat: Interrupt,
+    //vblank: Interrupt,
+    //lcd_stat: Interrupt,
     timer: Interrupt,
-    serial: Interrupt,
-    joypad: Interrupt,
+    //serial: Interrupt,
+    //joypad: Interrupt,
 }
 
 impl InterruptRequestRegister {
     pub fn new() -> InterruptRequestRegister {
         InterruptRequestRegister {
             register: MutableWord::new(0),
-            vblank: Interrupt::new(InterruptKind::VBlank),
-            lcd_stat: Interrupt::new(InterruptKind::LcdStat),
+            //vblank: Interrupt::new(InterruptKind::VBlank),
+            //lcd_stat: Interrupt::new(InterruptKind::LcdStat),
             timer: Interrupt::new(InterruptKind::Timer),
-            serial: Interrupt::new(InterruptKind::Serial),
-            joypad: Interrupt::new(InterruptKind::Joypad),
+            //serial: Interrupt::new(InterruptKind::Serial),
+            //joypad: Interrupt::new(InterruptKind::Joypad),
         }
     }
 
@@ -137,21 +137,48 @@ impl<'a> InterruptHandler<'a> {
     }
 
     pub fn process_requested(&self, cpu: &mut ComputerUnit) {
+        match cpu.mode() {
+            &CpuMode::Run => self.process_running_cpu(cpu),
+            &CpuMode::HaltJumpInterruptVector => self.process_halted_jump_interrupt_vector(cpu),
+            &CpuMode::HaltContinue => self.process_halted_continue(cpu),
+            _ => panic!("Unhandled cpu stop mode")
+        }
+    }
+
+    fn process_halted_continue(&self, cpu: &mut ComputerUnit) {
+        if self.find_interrupt().is_some() {
+            cpu.enter(CpuMode::Run);
+            // cpu will continue it's flow just after the halt instruction
+        }
+    }
+
+    fn process_halted_jump_interrupt_vector(&self, cpu: &mut ComputerUnit) {
+        if let Some(interrupt) = self.find_interrupt() {
+            cpu.enter(CpuMode::Run);
+            self.jump_interruption_vector(interrupt, cpu)
+        }
+    }
+
+    fn process_running_cpu(&self, cpu: &mut ComputerUnit) {
         if cpu.interrupt_master() {
-            for interrupt in self.interrupts.iter() {
-                if self.is_enabled_and_requested(interrupt) {
-                    println!("interrupted {:?}", interrupt);
-                    self.interrupt_request_register.mark_processed(interrupt);
-                    let pc = cpu.get_pc_register();
-                    cpu.push(pc);
-                    cpu.disable_interrupt_master();
-                    let handler = interrupt.handler();
-                    cpu.set_register_pc(handler);
-                    // Other interrupts will be processed later
-                    return;
-                }
+            if let Some(interrupt) = self.find_interrupt() {
+                self.jump_interruption_vector(interrupt, cpu)
             }
         }
+    }
+
+    fn jump_interruption_vector(&self, interrupt: &Interrupt, cpu: &mut ComputerUnit) {
+        println!("interrupted {:?}", interrupt);
+        self.interrupt_request_register.mark_processed(interrupt);
+        let pc = cpu.get_pc_register();
+        cpu.push(pc);
+        cpu.disable_interrupt_master();
+        let handler = interrupt.handler();
+        cpu.set_register_pc(handler);
+    }
+
+    fn find_interrupt(&self) -> Option<&Interrupt> {
+        self.interrupts.iter().find(|&interrupt| self.is_enabled_and_requested(interrupt))
     }
 
     fn is_enabled_and_requested(&self, interrupt: &Interrupt) -> bool {

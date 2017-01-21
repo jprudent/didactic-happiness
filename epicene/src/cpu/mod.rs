@@ -208,6 +208,7 @@ impl Decoder {
         use self::opcodes::rrca::*;
         use self::opcodes::rra::*;
         use self::opcodes::add_hl_rr::*;
+        use self::opcodes::halt::*;
 
         decoder[0x00] = nop();
         decoder[0x01] = ld_rr_from_ww(DoubleRegister::BC);
@@ -327,6 +328,7 @@ impl Decoder {
         decoder[0x73] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::E);
         decoder[0x74] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::H);
         decoder[0x75] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::L);
+        decoder[0x76] = halt();
         decoder[0x77] = ld_ptr_r_from_r(RegisterPointer::HL, WordRegister::A);
         decoder[0x7E] = ld_r_from_ptr_r(WordRegister::A, RegisterPointer::HL);
         decoder[0x7F] = ld_r_from_r(WordRegister::A, WordRegister::A);
@@ -480,12 +482,22 @@ impl IndexMut<Word> for Decoder {
 use super::debug::MemoryWriteHook;
 use super::memory::Mmu;
 
+#[derive(Debug)]
+pub enum CpuMode {
+    Run,
+    HaltJumpInterruptVector,
+    HaltContinue,
+    HaltBug,
+    Stop
+}
+
 pub struct ComputerUnit<'a, 'b> {
     registers: Registers,
     memory: Mmu<'b>,
     write_memory_hooks: Vec<&'a mut MemoryWriteHook>,
     cycles: Cycle,
     ime: bool,
+    mode: CpuMode,
 }
 
 impl<'a, 'b> ComputerUnit<'a, 'b> {
@@ -495,7 +507,8 @@ impl<'a, 'b> ComputerUnit<'a, 'b> {
             memory: mmu,
             write_memory_hooks: memory_hooks,
             ime: true,
-            cycles: 0
+            cycles: 0,
+            mode: CpuMode::Run
         }
     }
 
@@ -516,7 +529,11 @@ impl<'a, 'b> ComputerUnit<'a, 'b> {
         opcode.exec(self);
         let cycles = opcode.cycles(self);
         self.inc_pc(opcode.size());
-        self.cycles = self.cycles.wrapping_add(cycles);
+        self.add_elapsed_cycles(cycles);
+    }
+
+    pub fn add_elapsed_cycles(&mut self, elapsed: Cycle) {
+        self.cycles = self.cycles.wrapping_add(elapsed);
     }
 
     pub fn get_a_register(&self) -> Word {
@@ -706,6 +723,14 @@ impl<'a, 'b> ComputerUnit<'a, 'b> {
 
     pub fn cycles(&self) -> Cycle {
         self.cycles
+    }
+
+    pub fn enter(&mut self, cpu_mode: CpuMode) {
+        self.mode = cpu_mode
+    }
+
+    pub fn mode(&self) -> &CpuMode {
+        &self.mode
     }
 }
 
