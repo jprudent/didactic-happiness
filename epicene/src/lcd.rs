@@ -49,6 +49,17 @@ impl Lcd {
             gbc_ram_bank_selector: MutableWord::new(0)
         }
     }
+
+    fn set_control(&self, word: Word) {
+        self.control.set(word);
+        if self.is_off() {
+            self.y_coordinate.set(0)
+        }
+    }
+
+    fn is_off(&self) -> bool {
+        self.control.get() & 0b1000_0000 == 0
+    }
 }
 
 impl MemoryBacked for Lcd {
@@ -68,7 +79,7 @@ impl MemoryBacked for Lcd {
 
     fn set_word_at(&self, address: Address, word: Word) {
         match address {
-            0xFF40 => self.control.set(word),
+            0xFF40 => self.set_control(word),
             0xFF42 => self.y_scroll.set(word),
             0xFF43 => self.x_scroll.set(word),
             0xFF44 => self.y_coordinate.set(0),
@@ -97,5 +108,18 @@ mod test {
         lcd.y_coordinate.set(0xFF);
         lcd.set_word_at(0xFF44, 42);
         assert_eq!(lcd.y_coordinate.get(), 0)
+    }
+
+    #[test]
+    fn when_the_lcd_is_off_y_coordinate_is_0() {
+        let lcd = Lcd::new();
+        lcd.set_word_at(0xFF40, 0b1000_0000); // power on
+
+        lcd.y_coordinate.set(42);
+        assert_eq!(lcd.word_at(0xFF44), 42);
+
+        lcd.set_word_at(0xFF40, 0b0000_0000); // power off
+        assert_eq!(lcd.word_at(0xFF44), 0);
+
     }
 }
