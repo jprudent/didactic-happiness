@@ -8,7 +8,7 @@ pub struct Interrupt {
     mask: Word,
 }
 
-enum InterruptKind {
+pub enum InterruptKind {
     VBlank,
     LcdStat,
     Timer,
@@ -17,7 +17,7 @@ enum InterruptKind {
 }
 
 impl Interrupt {
-    fn new(interrupt: InterruptKind) -> Interrupt {
+    pub fn new(interrupt: InterruptKind) -> Interrupt {
         match interrupt {
             InterruptKind::VBlank => Interrupt { handler: 0x40, mask: 0b0001 },
             InterruptKind::LcdStat => Interrupt { handler: 0x48, mask: 0b0010 },
@@ -43,7 +43,7 @@ impl Interrupt {
 pub struct InterruptRequestRegister {
     register: MutableWord,
     //vblank: Interrupt,
-    //lcd_stat: Interrupt,
+    lcd_stat: Interrupt,
     timer: Interrupt,
     //serial: Interrupt,
     //joypad: Interrupt,
@@ -54,7 +54,7 @@ impl InterruptRequestRegister {
         InterruptRequestRegister {
             register: MutableWord::new(0),
             //vblank: Interrupt::new(InterruptKind::VBlank),
-            //lcd_stat: Interrupt::new(InterruptKind::LcdStat),
+            lcd_stat: Interrupt::new(InterruptKind::LcdStat),
             timer: Interrupt::new(InterruptKind::Timer),
             //serial: Interrupt::new(InterruptKind::Serial),
             //joypad: Interrupt::new(InterruptKind::Joypad),
@@ -69,11 +69,15 @@ impl InterruptRequestRegister {
         self.register.set(self.register.get() | self.timer.mask)
     }
 
+    pub fn request_lcdstat_interrupt(&self) {
+        self.register.set(self.register.get() | self.lcd_stat.mask)
+    }
+
     fn mark_processed(&self, interrupt: &Interrupt) {
         self.register.set(interrupt.unset(self.register.get()))
     }
 
-    fn is_requested(&self, interrupt: &Interrupt) -> bool {
+    pub fn is_requested(&self, interrupt: &Interrupt) -> bool {
         interrupt.is_set(self.register.get())
     }
 }

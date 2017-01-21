@@ -48,7 +48,7 @@ pub fn run_debug<'a>(rompath: &str,
     let interrupt_enable_register = InterruptEnableRegister::new();
     let timer = Timer::new(&interrupt_request_register);
     let sound = Sound::new();
-    let lcd = Lcd::new();
+    let lcd = Lcd::new(&interrupt_request_register);
     let serial = Serial::new();
     let joypad = Joypad::new();
 
