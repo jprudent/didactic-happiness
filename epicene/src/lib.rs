@@ -14,6 +14,7 @@ use self::memory::Mmu;
 use self::sound::Sound;
 use self::lcd::Lcd;
 use self::serial::Serial;
+use self::joypad::Joypad;
 
 mod cpu;
 mod display;
@@ -25,6 +26,7 @@ mod memory;
 mod timer;
 mod sound;
 mod serial;
+mod joypad;
 
 pub type Word = u8;
 type Double = u16;
@@ -48,8 +50,9 @@ pub fn run_debug<'a>(rompath: &str,
     let sound = Sound::new();
     let lcd = Lcd::new();
     let serial = Serial::new();
+    let joypad = Joypad::new();
 
-    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &interrupt_enable_register, &sound, &lcd, &serial);
+    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &interrupt_enable_register, &sound, &lcd, &serial, &joypad);
 
     let mut cpu = ComputerUnit::new(memory_hooks, mmu);
 

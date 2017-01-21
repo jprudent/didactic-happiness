@@ -76,7 +76,9 @@ pub struct Mmu<'a> {
     hram: Ram,
     lcd: &'a MemoryBacked,
     video_ram: Ram,
-    serial: &'a MemoryBacked
+    serial: &'a MemoryBacked,
+    gbc_prepare_speed_switch: Ram,
+    joypad: &'a MemoryBacked
 }
 
 impl<'a> Mmu<'a> {
@@ -86,7 +88,9 @@ impl<'a> Mmu<'a> {
                interrupt_enabled_register: &'a MemoryBacked,
                sound: &'a MemoryBacked,
                lcd: &'a MemoryBacked,
-               serial: &'a MemoryBacked) -> Mmu<'a> {
+               serial: &'a MemoryBacked,
+               joypad: &'a MemoryBacked,
+    ) -> Mmu<'a> {
         Mmu {
             program: program,
             interrupt_enabled_register: interrupt_enabled_register,
@@ -99,6 +103,8 @@ impl<'a> Mmu<'a> {
             lcd: lcd,
             video_ram: Ram::new(0x2000, 0x8000),
             serial: serial,
+            gbc_prepare_speed_switch: Ram::new(1, 0xFF4D),
+            joypad: joypad
         }
     }
 
@@ -122,6 +128,7 @@ impl<'a> Mmu<'a> {
             address if Mmu::in_range(address, 0x8000, 0x9FFF) => &self.video_ram,
             address if Mmu::in_range(address, 0xC000, 0xCFFF) => &self.wram_bank1,
             address if Mmu::in_range(address, 0xD000, 0xDFFF) => &self.wram_bank2,
+            0xFF00 => self.joypad,
             address if Mmu::in_range(address, 0xFF01, 0xFF02) => self.serial,
             address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,
             0xFF0F => self.interrupt_requested_register,
@@ -131,6 +138,7 @@ impl<'a> Mmu<'a> {
             0xFF43 => self.lcd,
             0xFF44 => self.lcd,
             0xFF47 => self.lcd,
+            0xFF4D => &self.gbc_prepare_speed_switch,
             0xFF4F => self.lcd,
             0xFF68 => self.lcd,
             0xFF69 => self.lcd,
