@@ -15,6 +15,9 @@ use self::sound::Sound;
 use self::lcd::Lcd;
 use self::serial::Serial;
 use self::joypad::Joypad;
+use self::display::{Screen, Display, LcdState, Tile, Pixel};
+
+use std::sync::mpsc::{Sender, channel};
 
 mod cpu;
 mod display;
@@ -63,11 +66,16 @@ pub fn run_debug<'a>(rompath: &str,
 
     let interrupt_handler = InterruptHandler::new(&interrupt_enable_register, &interrupt_request_register);
 
+    let (tx, rx) = channel();
+    let display = Display::new(rx);
+    display.start();
+
     let mut gb = GameBoy {
         cpu: cpu,
         interrupt_handler: &interrupt_handler,
         devices: vec!(&divider_timer, &timer, &sound, &lcd, &serial),
         cpu_hooks: cpu_hooks,
+        display_tx: tx
     };
 
     gb.game_loop();
@@ -78,9 +86,10 @@ struct GameBoy<'hooks, 'mmu, 'device> {
     cpu_hooks: Vec<&'hooks mut ExecHook>,
     interrupt_handler: &'device InterruptHandler<'device>,
     devices: Vec<&'device Device>,
+    display_tx: Sender<Screen>
 }
 
-impl<'a, 'b, 'device> GameBoy<'a, 'b, 'device> {
+impl<'hooks, 'mmu, 'device> GameBoy<'hooks, 'mmu, 'device> {
     #[allow(while_true)]
     fn game_loop(&mut self) {
         let decoder = Decoder::new_basic();
@@ -96,6 +105,40 @@ impl<'a, 'b, 'device> GameBoy<'a, 'b, 'device> {
             &CpuMode::HaltJumpInterruptVector => self.halted_cpu(),
             &CpuMode::HaltBug => self.halted_buggy(),
             _ => panic!("unhandled case of cpu mode")
+        }
+        self.update_display(self.build_screen())
+    }
+
+    fn update_display(&self, screen: Screen) {}
+
+    fn build_screen(&self) -> Screen {
+        Screen {
+            lcd_state: LcdState {
+                line: 1,
+                all_tiles: vec!(Tile {
+                    vertical_flip: false,
+                    horizontal_flip: false,
+                    position: (56, 0),
+                    pixels: [
+                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
+                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
+                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
+                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
+                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
+                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
+                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
+                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
+                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
+                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
+                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
+                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
+                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
+                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
+                        [Pixel::White, Pixel::White, Pixel::White, Pixel::White,
+                            Pixel::White, Pixel::White, Pixel::White, Pixel::White, ],
+                    ]
+                })
+            },
         }
     }
 
