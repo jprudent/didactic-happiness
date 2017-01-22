@@ -182,10 +182,10 @@ impl<'a> Device for Lcd<'a> {
 }
 
 mod test {
-    use super::super::Device;
     use super::Lcd;
-    use super::super::memory::MemoryBacked;
-    use super::super::interrupts::{InterruptRequestRegister, Interrupt, InterruptKind};
+    use Device;
+    use memory::MemoryBacked;
+    use interrupts::{InterruptRequestRegister, Interrupt, InterruptKind};
 
     #[test]
     fn writing_y_coordinate_reset_it() {
@@ -220,17 +220,26 @@ mod test {
         let interrupt_request_register = &InterruptRequestRegister::new();
         let lcd = Lcd::new(interrupt_request_register);
 
+        // When LCD is powered on
         lcd.set_word_at(0xFF40, 0b1000_0000); // power on
 
-        for _ in 0..41 {
-            lcd.synchronize(456) // number of cycles for a line
+        // When LY = 42
+        for _ in 0..42 {
+            lcd.synchronize(80);
+            lcd.synchronize(172);
+            lcd.synchronize(204);
         }
+        assert_eq!(lcd.word_at(0xFF44), 42);
 
+        // When LYC = 42
         lcd.set_word_at(0xFF45, 42);
 
-        lcd.set_word_at(0xFF41, 0b0100_0000); // enable LY=LYC check
+        // When LY=LYC check is enabled
+        lcd.set_word_at(0xFF41, 0b0100_0000);
+
 
         lcd.synchronize(1);
+
 
         assert_eq!(lcd.word_at(0xFF41) & 0b1000_0000, 0b1000_0000, "bit 7 is unused and always set");
         assert_eq!(lcd.word_at(0xFF41) & 0b0100_0000, 0b0100_0000, "LY=LYC Check Enable is still set");
