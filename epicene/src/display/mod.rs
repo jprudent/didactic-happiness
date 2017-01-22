@@ -129,12 +129,14 @@ impl Screen {
 
 pub struct Display {
     screen_chan: Receiver<Screen>,
+    cache: Screen
 }
 
 impl Display {
     pub fn new(screen_chan: Receiver<Screen>) -> Display {
         Display {
             screen_chan: screen_chan,
+            cache: Screen::empty()
         }
     }
 
@@ -163,8 +165,11 @@ impl Display {
         });
     }
 
-    fn get_screen(&mut self) -> Screen {
-        self.screen_chan.recv().unwrap()
+    fn get_screen(&mut self) -> &mut Screen {
+        if let Ok(screen) = self.screen_chan.try_recv() {
+            self.cache = screen;
+        }
+        & mut self.cache
     }
 }
 
