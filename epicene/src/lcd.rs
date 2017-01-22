@@ -1,6 +1,7 @@
 use super::{Word, Address, Device, Cycle};
 use super::memory::{MemoryBacked, MutableWord};
 use super::interrupts::InterruptRequestRegister;
+use self::gpu::{Gpu, GpuMode};
 
 struct ColorPalette {
     background_index: MutableWord,
@@ -28,6 +29,8 @@ impl MonochromePalette {
     }
 }
 
+//TODO design error: the whole lcd should be used in a refcell, not each member !
+//TODO this is true for every device I have implemented so far
 pub struct Lcd<'a> {
     control: MutableWord,
     status: MutableWord,
@@ -39,6 +42,7 @@ pub struct Lcd<'a> {
     gb_monochrome_palette: MonochromePalette,
     gbc_ram_bank_selector: MutableWord,
     interrupt_request_register: &'a InterruptRequestRegister,
+    gpu: Gpu
 }
 
 impl<'a> Lcd<'a> {
@@ -53,7 +57,8 @@ impl<'a> Lcd<'a> {
             gbc_color_palette: ColorPalette::new(),
             gb_monochrome_palette: MonochromePalette::new(),
             gbc_ram_bank_selector: MutableWord::new(0),
-            interrupt_request_register: interrupt_request_register
+            interrupt_request_register: interrupt_request_register,
+            gpu: Gpu::new()
         }
     }
 
@@ -76,8 +81,24 @@ impl<'a> Lcd<'a> {
         self.y_coordinate.get() == self.compare_y_coordinate.get()
     }
 
-    fn check_ly_eq_lyc(&self) -> bool {
-        self.status.get() & 0b0100_0000 != 0
+    fn is_enabled_int_ly_eq_lyc(&self) -> bool {
+        self.status.get() & 0b100_0000 != 0
+    }
+
+    fn is_enabled_int_oam(&self) -> bool {
+        self.status.get() & 0b10_0000 != 0
+    }
+
+    fn is_enabled_int_vblank(&self) -> bool {
+        self.status.get() & 0b1_0000 != 0
+    }
+
+    fn is_enabled_int_hblank(&self) -> bool {
+        self.status.get() & 0b1000 != 0
+    }
+
+    fn is_some_lcd_int_enabled(&self) -> bool {
+        self.is_enabled_int_oam() || self.is_enabled_int_hblank() || self.is_enabled_int_vblank()
     }
 
     fn set_ly_eq_lyc(&self) {
@@ -86,6 +107,15 @@ impl<'a> Lcd<'a> {
 
     fn unset_ly_eq_lyc(&self) {
         self.status.set(self.status.get() & !0b100)
+    }
+
+    fn set_mode(&self, mode: GpuMode) {
+        let status = (self.status.get() & !0b11) | mode as Word;
+        self.set_status(status)
+    }
+
+    fn is_same_mode(&self, mode: GpuMode) -> bool {
+        self.status.get() & 0b11 == mode as Word
     }
 }
 
@@ -124,20 +154,30 @@ impl<'a> MemoryBacked for Lcd<'a> {
 }
 
 impl<'a> Device for Lcd<'a> {
-    fn synchronize(&self, _: Cycle) {
+    fn synchronize(&self, cpu_cycles: Cycle) {
         if self.is_off() {
             return
         }
 
+        self.gpu.synchronize(cpu_cycles);
+
+        println!("line {}", self.gpu.line());
+        self.y_coordinate.set(self.gpu.line());
+
+        if !self.is_same_mode(self.gpu.mode()) && self.is_some_lcd_int_enabled() {
+            self.interrupt_request_register.request_lcdstat_interrupt()
+        }
+
+        self.set_mode(self.gpu.mode());
+
         if self.is_ly_eq_lyc() {
             self.set_ly_eq_lyc();
-            if self.check_ly_eq_lyc() {
+            if self.is_enabled_int_ly_eq_lyc() {
                 self.interrupt_request_register.request_lcdstat_interrupt()
             }
         } else {
             self.unset_ly_eq_lyc();
         }
-
     }
 }
 
@@ -182,7 +222,10 @@ mod test {
 
         lcd.set_word_at(0xFF40, 0b1000_0000); // power on
 
-        lcd.y_coordinate.set(42);
+        for _ in 0..41 {
+            lcd.synchronize(456) // number of cycles for a line
+        }
+
         lcd.set_word_at(0xFF45, 42);
 
         lcd.set_word_at(0xFF41, 0b0100_0000); // enable LY=LYC check
@@ -195,5 +238,118 @@ mod test {
 
         let int_lcd_stat = Interrupt::new(InterruptKind::LcdStat);
         assert!(interrupt_request_register.is_requested(&int_lcd_stat), "An LCD stat interrupt should be requested")
+    }
+}
+
+mod gpu {
+    use super::super::{Cycle, Word, Device};
+    use std::cell::RefCell;
+
+    #[derive(Clone)]
+    pub enum GpuMode {
+        SearchData = 2,
+        Transfert = 3,
+        HorizontalBlank = 0,
+        VerticalBlank = 1
+    }
+
+    pub struct Gpu {
+        mode: RefCell<GpuMode>,
+        clock: RefCell<Cycle>,
+        line: RefCell<Word>
+    }
+
+    impl Gpu {
+        pub fn new() -> Gpu {
+            Gpu {
+                mode: RefCell::new(GpuMode::SearchData),
+                clock: RefCell::new(0),
+                line: RefCell::new(0)
+            }
+        }
+
+        pub fn mode(&self) -> GpuMode {
+            self.mode.borrow().clone()
+        }
+
+        fn set_mode(&self, mode: GpuMode) {
+            let mut v = self.mode.borrow_mut();
+            *v = mode
+        }
+
+        fn clock(&self) -> Cycle {
+            self.clock.borrow().clone()
+        }
+
+        fn set_clock(&self, clock: Cycle) {
+            let mut v = self.clock.borrow_mut();
+            *v = clock
+        }
+
+        pub fn line(&self) -> Word {
+            self.line.borrow().clone()
+        }
+
+        fn set_line(&self, line: Word) {
+            let mut v = self.line.borrow_mut();
+            *v = line
+        }
+    }
+
+    impl Device for Gpu {
+        fn synchronize(&self, cpu_cycles: Cycle) {
+            self.set_clock(self.clock() + cpu_cycles);
+            match self.mode() {
+                GpuMode::SearchData => {
+                    if self.clock() >= 80 {
+                        self.set_mode(GpuMode::Transfert);
+                        let new_clock = self.clock() - 80;
+                        self.set_clock(new_clock);
+                    }
+                }
+                GpuMode::Transfert => {
+                    if self.clock() >= 172 {
+                        self.set_mode(GpuMode::HorizontalBlank);
+                        let new_clock = self.clock() - 172;
+                        self.set_clock(new_clock);
+                    }
+                }
+                GpuMode::HorizontalBlank => {
+                    if self.clock() >= 204 {
+                        let new_clock = self.clock() - 204;
+                        self.set_clock(new_clock);
+
+                        let new_line = self.line() + 1;
+                        self.set_line(new_line);
+
+                        if new_line == 143 {
+                            // there is no hblank for the last line
+                            self.set_mode(GpuMode::VerticalBlank);
+                        } else {
+                            // next line
+                            self.set_mode(GpuMode::SearchData);
+                        }
+                    }
+                }
+                GpuMode::VerticalBlank => {
+                    // Vertical Blank last exactly 10 lines
+                    // 1 line OAM+VRAM+Hblank = 456 cycles
+                    if self.clock() >= 456 {
+                        let new_clock = self.clock() - 456;
+                        self.set_clock(new_clock);
+
+                        let new_line = self.line() + 1;
+
+                        if new_line == 154 {
+                            // the 10th line finished, and so the vblank
+                            self.set_mode(GpuMode::SearchData);
+                            self.set_line(0)
+                        } else {
+                            self.set_line(new_line);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
