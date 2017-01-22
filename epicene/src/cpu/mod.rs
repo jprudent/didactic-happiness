@@ -496,6 +496,8 @@ pub struct ComputerUnit<'a, 'b> {
     memory: Mmu<'b>,
     write_memory_hooks: Vec<&'a mut MemoryWriteHook>,
     cycles: Cycle,
+    // TODO remove
+    elapsed_cycles: Cycle,
     ime: bool,
     mode: CpuMode,
 }
@@ -508,6 +510,7 @@ impl<'a, 'b> ComputerUnit<'a, 'b> {
             write_memory_hooks: memory_hooks,
             ime: true,
             cycles: 0,
+            elapsed_cycles: 0,
             mode: CpuMode::Run
         }
     }
@@ -534,6 +537,7 @@ impl<'a, 'b> ComputerUnit<'a, 'b> {
 
     pub fn add_elapsed_cycles(&mut self, elapsed: Cycle) {
         self.cycles = self.cycles.wrapping_add(elapsed);
+        self.elapsed_cycles = elapsed;
     }
 
     pub fn get_a_register(&self) -> Word {
@@ -723,6 +727,10 @@ impl<'a, 'b> ComputerUnit<'a, 'b> {
 
     pub fn cycles(&self) -> Cycle {
         self.cycles
+    }
+
+    pub fn elapsed_cycles(&self) -> Cycle {
+        self.elapsed_cycles
     }
 
     pub fn enter(&mut self, cpu_mode: CpuMode) {

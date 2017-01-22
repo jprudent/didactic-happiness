@@ -31,6 +31,7 @@ mod joypad;
 pub type Word = u8;
 type Double = u16;
 pub type Address = Double;
+//TODO this should be a type that enforces possible values 0<=cycles<=20, and an u8
 pub type Cycle = u16;
 
 trait Device {
@@ -106,9 +107,7 @@ impl<'a, 'b, 'device> GameBoy<'a, 'b, 'device> {
 
     fn halted_cpu(&mut self) {
         self.cpu.add_elapsed_cycles(1);
-        for device in self.devices.iter_mut() {
-            device.synchronize(self.cpu.cycles());
-        }
+        self.synchronize_devices();
         self.interrupt_handler.process_requested(&mut self.cpu);
     }
 
@@ -123,10 +122,14 @@ impl<'a, 'b, 'device> GameBoy<'a, 'b, 'device> {
 
         self.cpu.exec(opcode);
 
-        for device in self.devices.iter_mut() {
-            device.synchronize(self.cpu.cycles());
-        }
+        self.synchronize_devices();
 
         self.interrupt_handler.process_requested(&mut self.cpu);
+    }
+
+    fn synchronize_devices(&mut self) {
+        for device in self.devices.iter_mut() {
+            device.synchronize(self.cpu.elapsed_cycles());
+        }
     }
 }

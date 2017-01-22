@@ -1,3 +1,5 @@
+use super::{Word, Cycle};
+
 #[derive(Eq, PartialEq, Debug)]
 enum Period {
     Hz4096 = 1024,
@@ -6,84 +8,145 @@ enum Period {
     Hz262144 = 16
 }
 
+struct SimpleTimer {
+    clock: Cycle,
+    counter: Word,
+    period: Cycle
+}
+
+type Overflow = bool;
+
+impl SimpleTimer {
+    pub fn new(increment_each: Period) -> SimpleTimer {
+        SimpleTimer {
+            clock: 0,
+            counter: 0,
+            period: increment_each as Cycle
+        }
+    }
+
+    fn counter(&self) -> Word {
+        self.counter
+    }
+
+    fn reset(&mut self) {
+        self.counter = 0;
+    }
+
+    fn set(& mut self, val: Word) {
+        self.counter = val;
+    }
+
+    fn inc_counter(&mut self, modulo: Word) -> Overflow {
+        self.counter = match self.counter.checked_add(1) {
+            Some(v) => v,
+            None => modulo
+        };
+        self.counter == modulo
+    }
+
+    fn change_period(&mut self, period: Period) {
+        self.period = period as Cycle
+    }
+
+    fn update(&mut self, elapsed: Cycle) -> Overflow {
+        self.update_modulo(elapsed, 0)
+    }
+
+    fn update_modulo(&mut self, elapsed: Cycle, modulo: Word) -> Overflow {
+        assert!(elapsed > 0);
+        let new_clock = (self.clock + elapsed) % self.period;
+        let overflow = new_clock <= self.clock && self.inc_counter(modulo);
+        self.clock = new_clock;
+        overflow
+    }
+}
+
 pub mod divider {
     use std::cell::RefCell;
-    use super::super::{Device, Cycle};
-    use super::super::memory::MutableWord;
-    use super::Period;
+    use {Device, Cycle, Address, Word};
+    use memory::{MemoryBacked};
+    use super::{Period, SimpleTimer};
 
     pub struct DividerTimer {
-        last_cpu_cycles: RefCell<Cycle>,
-        counter: MutableWord
+        timer: RefCell<SimpleTimer>
     }
 
     impl DividerTimer {
         pub fn new() -> DividerTimer {
             DividerTimer {
-                last_cpu_cycles: RefCell::new(0),
-                counter: MutableWord::new(0)
+                timer: RefCell::new(SimpleTimer::new(Period::Hz16384))
             }
         }
     }
 
     impl Device for DividerTimer {
         fn synchronize(&self, cpu_cycles: Cycle) {
-            let cpu_cycles = cpu_cycles % Period::Hz16384 as Cycle;
+            let mut timer = self.timer.borrow_mut();
+            (*timer).update(cpu_cycles);
+        }
+    }
 
-            let last_cpu_cycles = *self.last_cpu_cycles.borrow();
-            if last_cpu_cycles > cpu_cycles {
-                let counter = self.counter.get();
-                self.counter.set(counter.wrapping_add(1));
-            }
-            let mut last_cpu_cycles = self.last_cpu_cycles.borrow_mut();
-            *last_cpu_cycles = cpu_cycles;
+    impl MemoryBacked for DividerTimer {
+        fn word_at(&self, _: Address) -> Word {
+            self.timer.borrow().counter()
+        }
+
+        fn set_word_at(&self, _: Address, _: Word) {
+            self.timer.borrow_mut().reset()
         }
     }
 
     mod test {
         use super::DividerTimer;
         use super::super::super::{Device};
+        use memory::MemoryBacked;
 
         #[test]
         fn should_update_the_timer_when_it_reaches_its_period() {
             let divider_timer = DividerTimer::new();
             divider_timer.synchronize(200);
-            assert_eq!(divider_timer.counter.get(), 0);
+            assert_eq!(divider_timer.word_at(0xFF04), 0);
 
-            divider_timer.synchronize(400);
-            assert_eq!(divider_timer.counter.get(), 1);
+            divider_timer.synchronize(200);
+            assert_eq!(divider_timer.word_at(0xFF04), 1);
+        }
 
-            divider_timer.synchronize(0);
-            let v = divider_timer.counter.get();
-            assert_eq!(v, 2)
+        #[test]
+        fn writing_any_value_should_reset_it() {
+            let divider_timer = DividerTimer::new();
+            divider_timer.synchronize(200);
+            divider_timer.synchronize(200);
+            assert_eq!(divider_timer.word_at(0xFF04), 1);
+
+            divider_timer.set_word_at(0xFF04, 42);
+            assert_eq!(divider_timer.word_at(0xFF04), 0);
         }
     }
 }
 
 pub mod timer {
-    use super::Period;
-    use super::super::{Device, Cycle, Word, Address};
-    use super::super::interrupts::InterruptRequestRegister;
-    use super::super::memory::{MutableWord, MemoryBacked};
+    use super::{Period, SimpleTimer};
+    use {Device, Cycle, Word, Address};
+    use interrupts::InterruptRequestRegister;
+    use memory::{MutableWord, MemoryBacked};
     use std::cell::RefCell;
 
 
     pub struct Timer<'a> {
-        last_cpu_cycles: RefCell<Cycle>,
-        counter: MutableWord,
         modulo: MutableWord,
         control: MutableWord,
-        interrupt_request_register: &'a InterruptRequestRegister
+        interrupt_request_register: &'a InterruptRequestRegister,
+        timer: RefCell<SimpleTimer>
     }
 
     impl<'a> Timer<'a> {
         pub fn new(interrupt_request_register: &'a InterruptRequestRegister) -> Timer<'a> {
             Timer {
-                last_cpu_cycles: RefCell::new(0),
-                counter: MutableWord::new(0),
                 modulo: MutableWord::new(0),
                 control: MutableWord::new(0),
                 interrupt_request_register: interrupt_request_register,
+                timer: RefCell::new(SimpleTimer::new(Period::Hz4096))
             }
         }
 
@@ -120,52 +183,41 @@ pub mod timer {
     }
 
     impl<'a> Device for Timer<'a> {
-        //todo this code is horrible
         fn synchronize(&self, cpu_cycles: Cycle) {
-            if self.is_enabled() {
-                let period = self.get_period() as Cycle;
-                let mut last = self.last_cpu_cycles.borrow_mut();
-                let diff = if cpu_cycles >= *last {
-                    // no cycle overflow occured
-                    cpu_cycles - *last
-                } else {
-                    // there was an overflow
-                    (u16::max_value() - *last) + cpu_cycles
-                };
-                let counter = self.counter.get();
-                let step = (diff / period) as u8;
-                //println!("diff {}, period {}, step {}, last {}, cpu {}, counter {}", diff, period, step, *last, cpu_cycles, counter);
-                if step > 0 {
-                    match counter.checked_add(step) {
-                        Some(v) => self.counter.set(v),
-                        None => {
-                            self.counter.set(self.modulo.get());
-                            self.interrupt_request_register.request_timer_interrupt()
-                        }
-                    };
-                    *last = cpu_cycles
-                }
+            if !self.is_enabled() {
+                return;
             }
+
+            let mut timer = self.timer.borrow_mut();
+
+            let period = self.get_period();
+            (*timer).change_period(period);
+
+            let overflow = (*timer).update_modulo(cpu_cycles, self.modulo.get());
+            if overflow {
+                self.interrupt_request_register.request_timer_interrupt();
+            }
+
         }
     }
 
     impl<'a> MemoryBacked for Timer<'a> {
         fn word_at(&self, address: Address) -> Word {
             match address {
-                0xFF05 => &self.counter,
-                0xFF06 => &self.modulo,
-                0xFF07 => &self.control,
+                0xFF05 => (*self.timer.borrow()).counter(),
+                0xFF06 => self.modulo.get(),
+                0xFF07 => self.control.get(),
                 _ => panic!("wrong address mapping in timer at {:04X}", address)
-            }.get()
+            }
         }
 
         fn set_word_at(&self, address: Address, word: Word) {
             match address {
-                0xFF05 => &self.counter,
-                0xFF06 => &self.modulo,
-                0xFF07 => &self.control,
+                0xFF05 => (*self.timer.borrow_mut()).set(word),
+                0xFF06 => self.modulo.set(word),
+                0xFF07 => self.control.set(word),
                 _ => panic!("wrong address mapping in timer at {:04X}", address)
-            }.set(word);
+            };
             println!("addr {:04X}, word: {:02X}", address, word)
         }
     }
@@ -192,21 +244,23 @@ pub mod timer {
     fn when_the_timer_overflows_the_modulo_is_copied_and_an_interrupt_request_is_emited() {
         let interrupt_request_register = InterruptRequestRegister::new();
         let timer = Timer::new(&interrupt_request_register);
-        assert!(!interrupt_request_register.timer(), "assuming not timer interrupt request");
-        timer.set_word_at(0xFF07, 0b101); // enable + Hz262144
-        let mut cpu_cycles = 16;
-        for _ in 0..0xFF {
-            timer.synchronize(cpu_cycles);
-            cpu_cycles += 16
-        }
-        let actual = timer.counter.get();
-        assert_eq!(actual, 0xFF); // almost overflowing
 
-        timer.modulo.set(42);
-        // it will overflow :
+        assert!(!interrupt_request_register.timer(), "assuming no timer interrupt request");
+
+        //Given the timer is enabled and is incremented every 16 cycles
+        timer.set_word_at(0xFF07, 0b101);
+
+        // Given the timer is almost overflowing
+        timer.set_word_at(0xFF05, 0xFF);
+
+        // Given the modulo is 42
+        timer.set_word_at(0xFF06, 42); // set modulo
+
+
         timer.synchronize(16);
-        let actual = timer.counter.get();
-        assert_eq!(actual, 42, "When the TIMA overflows, modulo is loaded.");
+
+
+        assert_eq!(timer.word_at(0xFF05), 42, "When the TIMA overflows, modulo is loaded.");
         assert!(interrupt_request_register.timer(), "When the TIMA overflows, an interrupt is requested");
     }
 
@@ -216,6 +270,6 @@ pub mod timer {
         let timer = Timer::new(&interrupt_request_register);
         timer.set_word_at(0xFF07, 0b001); // disable + Hz262144
         timer.synchronize(16);
-        assert_eq!(timer.counter.get(), 0, "timer is not incremented because it is disabled");
+        assert_eq!(timer.word_at(0xFF05), 0, "timer is not incremented because it is disabled");
     }
 }
