@@ -32,13 +32,13 @@ impl MutableWord {
     }
 }
 
-struct Ram {
+pub struct Ram {
     words: RefCell<Vec<Word>>,
     starting_offset: Address
 }
 
 impl Ram {
-    fn new(size: usize, starting_offset: Address) -> Ram {
+    pub fn new(size: usize, starting_offset: Address) -> Ram {
         let mut words = vec!();
         words.resize(size, 0);
         Ram {
@@ -75,10 +75,10 @@ pub struct Mmu<'a> {
     sound: &'a MemoryBacked,
     hram: Ram,
     lcd: &'a MemoryBacked,
-    video_ram: Ram,
     serial: &'a MemoryBacked,
     gbc_prepare_speed_switch: Ram,
-    joypad: &'a MemoryBacked
+    joypad: &'a MemoryBacked,
+    video_ram: &'a MemoryBacked
 }
 
 impl<'a> Mmu<'a> {
@@ -90,6 +90,7 @@ impl<'a> Mmu<'a> {
                lcd: &'a MemoryBacked,
                serial: &'a MemoryBacked,
                joypad: &'a MemoryBacked,
+               video_ram: &'a MemoryBacked
     ) -> Mmu<'a> {
         Mmu {
             program: program,
@@ -101,10 +102,10 @@ impl<'a> Mmu<'a> {
             sound: sound,
             hram: Ram::new(127, 0xFF80),
             lcd: lcd,
-            video_ram: Ram::new(0x2000, 0x8000),
             serial: serial,
             gbc_prepare_speed_switch: Ram::new(1, 0xFF4D),
-            joypad: joypad
+            joypad: joypad,
+            video_ram: video_ram
         }
     }
 
@@ -125,9 +126,10 @@ impl<'a> Mmu<'a> {
     fn memory_backend(&'a self, address: Address) -> &'a MemoryBacked {
         match address {
             address if Mmu::in_range(address, 0x0000, 0x7FFF) => self.program,
-            address if Mmu::in_range(address, 0x8000, 0x9FFF) => &self.video_ram,
+            address if Mmu::in_range(address, 0x8000, 0xA000) => self.video_ram,
             address if Mmu::in_range(address, 0xC000, 0xCFFF) => &self.wram_bank1,
             address if Mmu::in_range(address, 0xD000, 0xDFFF) => &self.wram_bank2,
+            address if Mmu::in_range(address, 0xFE00, 0xFE9F) => self.video_ram,
             0xFF00 => self.joypad,
             address if Mmu::in_range(address, 0xFF01, 0xFF02) => self.serial,
             address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,

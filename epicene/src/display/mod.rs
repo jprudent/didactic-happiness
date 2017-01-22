@@ -168,7 +168,7 @@ impl Display {
     }
 }
 
-#[test]
+//#[test]
 #[allow(dead_code)]
 fn f() {
     use std::sync::mpsc::channel;

@@ -16,6 +16,7 @@ use self::lcd::Lcd;
 use self::serial::Serial;
 use self::joypad::Joypad;
 use self::display::{Screen, Display, LcdState, Tile, Pixel};
+use self::video::VideoRam;
 
 use std::sync::mpsc::{Sender, channel};
 
@@ -30,6 +31,7 @@ mod timer;
 mod sound;
 mod serial;
 mod joypad;
+mod video;
 
 pub type Word = u8;
 type Double = u16;
@@ -55,10 +57,12 @@ pub fn run_debug<'a>(rompath: &str,
     let lcd = Lcd::new(&interrupt_request_register);
     let serial = Serial::new();
     let joypad = Joypad::new();
+    let video_ram = VideoRam::new();
 
-    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &interrupt_enable_register, &sound, &lcd, &serial, &joypad);
+    let mmu = Mmu::new(&mut pg, &timer, &interrupt_request_register, &interrupt_enable_register, &sound, &lcd, &serial, &joypad, &video_ram);
 
     let mut cpu = ComputerUnit::new(memory_hooks, mmu);
+
 
     cpu.set_register_pc(0x100);
 
