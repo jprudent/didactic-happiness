@@ -6,16 +6,29 @@ use opengl_graphics::{GlGraphics, OpenGL};
 use std::thread;
 use std::sync::mpsc::Receiver;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Pixel {
     White = 0,
     LightGray = 1,
     DarkGray = 2,
     Black = 3
 }
+const PIXELS: [Pixel;4] = [Pixel::White, Pixel::LightGray, Pixel::DarkGray, Pixel::Black];
+impl Pixel {
+    pub fn fromage(i: u8) -> Pixel {
+        for v in PIXELS.iter() {
+            let code = *v as u8;
+            if code == i {
+                return *v
+            }
+        }
 
-type X = u8;
-type Y = u8;
+        panic!("No enum value found for code {}", i)
+    }
+}
+
+type X = i16;
+type Y = i16;
 
 pub struct Tile {
     pub position: (X, Y),
@@ -36,7 +49,7 @@ impl Tile {
         }
     }
 
-    fn between(x: u8, lower: u8, higher: u8) -> bool {
+    fn between(x: i16, lower: i16, higher: i16) -> bool {
         x >= lower && x <= higher
     }
 }
@@ -99,7 +112,7 @@ impl Screen {
         let pixel_width = args.width as f64 / 160.0;
         let pixel_height = args.height as f64 / 144.0;
 
-        let y = self.lcd_state.line;
+        let y = self.lcd_state.line as Y;
         for x in 0..160 {
             for tile in self.lcd_state.all_tiles.iter() {
                 if let Some(pixel) = tile.pixel_at(x, y) {
@@ -165,11 +178,13 @@ impl Display {
         });
     }
 
-    fn get_screen(&mut self) -> &mut Screen {
-        if let Ok(screen) = self.screen_chan.try_recv() {
-            self.cache = screen;
-        }
-        & mut self.cache
+    fn get_screen(&mut self) -> Screen {
+        self.screen_chan.recv().unwrap()
+        //if let Ok(screen) = self.screen_chan.try_recv() {
+        //    println!("get");
+        //    self.cache = screen;
+        //}
+        //    & mut self.cache
     }
 }
 

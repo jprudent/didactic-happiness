@@ -3,6 +3,7 @@ use super::cpu::{set_high_word, set_low_word, low_word, high_word};
 use super::program::Program;
 
 use std::cell::RefCell;
+use std::slice::Chunks;
 
 pub trait MemoryBacked {
     fn word_at(&self, address: Address) -> Word;
@@ -46,8 +47,13 @@ impl Ram {
             words: RefCell::new(words),
         }
     }
+
     fn relative_index(&self, absolute_address: Address) -> usize {
         (absolute_address - self.starting_offset) as usize
+    }
+
+    pub fn raw(&self) -> &RefCell<Vec<Word>> {
+        &self.words
     }
 }
 
@@ -78,7 +84,8 @@ pub struct Mmu<'a> {
     serial: &'a MemoryBacked,
     gbc_prepare_speed_switch: Ram,
     joypad: &'a MemoryBacked,
-    video_ram: &'a MemoryBacked
+    video_ram: &'a MemoryBacked,
+    unused: Ram
 }
 
 impl<'a> Mmu<'a> {
@@ -105,7 +112,8 @@ impl<'a> Mmu<'a> {
             serial: serial,
             gbc_prepare_speed_switch: Ram::new(1, 0xFF4D),
             joypad: joypad,
-            video_ram: video_ram
+            video_ram: video_ram,
+            unused: Ram::new(96, 0xFEA0)
         }
     }
 
@@ -130,12 +138,14 @@ impl<'a> Mmu<'a> {
             address if Mmu::in_range(address, 0xC000, 0xCFFF) => &self.wram_bank1,
             address if Mmu::in_range(address, 0xD000, 0xDFFF) => &self.wram_bank2,
             address if Mmu::in_range(address, 0xFE00, 0xFE9F) => self.video_ram,
+            address if Mmu::in_range(address, 0xFEA0, 0xFEFF) => &self.unused,
             0xFF00 => self.joypad,
             address if Mmu::in_range(address, 0xFF01, 0xFF02) => self.serial,
             address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,
             0xFF0F => self.interrupt_requested_register,
             address if Mmu::in_range(address, 0xFF24, 0xFF26) => self.sound,
             0xFF40 => self.lcd,
+            0xFF41 => self.lcd,
             0xFF42 => self.lcd,
             0xFF43 => self.lcd,
             0xFF44 => self.lcd,

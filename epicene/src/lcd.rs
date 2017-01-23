@@ -114,8 +114,12 @@ impl<'a> Lcd<'a> {
         self.set_status(status)
     }
 
-    fn is_same_mode(&self, mode: GpuMode) -> bool {
+    pub fn is_same_mode(&self, mode: GpuMode) -> bool {
         self.status.get() & 0b11 == mode as Word
+    }
+
+    pub fn current_line(&self) -> Word {
+        self.y_coordinate.get()
     }
 }
 
@@ -161,7 +165,6 @@ impl<'a> Device for Lcd<'a> {
 
         self.gpu.synchronize(cpu_cycles);
 
-        println!("line {}", self.gpu.line());
         self.y_coordinate.set(self.gpu.line());
 
         if !self.is_same_mode(self.gpu.mode()) && self.is_some_lcd_int_enabled() {
@@ -250,7 +253,7 @@ mod test {
     }
 }
 
-mod gpu {
+pub mod gpu {
     use super::super::{Cycle, Word, Device};
     use std::cell::RefCell;
 

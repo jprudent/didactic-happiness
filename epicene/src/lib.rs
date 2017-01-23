@@ -12,13 +12,14 @@ use self::timer::divider::{DividerTimer};
 use self::timer::timer::{Timer};
 use self::memory::Mmu;
 use self::sound::Sound;
-use self::lcd::Lcd;
+use self::lcd::{Lcd};
+use self::lcd::gpu::{GpuMode};
 use self::serial::Serial;
 use self::joypad::Joypad;
-use self::display::{Screen, Display, LcdState, Tile, Pixel};
+use self::display::{Screen, Display, LcdState};
 use self::video::VideoRam;
 
-use std::sync::mpsc::{Sender, channel};
+use std::sync::mpsc::{Sender, SyncSender, channel, sync_channel};
 
 mod cpu;
 mod display;
@@ -70,7 +71,7 @@ pub fn run_debug<'a>(rompath: &str,
 
     let interrupt_handler = InterruptHandler::new(&interrupt_enable_register, &interrupt_request_register);
 
-    let (tx, rx) = channel();
+    let (tx, rx) = sync_channel(0);
     let display = Display::new(rx);
     display.start();
 
@@ -79,7 +80,9 @@ pub fn run_debug<'a>(rompath: &str,
         interrupt_handler: &interrupt_handler,
         devices: vec!(&divider_timer, &timer, &sound, &lcd, &serial),
         cpu_hooks: cpu_hooks,
-        display_tx: tx
+        display_tx: tx,
+        video_ram: &video_ram,
+        lcd: &lcd
     };
 
     gb.game_loop();
@@ -90,7 +93,9 @@ struct GameBoy<'hooks, 'mmu, 'device> {
     cpu_hooks: Vec<&'hooks mut ExecHook>,
     interrupt_handler: &'device InterruptHandler<'device>,
     devices: Vec<&'device Device>,
-    display_tx: Sender<Screen>
+    display_tx: SyncSender<Screen>,
+    video_ram: &'device VideoRam,
+    lcd: &'device Lcd<'device>,
 }
 
 impl<'hooks, 'mmu, 'device> GameBoy<'hooks, 'mmu, 'device> {
@@ -110,38 +115,25 @@ impl<'hooks, 'mmu, 'device> GameBoy<'hooks, 'mmu, 'device> {
             &CpuMode::HaltBug => self.halted_buggy(),
             _ => panic!("unhandled case of cpu mode")
         }
-        self.update_display(self.build_screen())
+        self.update_display()
     }
 
-    fn update_display(&self, screen: Screen) {}
+    fn update_display(&self) {
+        if self.cpu.cycles() % 456 == 0 {
+            let screen = self.build_screen();
+            if let Ok(_) = self.display_tx.try_send(screen) {
+                //println!("put");
+            } else {
+                //println!("skipped");
+            }
+        }
+    }
 
     fn build_screen(&self) -> Screen {
         Screen {
             lcd_state: LcdState {
-                line: 1,
-                all_tiles: vec!(Tile {
-                    vertical_flip: false,
-                    horizontal_flip: false,
-                    position: (56, 0),
-                    pixels: [
-                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
-                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
-                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
-                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
-                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
-                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
-                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
-                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
-                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
-                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
-                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
-                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
-                        [Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray,
-                            Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, Pixel::LightGray, ],
-                        [Pixel::White, Pixel::White, Pixel::White, Pixel::White,
-                            Pixel::White, Pixel::White, Pixel::White, Pixel::White, ],
-                    ]
-                })
+                line: self.lcd.current_line(),
+                all_tiles: self.video_ram.build_tiles()
             },
         }
     }

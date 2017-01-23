@@ -24,15 +24,27 @@ impl MemoryWriteHook for WatchTestStatus {
     }
 }
 
+struct WriteOam;
+
+impl MemoryWriteHook for WriteOam {
+    fn apply(&mut self, address: Address, word: Word) {
+        if address >= 0xFE00 && address < 0xFEA0 {
+            println!("write word {:02X} at {:04X}", word, address)
+        }
+    }
+}
+
 fn test_rom(path: &str) {
     let mut watch_test_status = WatchTestStatus {
         record: "".to_string()
     };
 
+    let mut w = WriteOam;
+
     run_debug(
         &path.to_string(),
         vec!(),
-        vec!(&mut watch_test_status));
+        vec!(&mut watch_test_status, &mut WriteOam));
 }
 
 #[test]
