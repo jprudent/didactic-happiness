@@ -85,7 +85,8 @@ pub struct Mmu<'a> {
     gbc_prepare_speed_switch: Ram,
     joypad: &'a MemoryBacked,
     video_ram: &'a MemoryBacked,
-    unused: Ram
+    unused: Ram,
+    unknown_io_ports: Ram
 }
 
 impl<'a> Mmu<'a> {
@@ -113,7 +114,8 @@ impl<'a> Mmu<'a> {
             gbc_prepare_speed_switch: Ram::new(1, 0xFF4D),
             joypad: joypad,
             video_ram: video_ram,
-            unused: Ram::new(96, 0xFEA0)
+            unused: Ram::new(96, 0xFEA0),
+            unknown_io_ports: Ram::new(1, 0xFF7F)
         }
     }
 
@@ -143,17 +145,26 @@ impl<'a> Mmu<'a> {
             address if Mmu::in_range(address, 0xFF01, 0xFF02) => self.serial,
             address if Mmu::in_range(address, 0xFF05, 0xFF07) => self.timer,
             0xFF0F => self.interrupt_requested_register,
-            address if Mmu::in_range(address, 0xFF24, 0xFF26) => self.sound,
+            address if Mmu::in_range(address, 0xFF10, 0xFF14) => self.sound,
+            address if Mmu::in_range(address, 0xFF16, 0xFF1E) => self.sound,
+            address if Mmu::in_range(address, 0xFF20, 0xFF26) => self.sound,
+            address if Mmu::in_range(address, 0xFF30, 0xFF3F) => self.sound,
             0xFF40 => self.lcd,
             0xFF41 => self.lcd,
             0xFF42 => self.lcd,
             0xFF43 => self.lcd,
             0xFF44 => self.lcd,
+            0xFF45 => self.lcd,
             0xFF47 => self.lcd,
+            0xFF48 => self.lcd,
+            0xFF49 => self.lcd,
+            0xFF4A => self.lcd,
+            0xFF4B => self.lcd,
             0xFF4D => &self.gbc_prepare_speed_switch,
             0xFF4F => self.lcd,
             0xFF68 => self.lcd,
             0xFF69 => self.lcd,
+            0xFF7F => &self.unknown_io_ports,
             address if Mmu::in_range(address, 0xFF80, 0xFFFE) => &self.hram,
             0xFFFF => self.interrupt_enabled_register,
             _ => panic!("not implemented memory backend at {:04X}", address)

@@ -18,13 +18,18 @@ impl ColorPalette {
 }
 
 struct MonochromePalette {
-    palette_data: MutableWord
+    background_and_window: MutableWord,
+    sprite_0: MutableWord,
+    sprite_1: MutableWord,
+
 }
 
 impl MonochromePalette {
     fn new() -> MonochromePalette {
         MonochromePalette {
-            palette_data: MutableWord::new(0),
+            background_and_window: MutableWord::new(0),
+            sprite_0: MutableWord::new(0),
+            sprite_1: MutableWord::new(0),
         }
     }
 }
@@ -38,6 +43,8 @@ pub struct Lcd<'a> {
     compare_y_coordinate: MutableWord,
     x_scroll: MutableWord,
     y_scroll: MutableWord,
+    window_y: MutableWord,
+    window_x: MutableWord,
     gbc_color_palette: ColorPalette,
     gb_monochrome_palette: MonochromePalette,
     gbc_ram_bank_selector: MutableWord,
@@ -54,6 +61,8 @@ impl<'a> Lcd<'a> {
             compare_y_coordinate: MutableWord::new(0),
             x_scroll: MutableWord::new(0),
             y_scroll: MutableWord::new(0),
+            window_y: MutableWord::new(0),
+            window_x: MutableWord::new(0),
             gbc_color_palette: ColorPalette::new(),
             gb_monochrome_palette: MonochromePalette::new(),
             gbc_ram_bank_selector: MutableWord::new(0),
@@ -132,7 +141,11 @@ impl<'a> MemoryBacked for Lcd<'a> {
             0xFF43 => &self.x_scroll,
             0xFF44 => &self.y_coordinate,
             0xFF45 => &self.compare_y_coordinate,
-            0xFF47 => &self.gb_monochrome_palette.palette_data,
+            0xFF47 => &self.gb_monochrome_palette.background_and_window,
+            0xFF48 => &self.gb_monochrome_palette.sprite_0,
+            0xFF49 => &self.gb_monochrome_palette.sprite_1,
+            0xFF4A => &self.window_y,
+            0xFF4B => &self.window_x,
             0xFF4F => &self.gbc_ram_bank_selector,
             0xFF68 => &self.gbc_color_palette.background_index,
             0xFF69 => &self.gbc_color_palette.background_data,
@@ -148,7 +161,11 @@ impl<'a> MemoryBacked for Lcd<'a> {
             0xFF43 => self.x_scroll.set(word),
             0xFF44 => self.y_coordinate.set(0),
             0xFF45 => self.compare_y_coordinate.set(word),
-            0xFF47 => self.gb_monochrome_palette.palette_data.set(word),
+            0xFF47 => self.gb_monochrome_palette.background_and_window.set(word),
+            0xFF48 => self.gb_monochrome_palette.sprite_0.set(word),
+            0xFF49 => self.gb_monochrome_palette.sprite_1.set(word),
+            0xFF4A => self.window_y.set(word),
+            0xFF4B => self.window_x.set(word),
             0xFF4F => self.gbc_ram_bank_selector.set(word),
             0xFF68 => self.gbc_color_palette.background_index.set(word),
             0xFF69 => self.gbc_color_palette.background_data.set(word),

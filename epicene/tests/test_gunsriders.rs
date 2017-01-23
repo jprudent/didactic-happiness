@@ -1,7 +1,5 @@
 extern crate epicene;
 
-use epicene::{Address, Word};
-use epicene::debug::{MemoryWriteHook};
 use epicene::run_debug;
 
 fn test_rom(path: &str) {
@@ -15,5 +13,5 @@ fn test_rom(path: &str) {
 
 #[test]
 fn should_run_gunsriders() {
-    test_rom("roms/gunsriders.gb")
+    test_rom("/home/stup3fait/games/gb/TETRIS.GB")
 }
