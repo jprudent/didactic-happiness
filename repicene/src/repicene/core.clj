@@ -18,31 +18,45 @@
   {:pre [(<= 0 dword 0xFFFF)]}
   (bit-shift-right dword 8))
 
-(defn lookup-backend [memory address]
-  (some (fn [[from to _ :as backend]]
-          (when (<= from address to)
+(defn in? [[from to _] address]
+  (<= from address to))
+
+(defn lookup-backend [memory address]                                           ;; could be memeoized
+  (some (fn [backend]
+          (when (in? backend address)
             backend))
         memory))
 
+(defn lookup-backend-index [memory address]                                     ;; could be memoized
+  (some (fn [[_ backend :as index-backend]]
+          (when (in? backend address)
+            index-backend))
+        (map vector (range) memory)))
+
 (defn word-at
   ([memory address]
+   {:pre [(<= 0 address 0xFFFF)]}
    (when-let [[from _ backend] (lookup-backend memory address)]
      (let [backend-relative-address (- address from)]
-       (get backend backend-relative-address))))
-  ([memory address val]
-   (when-let [[from _ backend] (lookup-backend memory address)]
-     (let [backend-relative-address (- address from)]
-       (assoc backend backend-relative-address val)))))
+       (get backend backend-relative-address)))))
+
+(defn set-word-at [{:keys [memory] :as cpu} address val]
+  {:pre [(<= 0 address 0xFFFF)]}
+  (let [[index [from & _]] (lookup-backend-index memory address)
+        backend-relative-address (- address from)]
+    (update-in cpu [:memory index 2] assoc backend-relative-address val)))
 
 (defn new-cpu [rom]
-  {:registers          {:AF 0
-                        :BC 0
-                        :DE 0
-                        :HL 0
-                        :SP 0
-                        :PC 0}
-   :interrupt-enabled? true
-   :memory             [[0 0x7FFF rom]]})
+  (let [wram-1 (vec (take 0x1000 (repeat 0)))]
+    {:registers          {:AF 0
+                          :BC 0
+                          :DE 0
+                          :HL 0
+                          :SP 0
+                          :PC 0}
+     :interrupt-enabled? true
+     :memory             [[0x0000 0x7FFF rom]
+                          [0xD000 0xDFFF wram-1]]}))
 
 (defn def-register [register]
   (fn
@@ -59,17 +73,17 @@
 (def bc (def-register :BC))
 (def de (def-register :DE))
 (def hl (def-register :HL))
-
 (defn a ([cpu] (high-word (af cpu))))
 
 (defn dword
   ([{:keys [memory] :as cpu}]
    (cat8 (word-at memory (+ 2 (pc cpu)))
          (word-at memory (+ 1 (pc cpu)))))
-  ([{:keys [memory] :as cpu} val]
-   (word-at memory (dword cpu) val)))
-
+  ([cpu val]
+   (set-word-at cpu (dword cpu) val)))
+;; synonyms to make the code more friendly
 (def address dword)
+(def memory-pointer dword)
 
 (def always (constantly true))
 
@@ -88,7 +102,7 @@
    0xC0 [:ret-cond :nz address [20 8] #(str "ret nz " (hex-dword %))]
    0xC2 [:jp :nz address [16 12] #(str "jp nz " (hex-dword %))]
    0xC3 [:jp always address 8 #(str "jp " (hex-dword %))]
-   0xEA [:ld16 address a 16 #(str "ld [" (hex-dword %) "],A")]
+   0xEA [:ld16 memory-pointer a 16 #(str "ld [" (hex-dword %) "],A")]
    0xF3 [:di 4 (constantly "di")]
    0xFB [:ei 4 (constantly "ei")]})
 

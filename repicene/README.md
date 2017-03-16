@@ -1,14 +1,13 @@
 # repicene
 
-A Clojure library designed to ... well, that part is up to you.
+You like GameBoy ? Me too :)
 
-## Usage
+## Development
 
-FIXME
+### Configure the REPL
 
-## License
+Printing the CPU generates a lot of output. This will limit the output to 10 elements in the output. 
 
-Copyright © 2017 FIXME
+    (set! *print-length* 10)
 
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+
