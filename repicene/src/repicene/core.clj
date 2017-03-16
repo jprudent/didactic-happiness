@@ -12,12 +12,27 @@
   {:pre [(<= 0 x 255) (<= 0 y 255)]}
   (bit-or (bit-shift-left x 8) y))
 
-(defn word-at [memory address]
-  (some (fn [[from to backend]]
+(defn high-word
+  "returns the high word composing the unsigned dword"
+  [dword]
+  {:pre [(<= 0 dword 0xFFFF)]}
+  (bit-shift-right dword 8))
+
+(defn lookup-backend [memory address]
+  (some (fn [[from to _ :as backend]]
           (when (<= from address to)
-            (let [backend-relative-address (- address from)]
-              (get backend backend-relative-address))))
+            backend))
         memory))
+
+(defn word-at
+  ([memory address]
+   (when-let [[from _ backend] (lookup-backend memory address)]
+     (let [backend-relative-address (- address from)]
+       (get backend backend-relative-address))))
+  ([memory address val]
+   (when-let [[from _ backend] (lookup-backend memory address)]
+     (let [backend-relative-address (- address from)]
+       (assoc backend backend-relative-address val)))))
 
 (defn new-cpu [rom]
   {:registers          {:AF 0
@@ -31,7 +46,8 @@
 
 (defn def-register [register]
   (fn
-    ([cpu] (get-in cpu [:registers register]))
+    ([cpu]
+     (get-in cpu [:registers register]))
     ([cpu modifier]
      (if (fn? modifier)
        (update-in cpu [:registers register] modifier)
@@ -39,13 +55,21 @@
 
 (def pc (def-register :PC))
 (def sp (def-register :SP))
+(def af (def-register :AF))
 (def bc (def-register :BC))
 (def de (def-register :DE))
 (def hl (def-register :HL))
 
-(defn dword [{:keys [memory] :as cpu}]
-  (cat8 (word-at memory (+ 2 (pc cpu)))
-        (word-at memory (+ 1 (pc cpu)))))
+(defn a ([cpu] (high-word (af cpu))))
+
+(defn dword
+  ([{:keys [memory] :as cpu}]
+   (cat8 (word-at memory (+ 2 (pc cpu)))
+         (word-at memory (+ 1 (pc cpu)))))
+  ([{:keys [memory] :as cpu} val]
+   (word-at memory (dword cpu) val)))
+
+(def address dword)
 
 (def always (constantly true))
 
@@ -59,12 +83,12 @@
   {0x00 [:nop 4 (constantly "nop")]
    0x01 [:ld16 bc dword 12 #(str "ld bc," (hex-dword %))]
    0x11 [:ld16 de dword 12 #(str "ld de," (hex-dword %))]
-   0x01 [:ld16 hl dword 12 #(str "ld hl," (hex-dword %))]
+   0x21 [:ld16 hl dword 12 #(str "ld hl," (hex-dword %))]
    0x31 [:ld16 sp dword 12 #(str "ld sp," (hex-dword %))]
-   0xC0 [:ret-cond :nz dword [20 8] #(str "ret nz " (hex-dword %))]
-   0xC2 [:jp :nz dword [16 12] #(str "jp nz " (hex-dword %))]
-   0xC3 [:jp always dword 8 #(str "jp " (hex-dword %))]
-   ;;0xEA [:ld8 dword a 16 #(str "ld [" (hex-dword %) "],A")]
+   0xC0 [:ret-cond :nz address [20 8] #(str "ret nz " (hex-dword %))]
+   0xC2 [:jp :nz address [16 12] #(str "jp nz " (hex-dword %))]
+   0xC3 [:jp always address 8 #(str "jp " (hex-dword %))]
+   0xEA [:ld16 address a 16 #(str "ld [" (hex-dword %) "],A")]
    0xF3 [:di 4 (constantly "di")]
    0xFB [:ei 4 (constantly "ei")]})
 
