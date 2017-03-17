@@ -1,6 +1,6 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
-            [clojure.core.async :as async :refer [chan poll! <!! thread]]))
+            [clojure.core.async :as async :refer [go >! chan poll! <!! thread]]))
 
 ;; a word is an 8 bits positive integer
 ;; a dword is a 16 bits positive integer
@@ -58,7 +58,7 @@
      :interrupt-enabled? true
      :memory             [[0x0000 0x7FFF rom]
                           [0xD000 0xDFFF wram-1]]
-     :debug-client       (chan)
+     :debug-chan         (chan)
      :x-breakpoints      []}))
 
 (defn def-register [register]
@@ -128,20 +128,54 @@
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))
 
-(defn process-breakpoint [{:keys [debug-client] :as cpu}]
-  (println "bp !!!" (<!! debug-client))
-  cpu)
+(defn ->response [command response]
+  {:command command :response response})
+
+(defmulti handle-debug-command
+          (fn [command]
+            (if (sequential? command)
+              (first command)
+              command)))
+
+(defmethod handle-debug-command :inspect
+  [_]
+  [identity identity])
+
+(defmethod handle-debug-command :alter
+  [[_ f-cpu]]
+  (let [f (eval f-cpu)]
+    [f f]))
+
+(defmethod handle-debug-command :default
+  [_]
+  [identity (constantly "J'aime faire des craquettes au chien")])
+
+(defn process-debug-command
+  [{:keys [debug-chan] :as cpu} command]
+  (let [[new-cpu response] ((apply juxt (handle-debug-command command)) cpu)]
+    (go (>! debug-chan (->response command response)))
+    new-cpu))
+
+(defn process-breakpoint [{:keys [debug-chan] :as cpu}]
+  (loop [cpu     cpu
+         command (<!! debug-chan)]
+    (if (= :resume command)
+      cpu
+      (recur (process-debug-command cpu command)
+             (<!! debug-chan)))))
 
 (defn cpu-cycle [cpu]
   (let [instr (get decoder (fetch cpu))]
     (println (str "@" (hex16 (pc cpu))) ((last instr) cpu))
     (exec cpu instr)))
 
-(defn cpu-loop [cpu]
-  (recur
-    (cond-> cpu
-            (x-bp? cpu) (process-breakpoint)
-            :always (cpu-cycle))))
+(defn cpu-loop [{:keys [debug-chan] :as cpu}]
+  (let [command (poll! debug-chan)]
+    (recur
+      (cond-> cpu
+              command (process-debug-command command)
+              (x-bp? cpu) (process-breakpoint)
+              :always (cpu-cycle)))))
 
 #_(def cpu
     (->
@@ -151,11 +185,11 @@
 
 ;; POC BREAKPOINT
 #_(do
-  (def cpu
-    (->
-      (load-rom "roms/cpu_instrs/cpu_instrs.gb")
-      (new-cpu)
-      (assoc-in [:registers :PC] 0x100)
-      (update-in [:x-breakpoints] conj 0x637)))
-  (thread (cpu-loop cpu))
-  (async/>!! (:debug-client cpu) "yolo"))
+    (def cpu
+      (->
+        (load-rom "roms/cpu_instrs/cpu_instrs.gb")
+        (new-cpu)
+        (assoc-in [:registers :PC] 0x100)
+        (update-in [:x-breakpoints] conj 0x637)))
+    (thread (cpu-loop cpu))
+    (async/>!! (:debug-chan cpu) "yolo"))
