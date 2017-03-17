@@ -1,5 +1,6 @@
 (ns repicene.core
-  (:require [repicene.file-loader :refer [load-rom]]))
+  (:require [repicene.file-loader :refer [load-rom]]
+            [clojure.core.async :as async :refer [chan poll! <!! thread]]))
 
 ;; a word is an 8 bits positive integer
 ;; a dword is a 16 bits positive integer
@@ -56,7 +57,9 @@
                           :PC 0}
      :interrupt-enabled? true
      :memory             [[0x0000 0x7FFF rom]
-                          [0xD000 0xDFFF wram-1]]}))
+                          [0xD000 0xDFFF wram-1]]
+     :debug-client       (chan)
+     :x-breakpoints      []}))
 
 (defn def-register [register]
   (fn
@@ -122,13 +125,37 @@
   (-> (destination cpu (source cpu))
       (pc (partial + 3))))
 
-(defn cpu-loop [cpu]
+(defn x-bp? [{:keys [x-breakpoints] :as cpu}]
+  (some (partial = (pc cpu)) x-breakpoints))
+
+(defn process-breakpoint [{:keys [debug-client] :as cpu}]
+  (println "bp !!!" (<!! debug-client))
+  cpu)
+
+(defn cpu-cycle [cpu]
   (let [instr (get decoder (fetch cpu))]
     (println (str "@" (hex16 (pc cpu))) ((last instr) cpu))
-    (recur (exec cpu instr))))
+    (exec cpu instr)))
+
+(defn cpu-loop [cpu]
+  (recur
+    (cond-> cpu
+            (x-bp? cpu) (process-breakpoint)
+            :always (cpu-cycle))))
 
 #_(def cpu
     (->
       (load-rom "roms/cpu_instrs/cpu_instrs.gb")
       (new-cpu)
       (assoc-in [:registers :PC] 0x100)))
+
+;; POC BREAKPOINT
+#_(do
+  (def cpu
+    (->
+      (load-rom "roms/cpu_instrs/cpu_instrs.gb")
+      (new-cpu)
+      (assoc-in [:registers :PC] 0x100)
+      (update-in [:x-breakpoints] conj 0x637)))
+  (thread (cpu-loop cpu))
+  (async/>!! (:debug-client cpu) "yolo"))
