@@ -1,6 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
-            [clojure.core.async :as async :refer [go >! chan poll! <!! thread]]))
+            [repicene.debug :refer [process-debug-command process-breakpoint]]
+            [clojure.core.async :refer [go >! chan poll! <!! thread]]))
 
 ;; a word is an 8 bits positive integer
 ;; a dword is a 16 bits positive integer
@@ -127,42 +128,6 @@
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))
-
-(defn ->response [command response]
-  {:command command :response response})
-
-(defmulti handle-debug-command
-          (fn [command]
-            (if (sequential? command)
-              (first command)
-              command)))
-
-(defmethod handle-debug-command :inspect
-  [_]
-  [identity identity])
-
-(defmethod handle-debug-command :alter
-  [[_ f-cpu]]
-  (let [f (eval f-cpu)]
-    [f f]))
-
-(defmethod handle-debug-command :default
-  [_]
-  [identity (constantly "J'aime faire des craquettes au chien")])
-
-(defn process-debug-command
-  [{:keys [debug-chan] :as cpu} command]
-  (let [[new-cpu response] ((apply juxt (handle-debug-command command)) cpu)]
-    (go (>! debug-chan (->response command response)))
-    new-cpu))
-
-(defn process-breakpoint [{:keys [debug-chan] :as cpu}]
-  (loop [cpu     cpu
-         command (<!! debug-chan)]
-    (if (= :resume command)
-      cpu
-      (recur (process-debug-command cpu command)
-             (<!! debug-chan)))))
 
 (defn cpu-cycle [cpu]
   (let [instr (get decoder (fetch cpu))]
