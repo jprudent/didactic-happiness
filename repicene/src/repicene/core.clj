@@ -142,6 +142,13 @@
               (x-bp? cpu) (process-breakpoint)
               :always (cpu-cycle)))))
 
+(defn demo-gameboy []
+  (->
+    (load-rom "roms/cpu_instrs/cpu_instrs.gb")
+    (new-cpu)
+    (assoc-in [:registers :PC] 0x100)
+    (update-in [:x-breakpoints] conj 0x637)))
+
 #_(def cpu
     (->
       (load-rom "roms/cpu_instrs/cpu_instrs.gb")
