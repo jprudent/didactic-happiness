@@ -3,11 +3,22 @@
 
 (enable-console-print!)
 
-(println "This text is printed from src/repicene-debugger/core.cljs. Go ahead and edit it and see reloading in action.")
+(println "This is printed from src/repicene-debugger/core.cljs. Go ahead and edit it and see reloading in action.")
 
 ;; define your app data so that it doesn't get over-written on reload
 
-(defonce app-state (atom {:text "Hello world!"}))
+(defn make-ws []
+  (let [ws (js/WebSocket. "ws://localhost:2020/ws/debug")]
+    (set! (.-onmessage ws) println)))
+
+(defonce app-state (atom {:ws (make-ws)}))
+
+(defn send! [ws]
+  (.send ws ":foo"))
+
+(send! (:ws app-state))
+
+(println "foooo")
 
 (defn hello-world []
   [:h1 (:text @app-state)])
