@@ -19,6 +19,10 @@
   (let [f (eval f-cpu)]
     [f f]))
 
+(defmethod handle-debug-command :kill
+  [_]
+  (throw (Exception. "Harakiri")))
+
 (defmethod handle-debug-command :default
   [_]
   [identity (constantly "J'aime faire des craquettes au chien")])
