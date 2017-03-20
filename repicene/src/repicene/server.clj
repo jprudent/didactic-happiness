@@ -22,7 +22,7 @@
 
 (defn command-received [{:keys [debug-chan]}]
   (fn [message]
-    (println "received " message)
+    (println "received" message)
     (let [command (edn/read-string message)]
       (go (>! debug-chan command)))))
 
