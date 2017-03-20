@@ -24,6 +24,7 @@
   (fn [message]
     (println "received" message)
     (let [command (edn/read-string message)]
+      (println "received" command)
       (go (>! debug-chan command)))))
 
 

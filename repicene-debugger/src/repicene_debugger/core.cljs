@@ -1,7 +1,8 @@
 (ns repicene-debugger.core
   (:require [reagent.core :as reagent :refer [atom]]
             [cljs.core.async :refer [>! <! chan timeout]]
-            [cljs.tools.reader.edn :as edn])
+            [cljs.tools.reader.edn :as edn]
+            [repicene-debugger.ui :as ui])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 (enable-console-print!)
@@ -29,10 +30,8 @@
 
 (defn hello-world []
   [:div
-   "coucou"
-   [:h1 "hello"]
    [:a {:href "#" :on-click #(go (>! (:ws-tx @app-state) ":inspect"))} "Send"]
-   [:p (prn-str (:gameboy @app-state))]])
+   [:div (ui/registers (:gameboy @app-state))]])
 
 (reagent/render-component [hello-world]
                           (. js/document (getElementById "app")))

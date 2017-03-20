@@ -13,7 +13,6 @@
   [x y]
   {:pre [(<= 0 x 255) (<= 0 y 255)]}
   (bit-or (bit-shift-left x 8) y))
-
 (defn high-word
   "returns the high word composing the unsigned dword"
   [dword]
