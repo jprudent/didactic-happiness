@@ -9,19 +9,23 @@
 
 (println "This is from src/repicene-debugger/core.cljs. Go ahead and edit it and see reloading in action.")
 
-(defn make-ws []
-  (let [ws      (js/WebSocket. "ws://localhost:2020/ws/debug")
+(defn make-ws
+  "Open a websocket to specified address. Returns a vector of two async chans
+  that are plugged on the websocket.
+  The first one for rx (read), the second one for tx (write)"
+  []
+  (let [ws (js/WebSocket. "ws://localhost:2020/ws/debug")
         [ws-rx ws-tx :as chans] [(chan) (chan)]]
-    (set! (.-onmessage ws) #(do (println "received" (.-data %)) (go (>! ws-rx (.-data %)))))
+    (set! (.-onmessage ws) #(do (println "received" (.-data %))
+                                (go (>! ws-rx (edn/read-string (.-data %))))))
     (set! (.-onopen ws) #(println "connected." %))
     (set! (.-onerror ws) #(println "connection failed." %))
     (go-loop []
              (let [message (<! ws-tx)]
                (println "sending" message)
-               (.send ws message))
+               (.send ws (prn-str message)))
              (recur))
-    chans
-    ))
+    chans))
 
 (def app-state
   (let [[ws-rx ws-tx] (make-ws)]
@@ -30,23 +34,40 @@
 
 (defn hello-world []
   [:div
-   [:a {:href "#" :on-click #(go (>! (:ws-tx @app-state) ":inspect"))} "Send"]
-   [:div (ui/registers (:gameboy @app-state))]])
+   [:a {:href     "#"
+        :on-click #(go (>! (:ws-tx @app-state) :inspect)
+                       (>! (:ws-tx @app-state) [:decode-memory (or (get-in (:gameboy @app-state) [:registers :PC]) 0x100) 10])
+                       )}
+    "Send"]
+   [:div
+    (ui/registers (:gameboy @app-state))
+    (ui/instructions (:instructions @app-state))]])
 
 (reagent/render-component [hello-world]
                           (. js/document (getElementById "app")))
 
 
+(defmulti response-handler
+          (fn [{:keys [command]}]
+            (if (sequential? command)
+              (first command)
+              command)))
+
+(defmethod response-handler :inspect
+  [{:keys [response]}]
+  (swap! app-state assoc :gameboy response))
+
+(defmethod response-handler :decode-memory
+  [{:keys [response]}]
+  (swap! app-state assoc :instructions response))
+
+(defmethod response-handler :default
+  [{:keys [command response]}]
+  (println "Error! Unhandled response" response "for command" command))
+
 (go-loop []
-         (let [gameboy (<! (:ws-rx @app-state))
-               _ (println "gameboy 0" gameboy)
-               gameboy (edn/read-string gameboy)
-               _ (println "gameboy 1" gameboy)
-               gameboy (:response gameboy)
-               _ (println "gameboy 2" gameboy)]
-           (println "gameboy" gameboy)
-           (swap! app-state assoc :gameboy gameboy)
-           (recur)))
+         (response-handler (<! (:ws-rx @app-state)))
+         (recur))
 
 (defn on-js-reload []
   ;; optionally touch your app-state to force rerendering depending on

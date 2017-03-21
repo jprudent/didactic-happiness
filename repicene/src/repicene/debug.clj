@@ -1,5 +1,6 @@
 (ns repicene.debug
-  (:require [clojure.core.async :refer [go >! <!!]]))
+  (:require [clojure.core.async :refer [go >! <!!]]
+            [repicene.decoder :refer [decoder word-at dword? pc]]))
 
 (defn- ->response [command response]
   {:command command :response response})
@@ -20,6 +21,24 @@
 (defmethod handle-debug-command :inspect
   [_]
   [identity debug-view])
+
+(defn decode [{:keys [memory] :as cpu} address]
+  (let [instruction (or (decoder (word-at memory address)) [1 (constantly "???")])
+        to-string   (last instruction)
+        size        (last (butlast instruction))]
+    [(to-string cpu) size]))
+
+(defn decode-from [{:keys [memory] :as cpu} address]
+  {:pre [(dword? address)]}
+  (lazy-seq
+    (let [cpu (pc cpu address)
+          [instr-str size] (decode cpu address)]
+      (cons [address (map #(word-at memory (+ % (pc cpu))) (range 0 size)) instr-str] (decode-from cpu (mod (+ size address) 0x10000))))))
+
+(defmethod handle-debug-command :decode-memory
+  [[_ address-start length]]
+  {:pre [(dword? address-start)]}
+  [identity (fn [cpu] (take length (decode-from cpu address-start)))])
 
 (defmethod handle-debug-command :alter
   [[_ f-cpu]]
