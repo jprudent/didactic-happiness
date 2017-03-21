@@ -4,28 +4,28 @@
             [clojure.edn :as edn]
             [clojure.core.async :refer [go go-loop >! <! thread]]))
 
-(defn connect! [ws-channel {:keys [debug-chan] :as gameboy}]
+(defn connect! [ws-channel {:keys [debug-chan-tx] :as gameboy}]
   (println "client connected")
   (thread (try (cpu-loop gameboy)
                (catch Exception _ (do
                                     (http-kit/send! ws-channel "Gameboy crashed")
                                     (http-kit/close ws-channel)))))
   (go-loop []
-    (let [response (prn-str (<! debug-chan))]
+    (let [response (prn-str (<! debug-chan-tx))]
       (http-kit/send! ws-channel response)
       (recur))))
 
-(defn disconnect! [{:keys [debug-chan]}]
+(defn disconnect! [{:keys [debug-chan-tx]}]
   (fn [status]
-    (go (>! debug-chan :kill))
+    (go (>! debug-chan-tx :kill))
     (println "client disconnected with status " status)))
 
-(defn command-received [{:keys [debug-chan]}]
+(defn command-received [{:keys [debug-chan-rx]}]
   (fn [message]
-    (println "received" message)
+    (println "command-received (ws)" message)
     (let [command (edn/read-string message)]
-      (println "received" command)
-      (go (>! debug-chan command)))))
+      (println "command-received (edn)" command)
+      (go (>! debug-chan-rx command)))))
 
 
 (defn debug-handler [{:keys [uri] :as request}]

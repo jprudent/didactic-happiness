@@ -12,7 +12,8 @@
 (defn make-ws
   "Open a websocket to specified address. Returns a vector of two async chans
   that are plugged on the websocket.
-  The first one for rx (read), the second one for tx (write)"
+  The first one for rx (read) from socket,
+  the second one for tx (write) to socket"
   []
   (let [ws (js/WebSocket. "ws://localhost:2020/ws/debug")
         [ws-rx ws-tx :as chans] [(chan) (chan)]]
@@ -41,7 +42,10 @@
     "Send"]
    [:div.debugger
     (ui/registers (:gameboy @app-state))
-    (ui/instructions (:instructions @app-state) (get-in @app-state [:gameboy :registers :PC]))]])
+    (ui/instructions (:instructions @app-state) (get-in @app-state [:gameboy :registers :PC]))
+    [:div
+     (into ui/empty-button [{:on-click (fn [] (println "clicked") (go (>! (:ws-tx @app-state) :resume)))} "Resume"])
+     (into ui/empty-button [{:on-click (fn [] (go (>! (:ws-tx @app-state) :step-over) (>! (:ws-tx @app-state) :inspect)))} "Step over"])]]])
 
 (reagent/render-component [hello-world]
                           (. js/document (getElementById "app")))

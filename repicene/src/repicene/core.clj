@@ -1,6 +1,6 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
-            [repicene.debug :as debug :refer [process-debug-command process-breakpoint]]
+            [repicene.debug :refer [process-debug-command]]
             [repicene.decoder :refer [pc fetch hex16 decoder]]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]))
 
@@ -18,7 +18,8 @@
      :interrupt-enabled? true
      :memory             [[0x0000 0x7FFF rom]
                           [0xD000 0xDFFF wram-1]]
-     :debug-chan         (chan)
+     :debug-chan-rx      (chan)
+     :debug-chan-tx      (chan)
      :x-breakpoints      []}))
 
 (defmulti exec (fn [_ [instr & _]] instr))
@@ -45,8 +46,19 @@
     (println (str "@" (hex16 (pc cpu))) ((last instr) cpu))
     (exec cpu instr)))
 
-(defn cpu-loop [{:keys [debug-chan] :as cpu}]
-  (let [command (poll! debug-chan)]
+(defn process-breakpoint [{:keys [debug-chan-rx] :as cpu}]
+  (println "breakpoint at " (pc cpu))
+  (loop [cpu     cpu
+         command (<!! debug-chan-rx)]
+    (println "while waiting for resume, i received" command)
+    (cond
+      (= :resume command) cpu
+      (= :step-over command) (recur (cpu-cycle cpu) (<!! debug-chan-rx))
+      :default (recur (process-debug-command cpu command)
+                      (<!! debug-chan-rx)))))
+
+(defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
+  (let [command (poll! debug-chan-rx)]
     (recur
       (cond-> cpu
               command (process-debug-command command)
@@ -75,4 +87,4 @@
         (assoc-in [:registers :PC] 0x100)
         (update-in [:x-breakpoints] conj 0x637)))
     (thread (cpu-loop cpu))
-    (async/>!! (:debug-chan cpu) "yolo"))
+    (async/>!! (debug-chan-tx cpu) "yolo"))

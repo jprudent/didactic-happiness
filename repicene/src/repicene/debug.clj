@@ -54,18 +54,10 @@
   [identity (constantly "J'aime faire des craquettes au chien")])
 
 (defn process-debug-command
-  [{:keys [debug-chan] :as cpu} command]
+  [{:keys [debug-chan-tx] :as cpu} command]
   (let [[new-cpu response] ((apply juxt (handle-debug-command command)) cpu)
         tx-response (->response command response)]
     (println "sending" tx-response)
-    (go (>! debug-chan tx-response))
+    (go (>! debug-chan-tx tx-response))
     new-cpu))
 
-(defn process-breakpoint [{:keys [debug-chan] :as cpu}]
-  (loop [cpu     cpu
-         command (<!! debug-chan)]
-    (println "while waiting for resume, i received" command)
-    (if (= :resume command)
-      cpu
-      (recur (process-debug-command cpu command)
-             (<!! debug-chan)))))

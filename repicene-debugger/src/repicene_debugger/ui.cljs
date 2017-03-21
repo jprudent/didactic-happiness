@@ -50,6 +50,8 @@
 (defn window-title [title]
   [:h1.debugger-windowTitle title])
 
+(def empty-button [:div.debugger-button])
+
 (defn registers
   "returns the UI component that display the registers"
   [{:keys [registers]}]
