@@ -27,7 +27,7 @@
              (recur))
     chans))
 
-(def app-state
+(defonce app-state
   (let [[ws-rx ws-tx] (make-ws)]
     (atom {:ws-rx ws-rx
            :ws-tx ws-tx})))
@@ -39,9 +39,9 @@
                        (>! (:ws-tx @app-state) [:decode-memory (or (get-in (:gameboy @app-state) [:registers :PC]) 0x100) 10])
                        )}
     "Send"]
-   [:div
+   [:div.debugger
     (ui/registers (:gameboy @app-state))
-    (ui/instructions (:instructions @app-state))]])
+    (ui/instructions (:instructions @app-state) (get-in @app-state [:gameboy :registers :PC]))]])
 
 (reagent/render-component [hello-world]
                           (. js/document (getElementById "app")))

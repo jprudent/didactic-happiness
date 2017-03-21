@@ -1,2 +1,85 @@
-/* some style */
+@font-face {
+    font-family: retro;
+    src: url(thin_pixel-7.ttf);
+}
 
+body {
+    background-color: darkolivegreen;
+}
+
+.debugger {
+    width: 50em;
+    display: flex;
+    justify-content: space-evenly;
+}
+
+.debugger-instructions {
+    width: 25em;
+    padding: 0.4em;
+    border-radius: 0.4em;
+    border: 2px solid #000;
+    background-color: darkslategrey;
+}
+
+.debugger-registers {
+    width: 15em;
+    padding: 0.4em;
+    border-radius: 0.4em;
+    border: 2px solid #000;
+    background-color: darkslategrey;
+}
+
+.debugger-instructions:first-child,
+.debugger-instructions:last-child {
+    border-radius: 0.4em;
+}
+
+.debugger-instructionLine {
+    /*font-family: retro, serif;*/
+    font-size: 1em;
+    background-color: #000;
+    color: lime;
+    display: flex;
+}
+
+.debugger-instructionLine__atPc {
+    background-color: aqua;
+    color: #000;
+}
+
+.debugger-address {
+    margin-right: 1em;
+    width: 3em;
+}
+
+.debugger-hexabytes {
+    margin-right: 1em;
+    width: 5em;
+}
+
+.debugger-asm {
+}
+
+.debugger-register {
+    font-size: 1em;
+    background-color: #000;
+    color: lime;
+    display: flex;
+}
+
+.debugger-registerName {
+    margin-right: 1em;
+    width: 2em;
+}
+
+.debugger-registerValue {
+    width: 4em;
+}
+
+.debugger-windowTitle {
+    font-size: 1.2em;
+    text-align: center;
+    text-transform: uppercase;
+    margin: 0 0 0.1em 0;
+    text-shadow: 1px 1px 2px black;
+}
