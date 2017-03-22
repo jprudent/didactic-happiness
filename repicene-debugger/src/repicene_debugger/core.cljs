@@ -29,23 +29,35 @@
     chans))
 
 (defonce app-state
-  (let [[ws-rx ws-tx] (make-ws)]
-    (atom {:ws-rx ws-rx
-           :ws-tx ws-tx})))
+         (let [[ws-rx ws-tx] (make-ws)]
+           (atom {:ws-rx ws-rx
+                  :ws-tx ws-tx})))
+
+(defn pc []
+  (println "get pc")
+  (get-in @app-state [:gameboy :registers :PC]))
+
+(go-loop [last-pc nil pc (pc)]
+         (println "gogogo" pc last-pc)
+         (if (not= last-pc pc)
+           (>! (:ws-tx @app-state) [:decode-memory pc 10])
+           (<! (timeout 1000)))
+         (println "recur")
+         (recur pc (pc)))
+
+(defn do-step-over []
+  (go (>! (:ws-tx @app-state) :step-over)
+      (>! (:ws-tx @app-state) :inspect)))
 
 (defn hello-world []
   [:div
-   [:a {:href     "#"
-        :on-click #(go (>! (:ws-tx @app-state) :inspect)
-                       (>! (:ws-tx @app-state) [:decode-memory (or (get-in (:gameboy @app-state) [:registers :PC]) 0x100) 10])
-                       )}
-    "Send"]
+   [:a {:href "#" :on-click #(go (>! (:ws-tx @app-state) :inspect))} "Lien magique"]
    [:div.debugger
     (ui/registers (:gameboy @app-state))
-    (ui/instructions (:instructions @app-state) (get-in @app-state [:gameboy :registers :PC]))
+    (ui/instructions (:instructions @app-state) (pc))
     [:div
-     (into ui/empty-button [{:on-click (fn [] (println "clicked") (go (>! (:ws-tx @app-state) :resume)))} "Resume"])
-     (into ui/empty-button [{:on-click (fn [] (go (>! (:ws-tx @app-state) :step-over) (>! (:ws-tx @app-state) :inspect)))} "Step over"])]]])
+     (into ui/empty-button [{:on-click #(go (>! (:ws-tx @app-state) :resume))} "Resume"])
+     (into ui/empty-button [{:on-click do-step-over} "Step over"])]]])
 
 (reagent/render-component [hello-world]
                           (. js/document (getElementById "app")))
