@@ -84,6 +84,7 @@
    0x11 [:ld16 de dword 12 3 #(str "ld de," (hex-dword %))]
    0x21 [:ld16 hl dword 12 3 #(str "ld hl," (hex-dword %))]
    0x31 [:ld16 sp dword 12 3 #(str "ld sp," (hex-dword %))]
+   ;;0x3E [:ld a word 8 2 #(str "ld a," (hex-word %))]
    0xC0 [:ret-cond :nz address [20 8] 3 #(str "ret nz " (hex-dword %))]
    0xC2 [:jp :nz address [16 12] 3 #(str "jp nz " (hex-dword %))]
    0xC3 [:jp always address 8 3 #(str "jp " (hex-dword %))]

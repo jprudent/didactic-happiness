@@ -75,7 +75,7 @@
                  [:div {:class (bem "asm")} asm]]))
 
 (defn instructions
-  [instructions pc]
+  [{:keys [instructions]} pc]
   (when instructions
     [:div.debugger-instructions
      (window-title "Program")

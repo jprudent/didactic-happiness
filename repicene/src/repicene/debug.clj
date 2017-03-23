@@ -15,25 +15,30 @@
       (first command)
       command)))
 
-(defn- debug-view [gameboy]
-  (select-keys gameboy [:registers]))
-
-(defmethod handle-debug-command :inspect
-  [_]
-  [identity debug-view])
-
 (defn decode [{:keys [memory] :as cpu} address]
   (let [instruction (or (decoder (word-at memory address)) [1 (constantly "???")])
         to-string   (last instruction)
         size        (last (butlast instruction))]
     [(to-string cpu) size]))
 
-(defn decode-from [{:keys [memory] :as cpu} address]
-  {:pre [(dword? address)]}
-  (lazy-seq
-    (let [cpu (pc cpu address)
-          [instr-str size] (decode cpu address)]
-      (cons [address (map #(word-at memory (+ % (pc cpu))) (range 0 size)) instr-str] (decode-from cpu (mod (+ size address) 0x10000))))))
+(defn decode-from
+  ([cpu] (decode-from cpu (pc cpu)))
+  ([{:keys [memory] :as cpu} address]
+   {:pre [(dword? address)]}
+   (lazy-seq
+     (let [cpu     (pc cpu address)
+           [instr-str size] (decode cpu address)
+           bytes   (map #(word-at memory (+ % (pc cpu))) (range 0 size))
+           next-pc (mod (+ size address) 0x10000)]
+       (cons [address bytes instr-str]
+             (decode-from cpu next-pc))))))
+
+(defn- debug-view [gameboy]
+  (select-keys gameboy [:registers]))
+
+(defmethod handle-debug-command :inspect
+  [_]
+  [identity #(into (debug-view %) {:instructions (take 10 (decode-from %))})])
 
 (defmethod handle-debug-command :decode-memory
   [[_ address-start length]]
