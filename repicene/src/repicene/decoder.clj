@@ -77,12 +77,24 @@
 (def hl (def-dword-register :HL))
 
 (def a (def-word-register high-word af))
+(def f (def-word-register low-word af))
 (def b (def-word-register high-word bc))
 (def c (def-word-register low-word bc))
 (def d (def-word-register high-word de))
 (def e (def-word-register low-word de))
 (def h (def-word-register high-word hl))
 (def l (def-word-register low-word hl))
+
+(defn def-flag [pos]
+  (fn [cpu]
+    (zero? (bit-and pos (f cpu)))))
+
+(def z (def-flag 2r10000000))
+(def n (def-flag 2r01000000))
+(def h (def-flag 2r00100000))
+(def c (def-flag 2r00010000))
+(def nz (complement z))
+(def nc (complement c))
 
 (defn set-word-at [{:keys [memory] :as cpu} address val]
   {:pre [(dword? address) (word? val)]}
@@ -142,9 +154,13 @@
    0x31 [:ld sp dword 12 3 #(str "ld sp," (hex-dword %))]
    0x3E [:ld a word 8 2 #(str "ld a," (hex-word %))]
    0xC0 [:ret-cond :nz address [20 8] 3 #(str "ret nz " (hex-dword %))]
-   0xC2 [:jp :nz address [16 12] 3 #(str "jp nz " (hex-dword %))]
+   0xC2 [:jp nz address [16 12] 3 #(str "jp nz " (hex-dword %))]
    0xC3 [:jp always address 8 3 #(str "jp " (hex-dword %))]
+   0xC4 [:call nz address 24 3 #(str "call nz" (hex-dword %))]
+   0xCC [:call z address 24 3 #(str "call z" (hex-dword %))]
    0xCD [:call always address 24 3 #(str "call " (hex-dword %))]
+   0xD4 [:call nc address 24 3 #(str "call nc " (hex-dword %))]
+   0xDC [:call c address 24 3 #(str "call " (hex-dword %))]
    0xE0 [:ld <FF00+n> a 12 2 #(str "ldh [FF00+" (hex-word %) "],a")]
    0xEA [:ld <address> a 16 3 #(str "ld [" (hex-dword %) "],a")]
    0xF3 [:di 4 1 (constantly "di")]

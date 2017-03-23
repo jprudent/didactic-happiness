@@ -49,11 +49,10 @@
 
 (defmethod exec :call [cpu [_ cond address _ size]]
   (let [next-pc (+ size (pc cpu))
-        cpu (push cpu next-pc)
-        _ (println "pushed" (:registers cpu) (count (:memory cpu)))
-        cpu (pc cpu (address cpu))]
-    (println (:registers cpu))
-    cpu))
+        call? (cond cpu)]
+    (cond-> cpu
+            call? (push next-pc)
+            call? (pc (address cpu)))))
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))
