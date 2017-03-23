@@ -59,6 +59,7 @@
     ([cpu]
      (get-in cpu [:registers register]))
     ([cpu modifier]
+     {:pre [(not (nil? cpu)) (not (nil? (:memory cpu))) (or (fn? modifier) (dword? modifier))]}
      (if (fn? modifier)
        (update-in cpu [:registers register] modifier)
        (assoc-in cpu [:registers register] modifier)))))
@@ -85,12 +86,19 @@
 
 (defn set-word-at [{:keys [memory] :as cpu} address val]
   {:pre [(dword? address) (word? val)]}
+  (println "word-at " (hex16 address))
   (let [[index [from & _]] (lookup-backend-index memory address)
         backend-relative-address (- address from)]
     (update-in cpu [:memory index 2] assoc backend-relative-address val)))
 
-(defn dword
+(defn set-dword-at [{:keys [memory] :as cpu} address val]
+  {:pre [(dword? address) (dword? val)]}
+  (-> (set-word-at cpu address (low-word val))
+      (set-word-at (inc address) (high-word val))))
+
+  (defn dword
   ([{:keys [memory] :as cpu}]
+   {:pre [(not (nil? cpu)) (not (nil? memory))]}
    (cat8 (word-at memory (+ 2 (pc cpu)))
          (word-at memory (+ 1 (pc cpu)))))
   ([cpu val]
@@ -136,6 +144,7 @@
    0xC0 [:ret-cond :nz address [20 8] 3 #(str "ret nz " (hex-dword %))]
    0xC2 [:jp :nz address [16 12] 3 #(str "jp nz " (hex-dword %))]
    0xC3 [:jp always address 8 3 #(str "jp " (hex-dword %))]
+   0xCD [:call always address 24 3 #(str "call " (hex-dword %))]
    0xE0 [:ld <FF00+n> a 12 2 #(str "ldh [FF00+" (hex-word %) "],a")]
    0xEA [:ld <address> a 16 3 #(str "ld [" (hex-dword %) "],a")]
    0xF3 [:di 4 1 (constantly "di")]

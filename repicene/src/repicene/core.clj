@@ -1,7 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at sp]]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]))
 
 ;; a word is an 8 bits positive integer
@@ -9,8 +9,8 @@
 
 (defn new-cpu [rom]
   (let [wram-1 (vec (take 0x1000 (repeat 0)))
-        io (vec (take 0x80 (repeat 0)))
-        hram (vec (take 0x80 (repeat 0)))]
+        io     (vec (take 0x80 (repeat 0)))
+        hram   (vec (take 0x80 (repeat 0)))]
     {:registers          {:AF 0
                           :BC 0
                           :DE 0
@@ -41,6 +41,19 @@
 (defmethod exec :ld [cpu [_ destination source _ size]]
   (-> (destination cpu (source cpu))
       (pc (partial + size))))
+
+(defn dec-sp [cpu] (sp cpu (- (sp cpu) 2)))
+(defn push [cpu next-pc]
+  (let [cpu (dec-sp cpu)]
+    (set-dword-at cpu (sp cpu) next-pc)))                                       ;; beware : the address should be the decremented sp
+
+(defmethod exec :call [cpu [_ cond address _ size]]
+  (let [next-pc (+ size (pc cpu))
+        cpu (push cpu next-pc)
+        _ (println "pushed" (:registers cpu) (count (:memory cpu)))
+        cpu (pc cpu (address cpu))]
+    (println (:registers cpu))
+    cpu))
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))
@@ -74,7 +87,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (assoc-in [:registers :PC] 0x100)
-    (update-in [:x-breakpoints] conj 0x437)))
+    (update-in [:x-breakpoints] conj 0x456)))
 
 #_(def cpu
     (->
