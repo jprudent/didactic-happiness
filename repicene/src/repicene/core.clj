@@ -34,9 +34,9 @@
 (defmethod exec :ei [cpu _]
   (-> (assoc cpu :interrupt-enabled? true)
       (pc inc)))
-(defmethod exec :ld16 [cpu [_ destination source]]
+(defmethod exec :ld [cpu [_ destination source _ size]]
   (-> (destination cpu (source cpu))
-      (pc (partial + 3))))
+      (pc (partial + size))))
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))
@@ -70,7 +70,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (assoc-in [:registers :PC] 0x100)
-    (update-in [:x-breakpoints] conj 0x637)))
+    (update-in [:x-breakpoints] conj 0x437)))
 
 #_(def cpu
     (->
