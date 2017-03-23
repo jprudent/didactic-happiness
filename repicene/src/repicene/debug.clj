@@ -62,7 +62,6 @@
   [{:keys [debug-chan-tx] :as cpu} command]
   (let [[new-cpu response] ((apply juxt (handle-debug-command command)) cpu)
         tx-response (->response command response)]
-    (println "sending" tx-response)
     (go (>! debug-chan-tx tx-response))
     new-cpu))
 

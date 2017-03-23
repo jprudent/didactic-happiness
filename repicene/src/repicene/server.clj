@@ -7,9 +7,10 @@
 (defn connect! [ws-channel {:keys [debug-chan-tx] :as gameboy}]
   (println "client connected")
   (thread (try (cpu-loop gameboy)
-               (catch Exception _ (do
+               (catch Exception e (do
                                     (http-kit/send! ws-channel "Gameboy crashed")
-                                    (http-kit/close ws-channel)))))
+                                    (http-kit/close ws-channel)
+                                    (throw e)))))
   (go-loop []
     (let [response (prn-str (<! debug-chan-tx))]
       (http-kit/send! ws-channel response)
@@ -22,14 +23,11 @@
 
 (defn command-received [{:keys [debug-chan-rx]}]
   (fn [message]
-    (println "command-received (ws)" message)
     (let [command (edn/read-string message)]
-      (println "command-received (edn)" command)
       (go (>! debug-chan-rx command)))))
 
 
 (defn debug-handler [{:keys [uri] :as request}]
-  (println uri)
   (when (clojure.string/starts-with? uri "/ws/debug")
     (let [gameboy (demo-gameboy)]
       ;; what if there is an exception?

@@ -8,7 +8,9 @@
 ;; a dword is a 16 bits positive integer
 
 (defn new-cpu [rom]
-  (let [wram-1 (vec (take 0x1000 (repeat 0)))]
+  (let [wram-1 (vec (take 0x1000 (repeat 0)))
+        io (vec (take 0x80 (repeat 0)))
+        hram (vec (take 0x80 (repeat 0)))]
     {:registers          {:AF 0
                           :BC 0
                           :DE 0
@@ -17,7 +19,9 @@
                           :PC 0}
      :interrupt-enabled? true
      :memory             [[0x0000 0x7FFF rom]
-                          [0xD000 0xDFFF wram-1]]
+                          [0xD000 0xDFFF wram-1]
+                          [0xFF00 0xFF7F io]
+                          [0xFF80 0xFFFF hram]]
      :debug-chan-rx      (chan)
      :debug-chan-tx      (chan)
      :x-breakpoints      []}))

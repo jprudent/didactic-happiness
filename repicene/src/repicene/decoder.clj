@@ -84,7 +84,7 @@
 (def l (def-word-register low-word hl))
 
 (defn set-word-at [{:keys [memory] :as cpu} address val]
-  {:pre [(<= 0 address 0xFFFF)]}
+  {:pre [(dword? address) (word? val)]}
   (let [[index [from & _]] (lookup-backend-index memory address)
         backend-relative-address (- address from)]
     (update-in cpu [:memory index 2] assoc backend-relative-address val)))
@@ -98,11 +98,18 @@
 
 (defn word
   [{:keys [memory] :as cpu}]
-  (word-at memory (+ 1 (pc cpu))))
+  (word-at memory (inc (pc cpu))))
+
+(defn <FF00+n>
+  ([{:keys [memory] :as cpu}]
+   (word-at memory (+ 0xFF00 (word cpu))))
+  ([cpu val]
+   (set-word-at cpu (+ 0xFF00 (word cpu)) val)))
 
 ;; synonyms to make the code more friendly
+(def <address> dword)
 (def address dword)
-(def memory-pointer dword)
+
 
 (def always (constantly true))
 
@@ -129,6 +136,8 @@
    0xC0 [:ret-cond :nz address [20 8] 3 #(str "ret nz " (hex-dword %))]
    0xC2 [:jp :nz address [16 12] 3 #(str "jp nz " (hex-dword %))]
    0xC3 [:jp always address 8 3 #(str "jp " (hex-dword %))]
-   0xEA [:ld memory-pointer a 16 3 #(str "ld [" (hex-dword %) "],A")]
+   0xE0 [:ld <FF00+n> a 12 2 #(str "ldh [FF00+" (hex-word %) "],a")]
+   0xEA [:ld <address> a 16 3 #(str "ld [" (hex-dword %) "],a")]
    0xF3 [:di 4 1 (constantly "di")]
-   0xFB [:ei 4 1 (constantly "ei")]})
+   0xFB [:ei 4 1 (constantly "ei")]
+   0xFE [:ld a <FF00+n> 12 2 #(str "ldh a,[FF00+" (hex-word %) "]")]})
