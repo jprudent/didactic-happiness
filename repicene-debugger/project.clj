@@ -11,7 +11,8 @@
                  [org.clojure/core.async "0.2.395"
                   :exclusions [org.clojure/tools.reader]]
                  [reagent "0.6.0"]
-                 [jarohen/chord "0.8.1"]]
+                 [jarohen/chord "0.8.1"]
+                 [repicene/repicene "0.1.0-SNAPSHOT"]]
 
   :plugins [[lein-figwheel "0.5.9"]
             [lein-cljsbuild "1.1.5" :exclusions [[org.clojure/clojure]]]]

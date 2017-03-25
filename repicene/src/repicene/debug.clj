@@ -1,6 +1,7 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!!]]
-            [repicene.decoder :refer [decoder word-at dword? pc]]))
+            [repicene.decoder :refer [decoder word-at pc]]
+            [repicene.schema :as s]))
 
 (defn- ->response [command response]
   {:command command :response response})
@@ -15,7 +16,7 @@
       (first command)
       command)))
 
-(defn decode [{:keys [memory] :as cpu} address]
+(defn decode [{:keys [::s/memory] :as cpu} address]
   (let [instruction (or (decoder (word-at memory address)) [1 (constantly "???")])
         to-string   (last instruction)
         size        (last (butlast instruction))]
@@ -23,8 +24,8 @@
 
 (defn decode-from
   ([cpu] (decode-from cpu (pc cpu)))
-  ([{:keys [memory] :as cpu} address]
-   {:pre [(dword? address)]}
+  ([{:keys [::s/memory] :as cpu} address]
+   {:pre [(s/address? address) (s/valid? cpu)]}
    (lazy-seq
      (let [cpu     (pc cpu address)
            [instr-str size] (decode cpu address)
@@ -34,7 +35,7 @@
              (decode-from cpu next-pc))))))
 
 (defn- debug-view [gameboy]
-  (select-keys gameboy [:registers]))
+  (select-keys gameboy [::s/registers]))
 
 (defmethod handle-debug-command :inspect
   [_]
@@ -42,7 +43,7 @@
 
 (defmethod handle-debug-command :decode-memory
   [[_ address-start length]]
-  {:pre [(dword? address-start)]}
+  {:pre [(s/address? address-start)]}
   [identity (fn [cpu] (take length (decode-from cpu address-start)))])
 
 (defmethod handle-debug-command :alter

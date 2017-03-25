@@ -2,7 +2,8 @@
   (:require [reagent.core :as reagent :refer [atom]]
             [cljs.core.async :refer [>! <! chan timeout]]
             [cljs.tools.reader.edn :as edn]
-            [repicene-debugger.ui :as ui])
+            [repicene-debugger.ui :as ui]
+            [repicene.schema :as s])
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 (enable-console-print!)
@@ -37,7 +38,7 @@
 
 (defn pc []
   (println "get pc")
-  (get-in @app-state [:gameboy :registers :PC]))
+  (get-in @app-state [:gameboy ::s/registers ::s/PC]))
 
 (defn do-step-over []
   (go (>! ws-tx :step-over)

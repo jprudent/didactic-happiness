@@ -10,4 +10,10 @@ Printing the CPU generates a lot of output. This will limit the output to 10 ele
 
     (set! *print-length* 10)
 
+## Clojure pitfalls
+
+Use `nth` rather than `get` for getting a value in a vector. The day your collection won't be a vector, `get` won't work.
+
+
+
 

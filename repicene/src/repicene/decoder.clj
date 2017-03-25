@@ -1,7 +1,5 @@
-(ns repicene.decoder)
-
-(defn dword? [x] (<= 0 x 0xFFFF))
-(defn word? [x] (<= 0 x 0xFF))
+(ns repicene.decoder
+  (:require [repicene.schema :as s :refer [dword? word?]]))
 
 (def hex8 (partial format "0x%02X"))
 (def hex16 (partial format "0x%04X"))
@@ -28,19 +26,22 @@
 
 (defn word-at
   ([memory address]
-   {:pre [(<= 0 address 0xFFFF)]}
-   (when-let [[from _ backend] (lookup-backend memory address)]
+   {:pre  [(dword? address) (s/memory? memory)]
+    :post [(word? %)]}
+   (let [[from _ backend] (lookup-backend memory address)]
      (let [backend-relative-address (- address from)]
-       (get backend backend-relative-address)))))
+       (nth backend backend-relative-address)))))
 
 (defn high-word
   "1 arg version : returns the high word composing the unsigned dword
   2 args version : set the high word of dword to val"
   ([dword]
-   {:pre [(<= 0 dword 0xFFFF)]}
+   {:pre  [(s/dword? dword)]
+    :post [(s/word? %)]}
    (bit-shift-right dword 8))
   ([dword val]
-   {:pre [(dword? dword) (word? val)]}
+   {:pre  [(s/dword? dword) (s/word? val)]
+    :post [(s/dword? %)]}
    (-> (bit-shift-left val 8)
        (bit-or dword))))
 
@@ -48,33 +49,39 @@
   "1 arg version : returns the low word composing the unsigned dword
   2 args version : set the low word of dword to val"
   ([dword]
-   {:pre [(<= 0 dword 0xFFFF)]}
+   {:pre [(s/dword? dword)]
+    :post [(s/word? %)]}
    (bit-and dword 0xFF))
   ([dword val]
-   {:pre [(dword? dword) (word? val)]}
+   {:pre [(s/dword? dword) (s/word? val)]
+    :post [(s/dword? %)]}
    (bit-or (bit-and dword 0xFF00) val)))
 
 (defn def-dword-register [register]
   (fn
     ([cpu]
-     (get-in cpu [:registers register]))
+     {:pre [(s/valid? cpu)]
+      :post [(s/dword? %)]}
+     (get-in cpu [::s/registers register]))
     ([cpu modifier]
-     {:pre [(not (nil? cpu)) (not (nil? (:memory cpu))) (or (fn? modifier) (dword? modifier))]}
+     {:pre [(s/valid? cpu) (or (fn? modifier) (s/dword? modifier))]
+      :post [(s/valid? %)]}
      (if (fn? modifier)
-       (update-in cpu [:registers register] modifier)
-       (assoc-in cpu [:registers register] modifier)))))
+       (update-in cpu [::s/registers register] modifier)
+       (assoc-in cpu [::s/registers register] modifier)))))
 
 (defn def-word-register [high-or-low dword-register]
   (fn
-    ([cpu] (high-or-low (dword-register cpu)))
+    ([cpu]
+     (high-or-low (dword-register cpu)))
     ([cpu val] (dword-register cpu (high-or-low (dword-register cpu) val)))))
 
-(def pc (def-dword-register :PC))
-(def sp (def-dword-register :SP))
-(def af (def-dword-register :AF))
-(def bc (def-dword-register :BC))
-(def de (def-dword-register :DE))
-(def hl (def-dword-register :HL))
+(def pc (def-dword-register ::s/PC))
+(def sp (def-dword-register ::s/SP))
+(def af (def-dword-register ::s/AF))
+(def bc (def-dword-register ::s/BC))
+(def de (def-dword-register ::s/DE))
+(def hl (def-dword-register ::s/HL))
 
 (def a (def-word-register high-word af))
 (def f (def-word-register low-word af))
@@ -89,27 +96,27 @@
   (fn [cpu]
     (zero? (bit-and pos (f cpu)))))
 
-(def z (def-flag 2r10000000))
-(def n (def-flag 2r01000000))
-(def h (def-flag 2r00100000))
-(def c (def-flag 2r00010000))
-(def nz (complement z))
-(def nc (complement c))
+(def z? (def-flag 2r10000000))
+(def n? (def-flag 2r01000000))
+(def h? (def-flag 2r00100000))
+(def c? (def-flag 2r00010000))
+(def nz? (complement z?))
+(def nc? (complement c?))
 
-(defn set-word-at [{:keys [memory] :as cpu} address val]
+(defn set-word-at [{:keys [::s/memory] :as cpu} address val]
   {:pre [(dword? address) (word? val)]}
   (println "word-at " (hex16 address))
   (let [[index [from & _]] (lookup-backend-index memory address)
         backend-relative-address (- address from)]
     (update-in cpu [:memory index 2] assoc backend-relative-address val)))
 
-(defn set-dword-at [{:keys [memory] :as cpu} address val]
+(defn set-dword-at [cpu address val]
   {:pre [(dword? address) (dword? val)]}
   (-> (set-word-at cpu address (low-word val))
       (set-word-at (inc address) (high-word val))))
 
 (defn dword
-  ([{:keys [memory] :as cpu}]
+  ([{:keys [::s/memory] :as cpu}]
    {:pre [(not (nil? cpu)) (not (nil? memory))]}
    (cat8 (word-at memory (+ 2 (pc cpu)))
          (word-at memory (+ 1 (pc cpu)))))
@@ -117,18 +124,18 @@
    (set-word-at cpu (dword cpu) val)))
 
 (defn word
-  [{:keys [memory] :as cpu}]
+  [{:keys [::s/memory] :as cpu}]
   (word-at memory (inc (pc cpu))))
 
 (defn <FF00+n>
-  ([{:keys [memory] :as cpu}]
+  ([{:keys [::s/memory] :as cpu}]
    (word-at memory (+ 0xFF00 (word cpu))))
   ([cpu val]
    (set-word-at cpu (+ 0xFF00 (word cpu)) val)))
 
 
 (defn <hl>
-  ([{:keys [memory] :as cpu}]
+  ([{:keys [::s/memory] :as cpu}]
    (word-at memory (hl cpu)))
   ([cpu val]
    (set-word-at cpu (hl cpu) val)))
@@ -143,8 +150,10 @@
 (def hex-dword (comp hex16 dword))
 (def hex-word (comp hex8 word))
 
-(defn fetch [{:keys [memory] :as cpu}]
-  (println "fetched" (hex8 (word-at memory (pc cpu))))
+(defn fetch [{:keys [::s/memory] :as cpu}]
+  {:pre  [(s/valid? cpu)]
+   :post [(not (nil? %))]}
+  (println "fetch " (hex8 (word-at memory (pc cpu))))
   (word-at memory (pc cpu)))
 
 (def decoder
@@ -224,13 +233,13 @@
    0x7E [:ld a <hl> 4 1 (constantly "ld a,<hl>")]
    0x7F [:ld a a 4 1 (constantly "ld a,a")]
    0xC0 [:ret-cond :nz address [20 8] 3 #(str "ret nz " (hex-dword %))]
-   0xC2 [:jp nz address [16 12] 3 #(str "jp nz " (hex-dword %))]
+   0xC2 [:jp nz? address [16 12] 3 #(str "jp nz " (hex-dword %))]
    0xC3 [:jp always address 8 3 #(str "jp " (hex-dword %))]
-   0xC4 [:call nz address 24 3 #(str "call nz" (hex-dword %))]
-   0xCC [:call z address 24 3 #(str "call z" (hex-dword %))]
+   0xC4 [:call nz? address 24 3 #(str "call nz" (hex-dword %))]
+   0xCC [:call z? address 24 3 #(str "call z" (hex-dword %))]
    0xCD [:call always address 24 3 #(str "call " (hex-dword %))]
-   0xD4 [:call nc address 24 3 #(str "call nc " (hex-dword %))]
-   0xDC [:call c address 24 3 #(str "call " (hex-dword %))]
+   0xD4 [:call nc? address 24 3 #(str "call nc " (hex-dword %))]
+   0xDC [:call c? address 24 3 #(str "call " (hex-dword %))]
    0xE0 [:ld <FF00+n> a 12 2 #(str "ldh [FF00+" (hex-word %) "],a")]
    0xEA [:ld <address> a 16 3 #(str "ld [" (hex-dword %) "],a")]
    0xF3 [:di 4 1 (constantly "di")]

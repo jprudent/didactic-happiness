@@ -2,29 +2,27 @@
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
             [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at sp]]
-            [clojure.core.async :refer [go >! chan poll! <!! thread]]))
-
-;; a word is an 8 bits positive integer
-;; a dword is a 16 bits positive integer
+            [clojure.core.async :refer [go >! chan poll! <!! thread]]
+            [repicene.schema :as s]))
 
 (defn new-cpu [rom]
   (let [wram-1 (vec (take 0x1000 (repeat 0)))
         io     (vec (take 0x80 (repeat 0)))
         hram   (vec (take 0x80 (repeat 0)))]
-    {:registers          {:AF 0
-                          :BC 0
-                          :DE 0
-                          :HL 0
-                          :SP 0
-                          :PC 0}
-     :interrupt-enabled? true
-     :memory             [[0x0000 0x7FFF rom]
-                          [0xD000 0xDFFF wram-1]
-                          [0xFF00 0xFF7F io]
-                          [0xFF80 0xFFFF hram]]
-     :debug-chan-rx      (chan)
-     :debug-chan-tx      (chan)
-     :x-breakpoints      []}))
+    {::s/registers          {::s/AF 0
+                             ::s/BC 0
+                             ::s/DE 0
+                             ::s/HL 0
+                             ::s/SP 0
+                             ::s/PC 0}
+     ::s/interrupt-enabled? true
+     ::s/memory             [[0x0000 0x7FFF rom]
+                             [0xD000 0xDFFF wram-1]
+                             [0xFF00 0xFF7F io]
+                             [0xFF80 0xFFFF hram]]
+     :debug-chan-rx         (chan)
+     :debug-chan-tx         (chan)
+     :x-breakpoints         []}))
 
 (defmulti exec (fn [_ [instr & _]] instr))
 (defmethod exec :nop [cpu _] (pc cpu inc))
@@ -49,7 +47,7 @@
 
 (defmethod exec :call [cpu [_ cond address _ size]]
   (let [next-pc (+ size (pc cpu))
-        call? (cond cpu)]
+        call?   (cond cpu)]
     (cond-> cpu
             call? (push next-pc)
             call? (pc (address cpu)))))
@@ -58,6 +56,8 @@
   (some (partial = (pc cpu)) x-breakpoints))
 
 (defn cpu-cycle [cpu]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? cpu)]}
   (let [instr (get decoder (fetch cpu))]
     (println (str "@" (hex16 (pc cpu))) ((last instr) cpu))
     (exec cpu instr)))
@@ -85,7 +85,7 @@
   (->
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
-    (assoc-in [:registers :PC] 0x100)
+    (pc 0x100)
     (update-in [:x-breakpoints] conj 0x456)))
 
 #_(def cpu
