@@ -47,17 +47,8 @@
   (let [pc-bak (pc cpu)
         cpu2 (destination cpu (source cpu))
         cpu2 (pc cpu2 (partial + size))]
-    (println
-      "!!! after "
-      "source " (source (pc cpu2 pc-bak))
-      "destination " (destination cpu2)
-      (= (source (pc cpu2 (pc cpu))) (destination cpu2))
-      (::s/registers cpu)
-      "@" (pc cpu2) (pc (pc cpu2 pc-bak))
-      (word-at (::s/memory cpu2) 0xFF42)
-      (= <FF00+n> destination)
-      (pc (pc cpu2 pc-bak))
-      (<FF00+n> (pc cpu2 pc-bak)))
+    (println "!!! after source" (source (pc cpu2 (pc cpu)))
+             "destination" (destination (pc cpu2 (pc cpu))))
     cpu2))
 
 (defn dec-sp [cpu] (sp cpu (- (sp cpu) 2)))
@@ -84,9 +75,9 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? cpu)]}
   (let [instr (instruction-at-pc cpu)
-        _     (println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu) (::s/registers cpu))
+        _     (println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
         ret   (exec cpu instr)]
-    (println "after " (::s/registers ret))
+    #_(println "after " (::s/registers ret))
     ret
     ))
 

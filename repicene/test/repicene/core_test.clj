@@ -9,7 +9,8 @@
   (condp = asm
     "ld a,l" [0x7D]
     "ld a,h" [0x7C]
-    ["ldh [FF00+n],a" 0x42] [0xE0 0x42]))
+    ["ldh [FF00+n],a" 0x42] [0xE0 0x42]
+    ["ld a,0x77", 0x77] [0x3E 0x77]))
 
 (defn compile [program]
   (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0))))
@@ -33,7 +34,13 @@
                   (a 0xBB))]
       (is (= 0xAA (word-at (::s/memory cpu) 0xFF42)))
       (is (= 0xAA (repicene.decoder/<FF00+n> cpu)))
-      (is (= 0xBB (word-at (::s/memory (cpu-cycle cpu)) 0xFF42))))))
+      (is (= 0xBB (word-at (::s/memory (cpu-cycle cpu)) 0xFF42)))))
+  (testing "ld a,0x77"
+    (let [cpu (-> (compile [["ld a,0x77", 0x77]])
+                  (new-cpu)
+                  (a 0xBB))]
+      (is (= 0xBB (a cpu)))
+      (is (= 0x77 (a (cpu-cycle cpu)))))))
 
 (deftest memory
   (testing "memory is persistant"

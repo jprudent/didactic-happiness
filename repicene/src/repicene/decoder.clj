@@ -43,7 +43,7 @@
    {:pre  [(s/dword? dword) (s/word? val)]
     :post [(s/dword? %)]}
    (-> (bit-shift-left val 8)
-       (bit-or dword))))
+       (bit-or (bit-and dword 0xFF)))))
 
 (defn low-word
   "1 arg version : returns the low word composing the unsigned dword
