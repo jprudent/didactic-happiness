@@ -1,6 +1,6 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!!]]
-            [repicene.decoder :refer [decoder word-at pc]]
+            [repicene.decoder :refer [decoder word-at pc unknown]]
             [repicene.schema :as s]))
 
 (defn- ->response [command response]
@@ -17,9 +17,7 @@
       command)))
 
 (defn decode [{:keys [::s/memory] :as cpu} address]
-  (let [instruction (or (decoder (word-at memory address)) [1 (constantly "???")])
-        to-string   (last instruction)
-        size        (last (butlast instruction))]
+  (let [{:keys [to-string size]} (or (decoder (word-at memory address)) unknown)]
     [(to-string cpu) size]))
 
 (defn decode-from
