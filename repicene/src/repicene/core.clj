@@ -2,6 +2,7 @@
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
             [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+]]
+            [repicene.history :as history]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
 
@@ -22,7 +23,8 @@
                              [0xFF80 0xFFFF hram]]
      :debug-chan-rx         (chan)
      :debug-chan-tx         (chan)
-     :x-breakpoints         []}))
+     :x-breakpoints         []
+     ::s/history               '()}))
 
 (defmulti exec (fn [_ {:keys [asm]}] (first asm)))
 (defmethod exec :nop [cpu _] (pc cpu inc))
@@ -95,10 +97,11 @@
    :post [(s/valid? cpu)]}
   (let [instr (instruction-at-pc cpu)
         _     (println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
-        ret   (exec cpu instr)]
-    #_(println "after " (::s/registers ret))
+        ret   (history/save cpu)
+        ret   (exec ret instr)]
     ret
     ))
+
 
 (defn process-breakpoint [{:keys [debug-chan-rx] :as cpu}]
   (println "breakpoint at " (pc cpu))
@@ -108,6 +111,7 @@
     (cond
       (= :resume command) cpu
       (= :step-over command) (recur (cpu-cycle cpu) (<!! debug-chan-rx))
+      (= :back-step command) (recur (history/restore cpu) (<!! debug-chan-rx))
       :default (recur (process-debug-command cpu command)
                       (<!! debug-chan-rx)))))
 

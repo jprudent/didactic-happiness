@@ -44,6 +44,10 @@
   (go (>! ws-tx :step-over)
       (>! ws-tx :inspect)))
 
+(defn do-back-step []
+  (go (>! ws-tx :back-step)
+      (>! ws-tx :inspect)))
+
 (defn hello-world []
   [:div
    [:a {:href "#" :on-click #(go (>! ws-tx :inspect))} "Lien magique"]
@@ -52,7 +56,8 @@
     (ui/instructions (:gameboy @app-state) (pc))
     [:div
      (into ui/empty-button [{:on-click #(go (>! ws-tx :resume))} "Resume"])
-     (into ui/empty-button [{:on-click do-step-over} "Step over"])]]])
+     (into ui/empty-button [{:on-click do-step-over} "Step over"])
+     (into ui/empty-button [{:on-click do-back-step} "Back step"])]]])
 
 (reagent/render-component [hello-world]
                           (. js/document (getElementById "app")))

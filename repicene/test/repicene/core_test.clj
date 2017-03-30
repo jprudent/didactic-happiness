@@ -3,6 +3,7 @@
             [repicene.core :refer :all]
             [repicene.decoder :refer :all]
             [repicene.schema :as s]
+            [repicene.history :as history]
             [repicene.file-loader :refer [load-rom]]))
 
 (defn to-bytecode [asm]
@@ -48,14 +49,33 @@
                   (new-cpu))]
       (is (= 0x06 (pc (cpu-cycle cpu))))))
   (testing "jr r8 (negative)"
-      (let [cpu (-> (compile [["jr 0xFE", 0xFE]])
-                    (new-cpu))]
-        (is (= 0x00 (pc (cpu-cycle cpu)))))))
+    (let [cpu (-> (compile [["jr 0xFE", 0xFE]])
+                  (new-cpu))]
+      (is (= 0x00 (pc (cpu-cycle cpu)))))))
 
 (deftest memory
   (testing "memory is persistant"
     (let [cpu (set-word-at (demo-gameboy) 0xFF42 0xAA)]
       (is (= 0xAA (word-at (::s/memory cpu) 0xFF42))))))
+
+(deftest history
+  (testing "back in history"
+    (let [cpu0 (-> (load-rom "roms/cpu_instrs/cpu_instrs.gb")
+                   (new-cpu)
+                   (pc 0x100))
+          cpu1 (cpu-cycle cpu0)
+          cpu2 (cpu-cycle cpu1)]
+      (is (= cpu1 (history/restore cpu2)))
+      (is (= cpu0 (history/restore (history/restore cpu2))))
+      (is (= cpu0 (history/restore cpu1)))
+      (is (nil? (history/restore cpu0)))))
+  (testing "history is limited"
+    (let [cpu (-> (compile [["jr 0xFE", 0xFE]])                                 ;;infinite loop
+                  (new-cpu))]
+      (is (= 100 (count (::s/history (loop [i 0 cpu cpu]
+                                             (if (>= i 200)
+                                               cpu
+                                               (recur (inc i) (cpu-cycle cpu)))))))))))
 
 (deftest integration
   (testing "instructions"
@@ -63,5 +83,5 @@
                   (new-cpu)
                   (pc 0x100))]
       (is (= 0x100 (pc cpu)))
-      (cpu-loop cpu))
+      #_(cpu-loop cpu))
     #_(is (= 11 (a (cpu-cycle (demo-gameboy)))))))

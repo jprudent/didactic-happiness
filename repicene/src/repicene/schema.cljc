@@ -14,9 +14,11 @@
 (s/def ::interrupt-enabled? boolean?)
 (s/def ::memory-backend (s/tuple ::address ::address coll?))
 (s/def ::memory (and vector? (s/coll-of ::memory-backend :kind vector?)))
+(s/def ::history (and list? #(<= (count %) 100)))
 (s/def ::cpu (s/keys :req [::registers
                            ::interrupt-enabled?
-                           ::memory]))
+                           ::memory
+                           ::history]))
 
 (def valid? (partial s/valid? ::cpu))
 (def dword? (partial s/valid? ::dword))
