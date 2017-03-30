@@ -1,7 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+ dword-at %inc a <hl> hl]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+ dword-at %inc a <hl> hl z?]]
             [repicene.history :as history]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
@@ -88,16 +88,16 @@
 
 (defn- call [cpu cond address size]
   (let [next-pc (+ size (pc cpu))]
-      (if (cond cpu)
-        (-> (push-sp cpu next-pc)
-            (pc address))
-        (pc cpu next-pc))))
+    (if (cond cpu)
+      (-> (push-sp cpu next-pc)
+          (pc address))
+      (pc cpu next-pc))))
 
 (defmethod exec :call [cpu {[_ cond address] :asm, size :size}]
   (call cpu cond (address cpu) size))
 
 (defmethod exec :rst [cpu {[_ address] :asm, size :size}]
-  {:pre [(s/valid? cpu) (s/word? address)]
+  {:pre  [(s/valid? cpu) (s/word? address)]
    :post [(s/valid? %)
           (= address (pc %))
           (= (%+ size (pc cpu)) (dword-at % (sp %)))]}
@@ -117,7 +117,7 @@
       (pc (partial %+ size))))
 
 (defmethod exec :ldi [cpu {size :size}]
-  {:pre [(s/valid? cpu)]
+  {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
           (= (a %) (<hl> cpu))
           (= (%inc (hl cpu)) (hl %))
@@ -145,6 +145,16 @@
    :post [(s/valid? %)]}
   (let [jump (if (cond cpu) (two-complement (relative-address cpu)) 0)]
     (pc cpu (partial %+ size jump))))
+
+(defmethod exec :or [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)
+          (= (a %) (bit-or (a cpu) (word-register cpu)))
+          (= (pc %) (%+ size (pc cpu)))]}
+  (let [value (bit-or (a cpu) (word-register cpu))]
+    (-> (a cpu value)
+        (z? (zero? value))
+        (pc (partial %+ size)))))
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))
@@ -190,7 +200,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (pc 0x100)
-    (update-in [:x-breakpoints] conj 0x7EF)))
+    (update-in [:x-breakpoints] conj 0x740)))
 
 #_(def cpu
     (->

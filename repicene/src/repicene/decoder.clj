@@ -12,7 +12,7 @@
 (defn cat8
   "concatenate two words to make a dword"
   [x y]
-  {:pre [(s/word? x) (s/word? y)]
+  {:pre  [(s/word? x) (s/word? y)]
    :post [(s/dword? %)]}
   (bit-or (bit-shift-left x 8) y))
 
@@ -121,8 +121,14 @@
 (def l (def-word-register low-word hl))
 
 (defn def-flag [pos]
-  (fn [cpu]
-    (zero? (bit-and pos (f cpu)))))
+  (fn
+    ([cpu] (bit-test (f cpu) pos))
+    ([cpu set?]
+     {:pre [(s/valid? cpu) (boolean? set?)]
+      :post [(s/valid? %)]}
+     (if (= (bit-test (f cpu) pos) set?)
+       cpu
+       (f cpu (bit-flip (f cpu) pos))))))
 
 (def z? (def-flag 2r10000000))
 (def n? (def-flag 2r01000000))
@@ -274,8 +280,16 @@
    0x7B (->instruction [:ld a e] 4 1 (constantly "ld a,e"))
    0x7C (->instruction [:ld a h] 4 1 (constantly "ld a,h"))
    0x7D (->instruction [:ld a l] 4 1 (constantly "ld a,l"))
-   0x7E (->instruction [:ld a <hl>] 4 1 (constantly "ld a,<hl>"))
+   0x7E (->instruction [:ld a <hl>] 8 1 (constantly "ld a,<hl>"))
    0x7F (->instruction [:ld a a] 4 1 (constantly "ld a,a"))
+   0xB0 (->instruction [:or b] 4 1 (constantly "or b"))
+   0xB1 (->instruction [:or c] 4 1 (constantly "or c"))
+   0xB2 (->instruction [:or d] 4 1 (constantly "or d"))
+   0xB3 (->instruction [:or e] 4 1 (constantly "or e"))
+   0xB4 (->instruction [:or h] 4 1 (constantly "or h"))
+   0xB5 (->instruction [:or l] 4 1 (constantly "or l"))
+   0xB6 (->instruction [:or <hl>] 4 1 (constantly "or (hl)"))
+   0xB7 (->instruction [:or a] 4 1 (constantly "or a"))
    0xC0 (->instruction [:ret nz?] [20 8] 3 (constantly "ret nz"))
    0xC1 (->instruction [:pop bc] 12 1 (constantly "pop bc"))
    0xC2 (->instruction [:jp nz? address] [16 12] 3 #(str "jp nz " (hex-dword %)))
