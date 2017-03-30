@@ -1,7 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+ dword-at]]
             [repicene.history :as history]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
@@ -52,17 +52,31 @@
              "destination" (destination (pc cpu2 (pc cpu))))
     cpu2))
 
-(defn dec-sp [cpu] (sp cpu (- (sp cpu) 2)))
-(defn push [cpu next-pc]
+(defn dec-sp [cpu] (sp cpu (partial %+ -2)))
+(defn push-sp [cpu dword]
+  {:pre [(s/valid? cpu) (s/dword? dword)]
+   :post [(s/valid? %)]}
   (let [cpu (dec-sp cpu)]
-    (set-dword-at cpu (sp cpu) next-pc)))                                       ;; beware : the address should be the decremented sp
+    (set-dword-at cpu (sp cpu) dword)))                                       ;; beware : the address should be the decremented sp
+
+(defn inc-sp [cpu] (sp cpu (partial %+ 2)))
+(defn pop-sp [cpu]
+  {:pre [(s/valid? cpu)]
+   :post [(s/valid? (second %)) (s/address? (first %))]}
+  [(dword-at cpu (sp cpu)) (inc-sp cpu)])
 
 (defmethod exec :call [cpu {[_ cond address] :asm, size :size}]
   (let [next-pc (+ size (pc cpu))]
     (if (cond cpu)
-      (-> (push cpu next-pc)
+      (-> (push-sp cpu next-pc)
           (pc (address cpu)))
       (pc cpu next-pc))))
+
+(defmethod exec :ret [cpu {[_ cond] :asm, size :size}]
+  (if (cond cpu)
+    (let [[return-address cpu] (pop-sp cpu)]
+      (pc cpu return-address))
+    (sp cpu (partial %+ size))))
 
 (defn positive? [address]
   (zero? (bit-and address 2r10000000)))

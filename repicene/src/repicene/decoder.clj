@@ -49,6 +49,12 @@
      (let [backend-relative-address (- address from)]
        (nth backend backend-relative-address)))))
 
+(defn dword-at
+  ([{:keys [::s/memory]} address]
+   {:pre  [(dword? address) (s/memory? memory)]
+    :post [(dword? %)]}
+   (cat8 (word-at memory (%+ 1 address)) (word-at memory address))))            ;; dword are stored little endian
+
 (defn high-word
   "1 arg version : returns the high word composing the unsigned dword
   2 args version : set the high word of dword to val"
@@ -261,12 +267,14 @@
    0x7D (->instruction [:ld a l] 4 1 (constantly "ld a,l"))
    0x7E (->instruction [:ld a <hl>] 4 1 (constantly "ld a,<hl>"))
    0x7F (->instruction [:ld a a] 4 1 (constantly "ld a,a"))
-   0xC0 (->instruction [:ret-cond :nz address] [20 8] 3 #(str "ret nz " (hex-dword %)))
+   0xC0 (->instruction [:ret nz?] [20 8] 3 (constantly "ret nz"))
    0xC2 (->instruction [:jp nz? address] [16 12] 3 #(str "jp nz " (hex-dword %)))
    0xC3 (->instruction [:jp always address] 8 3 #(str "jp " (hex-dword %)))
    0xC4 (->instruction [:call nz? address] 24 3 #(str "call nz" (hex-dword %)))
+   0xC9 (->instruction [:ret always] 16 1 (constantly "ret"))
    0xCC (->instruction [:call z? address] 24 3 #(str "call z" (hex-dword %)))
    0xCD (->instruction [:call always address] 24 3 #(str "call " (hex-dword %)))
+   0xD0 (->instruction [:ret nc?] [20 8] 1 (constantly "ret nc"))
    0xD4 (->instruction [:call nc? address] 24 3 #(str "call nc " (hex-dword %)))
    0xDC (->instruction [:call c? address] 24 3 #(str "call " (hex-dword %)))
    0xE0 (->instruction [:ld <FF00+n> a] 12 2 #(str "ldh [FF00+" (hex-word %) "],a"))

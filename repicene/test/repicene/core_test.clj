@@ -13,7 +13,10 @@
     ["ldh [FF00+n],a" 0x42] [0xE0 0x42]
     ["ld a,0x77", 0x77] [0x3E 0x77]
     ["jr 0x04", 0x04] [0x18 0x04]
-    ["jr 0xFE", 0xFE] [0x18 0xFE]))
+    ["jr 0xFE", 0xFE] [0x18 0xFE]
+    "call 0x0004" [0xCD 0x04 0x00]
+    "ret" [0xC9]
+    "nop" [0x00]))
 
 (defn compile [program]
   (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0))))
@@ -51,7 +54,17 @@
   (testing "jr r8 (negative)"
     (let [cpu (-> (compile [["jr 0xFE", 0xFE]])
                   (new-cpu))]
-      (is (= 0x00 (pc (cpu-cycle cpu)))))))
+      (is (= 0x00 (pc (cpu-cycle cpu))))))
+  (testing "call ret"
+    (let [cpu (-> (compile ["call 0x0004"
+                            "nop"
+                            "ret"])
+                  (new-cpu))]
+      (is (= 0x00 (pc cpu)))
+      (is (= 0x04 (pc (cpu-cycle cpu)))
+          "call 0x0004 jumps to ret instruction")
+      (is (= 0x03 (pc (cpu-cycle (cpu-cycle cpu))))
+          "ret jumps back to the nop right after call"))))
 
 (deftest memory
   (testing "memory is persistant"
