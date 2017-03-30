@@ -29,6 +29,10 @@
   "Add numbers and make it a valid address (mod 0xFFFF)"
   (partial %address +))
 
+(def %inc
+  "Increment parameter and make it a valid address (mod 0xFFFF)"
+  (partial %+ 1))
+
 (defn lookup-backend [memory address]                                           ;; could be memeoized
   (some (fn [backend]
           (when (in? backend address)
@@ -189,19 +193,23 @@
 (def decoder
   {0x00 (->instruction [:nop] 4 1 (constantly "nop"))
    0x01 (->instruction [:ld bc dword] 12 3 #(str "ld bc," (hex-dword %)))
+   0x03 (->instruction [:inc bc] 8 1 (constantly "inc bc"))
    0x06 (->instruction [:ld b word] 8 2 #(str "ld b," (hex-word %)))
    0x0E (->instruction [:ld c word] 8 2 #(str "ld c," (hex-word %)))
    0x11 (->instruction [:ld de dword] 12 3 #(str "ld de," (hex-dword %)))
+   0x13 (->instruction [:inc de] 8 1 (constantly "inc de"))
    0x16 (->instruction [:ld d word] 8 2 #(str "ld d," (hex-word %)))
    0x18 (->instruction [:jr always word] 12 2 #(str "jr " (hex-word %)))
    0x1E (->instruction [:ld e word] 8 2 #(str "ld e," (hex-word %)))
    0x20 (->instruction [:jr nz? word] [12 8] 2 #(str "jr nz " (hex-word %)))
    0x21 (->instruction [:ld hl dword] 12 3 #(str "ld hl," (hex-dword %)))
+   0x23 (->instruction [:inc hl] 8 1 (constantly "inc hl"))
    0x26 (->instruction [:ld h word] 8 2 #(str "ld h," (hex-word %)))
    0x28 (->instruction [:jr z? word] [12 8] 2 #("jr z " (hex-word %)))
    0x2E (->instruction [:ld l word] 8 2 #(str "ld l," (hex-word %)))
    0x30 (->instruction [:jr nc? word] [12 8] 2 #("jr nc " (hex-word %)))
    0x31 (->instruction [:ld sp dword] 12 3 #(str "ld sp," (hex-dword %)))
+   0x33 (->instruction [:inc sp] 8 1 (constantly "inc sp"))
    0x38 (->instruction [:jr c? word] [12 8] 2 #(str "jr c " (hex-word %)))
    0x3E (->instruction [:ld a word] 8 2 #(str "ld a," (hex-word %)))
    0x40 (->instruction [:ld b b] 4 1 (constantly "ld b,b"))

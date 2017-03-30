@@ -1,7 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+ dword-at]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+ dword-at %inc]]
             [repicene.history :as history]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
@@ -98,6 +98,13 @@
     (let [[return-address cpu] (pop-sp cpu)]
       (pc cpu return-address))
     (sp cpu (partial %+ size))))
+
+(defmethod exec :inc [cpu {[_ dword-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(= (%+ 1 (dword-register cpu)) (dword-register %))
+          (= (pc %) (%+ size (pc cpu)))]}
+  (-> (dword-register cpu %inc)
+      (pc (partial %+ size))))
 
 (defn positive? [address]
   (zero? (bit-and address 2r10000000)))
