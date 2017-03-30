@@ -29,6 +29,19 @@ body {
     background-color: darkslategrey;
 }
 
+.debugger-memoryDump {
+    width: 25em;
+    padding: 0.4em;
+    border-radius: 0.4em;
+    border: 2px solid #000;
+    background-color: darkslategrey;
+}
+
+.debugger-memoryDumpContent {
+    max-height: 10em;
+    overflow: scroll;
+}
+
 .debugger-instructions:first-child,
 .debugger-instructions:last-child {
     border-radius: 0.4em;
@@ -82,4 +95,12 @@ body {
     text-transform: uppercase;
     margin: 0 0 0.1em 0;
     text-shadow: 1px 1px 2px black;
+}
+
+.debugger-memoryLine {
+    /*font-family: retro, serif;*/
+    font-size: 1em;
+    background-color: #000;
+    color: lime;
+    display: flex;
 }

@@ -1,6 +1,6 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!!]]
-            [repicene.decoder :refer [decoder word-at pc unknown]]
+            [repicene.decoder :refer [decoder word-at pc unknown hex16 dword-at]]
             [repicene.schema :as s]))
 
 (defn- ->response [command response]
@@ -35,19 +35,20 @@
 (defn- debug-view [gameboy]
   (select-keys gameboy [::s/registers]))
 
+(defn- memory-dump
+  ([cpu start end]
+   (map (partial memory-dump cpu) (range start end 2)))
+  ([cpu address]
+   [address (dword-at cpu address)]))
+
+(defn dump-region [cpu [start end]]
+  [start end (memory-dump cpu start end)])
+
 (defmethod handle-debug-command :inspect
-  [_]
-  [identity #(into (debug-view %) {:instructions (take 10 (decode-from %))})])
-
-(defmethod handle-debug-command :decode-memory
-  [[_ address-start length]]
-  {:pre [(s/address? address-start)]}
-  [identity (fn [cpu] (take length (decode-from cpu address-start)))])
-
-(defmethod handle-debug-command :alter
-  [[_ f-cpu]]
-  (let [f (eval f-cpu)]
-    [f f]))
+  [[_ {:keys [regions]}]]
+  [identity (fn [cpu] (into (debug-view cpu)
+                            {:instructions (take 10 (decode-from cpu))
+                             :regions      (map (partial dump-region cpu) regions)}))])
 
 (defmethod handle-debug-command :kill
   [_]
@@ -55,7 +56,8 @@
 
 (defmethod handle-debug-command :default
   [_]
-  [identity (constantly "J'aime faire des craquettes au chien")])
+  [identity (constantly (do (println "unknown command")
+                            "J'aime faire des craquettes au chien"))])
 
 (defn process-debug-command
   [{:keys [debug-chan-tx] :as cpu} command]

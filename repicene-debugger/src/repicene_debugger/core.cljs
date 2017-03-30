@@ -36,24 +36,27 @@
 (defonce app-state
          (atom {}))
 
+(defn inspect-params []
+  [:inspect {:regions [[0xDF00 0xDFFF]]}])
+
 (defn pc []
-  (println "get pc")
   (get-in @app-state [:gameboy ::s/registers ::s/PC]))
 
 (defn do-step-over []
   (go (>! ws-tx :step-over)
-      (>! ws-tx :inspect)))
+      (>! ws-tx (inspect-params))))
 
 (defn do-back-step []
   (go (>! ws-tx :back-step)
-      (>! ws-tx :inspect)))
+      (>! ws-tx (inspect-params))))
 
 (defn hello-world []
   [:div
-   [:a {:href "#" :on-click #(go (>! ws-tx :inspect))} "Lien magique"]
+   [:a {:href "#" :on-click #(go (>! ws-tx (inspect-params)))} "Lien magique"]
    [:div.debugger
     (ui/registers (:gameboy @app-state))
     (ui/instructions (:gameboy @app-state) (pc))
+    (ui/memory (:gameboy @app-state))
     [:div
      (into ui/empty-button [{:on-click #(go (>! ws-tx :resume))} "Resume"])
      (into ui/empty-button [{:on-click do-step-over} "Step over"])

@@ -73,13 +73,13 @@
   [pc [address bytes asm :as key]]
   "foo"
   (let [block     "debugger"
-        bem       (partial bem block)
-        modifiers (partial bem "instructionLine")]
+        debugger-block       (partial bem block)
+        line-elem (partial debugger-block "instructionLine")]
     ^{:key key} [:div
-                 {:class (modifiers [(when (= pc address) "atPc")])}
-                 [:div {:class (bem "address")} (hex-dword address)]
-                 [:div {:class (bem "hexabytes")} (apply str (map hex-word bytes))]
-                 [:div {:class (bem "asm")} asm]]))
+                 {:class (line-elem [(when (= pc address) "atPc")])}
+                 [:div {:class (debugger-block "address")} (hex-dword address)]
+                 [:div {:class (debugger-block "hexabytes")} (apply str (map hex-word bytes))]
+                 [:div {:class (debugger-block "asm")} asm]]))
 
 (defn instructions
   [{:keys [instructions]} pc]
@@ -87,3 +87,18 @@
     [:div.debugger-instructions
      (window-title "Program")
      (map (partial instruction pc) instructions)]))
+
+(defn address-dump
+  [[address content]]
+  (let [block          "debugger"
+        debugger-block (partial bem block)]
+    [:div {:class (debugger-block "memoryLine")}
+     [:div {:class (debugger-block "address")} (hex-dword address)]
+     [:div {:class (debugger-block "hexabytes")} (hex-dword content)]]))
+
+(defn memory
+  [{[[start end dump :as sp-region] & _] :regions}]
+  (when sp-region
+    [:div.debugger-memoryDump
+     (window-title (str "Dump [" (hex-dword start) "-" (hex-dword end) "]"))
+     [:div.debugger-memoryDumpContent (map address-dump dump)]]))
