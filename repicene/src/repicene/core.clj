@@ -75,6 +75,17 @@
    :post [(s/valid? (second %)) (s/address? (first %))]}
   [(dword-at cpu (sp cpu)) (inc-sp cpu)])
 
+(defmethod exec :pop
+  [cpu {[_ dword-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)
+          (= (sp cpu) (%+ -2 (sp %)))
+          (= (dword-at cpu (sp cpu)) (dword-register %))
+          (= (pc %) (%+ size (pc cpu)))]}
+  (let [[dword cpu] (pop-sp cpu)]
+    (-> (dword-register cpu dword)
+        (pc (partial %+ size)))))
+
 (defmethod exec :call [cpu {[_ cond address] :asm, size :size}]
   (let [next-pc (+ size (pc cpu))]
     (if (cond cpu)
