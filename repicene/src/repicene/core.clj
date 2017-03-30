@@ -59,6 +59,16 @@
   (let [cpu (dec-sp cpu)]
     (set-dword-at cpu (sp cpu) dword)))                                       ;; beware : the address should be the decremented sp
 
+(defmethod exec :push
+  [cpu {[_ dword-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)
+          (= (sp cpu) (%+ 2 (sp %)))
+          (= (dword-at % (sp %)) (dword-register %))
+          (= (pc %) (%+ size (pc cpu)))]}
+  (-> (push-sp cpu (dword-register cpu))
+      (pc (partial %+ size))))
+
 (defn inc-sp [cpu] (sp cpu (partial %+ 2)))
 (defn pop-sp [cpu]
   {:pre [(s/valid? cpu)]

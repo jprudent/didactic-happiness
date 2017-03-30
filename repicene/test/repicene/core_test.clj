@@ -16,7 +16,8 @@
     ["jr 0xFE", 0xFE] [0x18 0xFE]
     "call 0x0004" [0xCD 0x04 0x00]
     "ret" [0xC9]
-    "nop" [0x00]))
+    "nop" [0x00]
+    "push hl" [0xe5]))
 
 (defn compile [program]
   (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0))))
@@ -64,7 +65,17 @@
       (is (= 0x04 (pc (cpu-cycle cpu)))
           "call 0x0004 jumps to ret instruction")
       (is (= 0x03 (pc (cpu-cycle (cpu-cycle cpu))))
-          "ret jumps back to the nop right after call"))))
+          "ret jumps back to the nop right after call")))
+  (testing "push hl"
+    (let [cpu (-> (compile ["push hl"])
+                  (new-cpu)
+                  (hl 0xABCD)
+                  (sp 0xE000))]
+      (is (= 0xABCD (hl cpu)))
+      (is (= 0xE000 (sp cpu)))
+      (let [cpu-afer-push (cpu-cycle cpu)]
+        (is (= 0xDFFE (sp cpu-afer-push)))
+        (is (= 0xABCD (dword-at cpu-afer-push 0xDFFE)))))))
 
 (deftest memory
   (testing "memory is persistant"
