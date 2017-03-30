@@ -10,7 +10,9 @@
     "ld a,l" [0x7D]
     "ld a,h" [0x7C]
     ["ldh [FF00+n],a" 0x42] [0xE0 0x42]
-    ["ld a,0x77", 0x77] [0x3E 0x77]))
+    ["ld a,0x77", 0x77] [0x3E 0x77]
+    ["jr 0x04", 0x04] [0x18 0x04]
+    ["jr 0xFE", 0xFE] [0x18 0xFE]))
 
 (defn compile [program]
   (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0))))
@@ -40,7 +42,15 @@
                   (new-cpu)
                   (a 0xBB))]
       (is (= 0xBB (a cpu)))
-      (is (= 0x77 (a (cpu-cycle cpu)))))))
+      (is (= 0x77 (a (cpu-cycle cpu))))))
+  (testing "jr r8 (positive)"
+    (let [cpu (-> (compile [["jr 0x04", 0x04]])
+                  (new-cpu))]
+      (is (= 0x06 (pc (cpu-cycle cpu))))))
+  (testing "jr r8 (negative)"
+      (let [cpu (-> (compile [["jr 0xFE", 0xFE]])
+                    (new-cpu))]
+        (is (= 0x00 (pc (cpu-cycle cpu)))))))
 
 (deftest memory
   (testing "memory is persistant"

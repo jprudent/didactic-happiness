@@ -1,16 +1,33 @@
 (ns repicene.decoder
   (:require [repicene.schema :as s :refer [dword? word?]]))
 
-(def hex8 (partial format "0x%02X"))
-(def hex16 (partial format "0x%04X"))
+(def hex8
+  "Transform a word to it's hexadecimal string representation"
+  (memoize (partial format "0x%02X")))
+
+(def hex16
+  "Transform a dword to it's hexadecimal string representation"
+  (memoize (partial format "0x%04X")))
+
 (defn cat8
-  "concatenate two words to make a double"
+  "concatenate two words to make a dword"
   [x y]
-  {:pre [(<= 0 x 255) (<= 0 y 255)]}
+  {:pre [(s/word? x) (s/word? y)]
+   :post [(s/dword? %)]}
   (bit-or (bit-shift-left x 8) y))
 
 (defn in? [[from to _] address]
   (<= from address to))
+
+(defn %address
+  "Address arithmetic should be 0xFFFF modular arithmetic"
+  [f & args]
+  {:post [(s/dword? %)]}
+  (mod (apply f args) 0x10000))
+
+(def %+
+  "Add numbers and make it a valid address (mod 0xFFFF)"
+  (partial %address +))
 
 (defn lookup-backend [memory address]                                           ;; could be memeoized
   (some (fn [backend]
@@ -170,11 +187,16 @@
    0x0E (->instruction [:ld c word] 8 2 #(str "ld c," (hex-word %)))
    0x11 (->instruction [:ld de dword] 12 3 #(str "ld de," (hex-dword %)))
    0x16 (->instruction [:ld d word] 8 2 #(str "ld d," (hex-word %)))
+   0x18 (->instruction [:jr always word] 12 2 #(str "jr " (hex-word %)))
    0x1E (->instruction [:ld e word] 8 2 #(str "ld e," (hex-word %)))
+   0x20 (->instruction [:jr nz? word] [12 8] 2 #(str "jr nz " (hex-word %)))
    0x21 (->instruction [:ld hl dword] 12 3 #(str "ld hl," (hex-dword %)))
    0x26 (->instruction [:ld h word] 8 2 #(str "ld h," (hex-word %)))
+   0x28 (->instruction [:jr z? word] [12 8] 2 #("jr z " (hex-word %)))
    0x2E (->instruction [:ld l word] 8 2 #(str "ld l," (hex-word %)))
+   0x30 (->instruction [:jr nc? word] [12 8] 2 #("jr nc " (hex-word %)))
    0x31 (->instruction [:ld sp dword] 12 3 #(str "ld sp," (hex-dword %)))
+   0x38 (->instruction [:jr c? word] [12 8] 2 #(str "jr c " (hex-word %)))
    0x3E (->instruction [:ld a word] 8 2 #(str "ld a," (hex-word %)))
    0x40 (->instruction [:ld b b] 4 1 (constantly "ld b,b"))
    0x41 (->instruction [:ld b c] 4 1 (constantly "ld b,c"))

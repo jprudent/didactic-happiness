@@ -1,7 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n>]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+]]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
 
@@ -44,8 +44,7 @@
     "source " (source cpu)
     "destination " (destination cpu)
     "@" (pc cpu))
-  (let [pc-bak (pc cpu)
-        cpu2 (destination cpu (source cpu))
+  (let [cpu2 (destination cpu (source cpu))
         cpu2 (pc cpu2 (partial + size))]
     (println "!!! after source" (source (pc cpu2 (pc cpu)))
              "destination" (destination (pc cpu2 (pc cpu))))
@@ -57,11 +56,31 @@
     (set-dword-at cpu (sp cpu) next-pc)))                                       ;; beware : the address should be the decremented sp
 
 (defmethod exec :call [cpu {[_ cond address] :asm, size :size}]
-  (let [next-pc (+ size (pc cpu))
-        call?   (cond cpu)]
-    (cond-> cpu
-            call? (push next-pc)
-            call? (pc (address cpu)))))
+  (let [next-pc (+ size (pc cpu))]
+    (if (cond cpu)
+      (-> (push cpu next-pc)
+          (pc (address cpu)))
+      (pc cpu next-pc))))
+
+(defn positive? [address]
+  (zero? (bit-and address 2r10000000)))
+
+(defn abs "(abs n) is the absolute value of n" [n]
+  {:pre [(number? n)]}
+  (if (neg? n) (- n) n))
+
+(defn two-complement [word]
+  {:pre  [(s/word? word)]
+   :post [(<= (abs %) 127)]}
+  (if (positive? word)
+    word
+    (* -1 (bit-and (inc (bit-not word)) 0xFF))))
+
+(defmethod exec :jr [cpu {[_ cond relative-address] :asm, size :size}]
+  {:pre  [(s/valid? cpu) (s/word? (relative-address cpu))]
+   :post [(s/valid? %)]}
+  (let [jump (if (cond cpu) (two-complement (relative-address cpu)) 0)]
+    (pc cpu (partial %+ size jump))))
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))
