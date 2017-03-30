@@ -206,6 +206,7 @@
    0x23 (->instruction [:inc hl] 8 1 (constantly "inc hl"))
    0x26 (->instruction [:ld h word] 8 2 #(str "ld h," (hex-word %)))
    0x28 (->instruction [:jr z? word] [12 8] 2 #("jr z " (hex-word %)))
+   0x2A (->instruction [:ldi a <hl>] 8 1 (constantly "ldi a,[hl]"))
    0x2E (->instruction [:ld l word] 8 2 #(str "ld l," (hex-word %)))
    0x30 (->instruction [:jr nc? word] [12 8] 2 #("jr nc " (hex-word %)))
    0x31 (->instruction [:ld sp dword] 12 3 #(str "ld sp," (hex-dword %)))

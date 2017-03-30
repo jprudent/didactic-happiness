@@ -1,7 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+ dword-at %inc]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+ dword-at %inc a <hl> hl]]
             [repicene.history :as history]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
@@ -24,7 +24,7 @@
      :debug-chan-rx         (chan)
      :debug-chan-tx         (chan)
      :x-breakpoints         []
-     ::s/history               '()}))
+     ::s/history            '()}))
 
 (defmulti exec (fn [_ {:keys [asm]}] (first asm)))
 (defmethod exec :nop [cpu _] (pc cpu inc))
@@ -54,10 +54,10 @@
 
 (defn dec-sp [cpu] (sp cpu (partial %+ -2)))
 (defn push-sp [cpu dword]
-  {:pre [(s/valid? cpu) (s/dword? dword)]
+  {:pre  [(s/valid? cpu) (s/dword? dword)]
    :post [(s/valid? %)]}
   (let [cpu (dec-sp cpu)]
-    (set-dword-at cpu (sp cpu) dword)))                                       ;; beware : the address should be the decremented sp
+    (set-dword-at cpu (sp cpu) dword)))                                         ;; beware : the address should be the decremented sp
 
 (defmethod exec :push
   [cpu {[_ dword-register] :asm, size :size}]
@@ -71,7 +71,7 @@
 
 (defn inc-sp [cpu] (sp cpu (partial %+ 2)))
 (defn pop-sp [cpu]
-  {:pre [(s/valid? cpu)]
+  {:pre  [(s/valid? cpu)]
    :post [(s/valid? (second %)) (s/address? (first %))]}
   [(dword-at cpu (sp cpu)) (inc-sp cpu)])
 
@@ -104,6 +104,16 @@
    :post [(= (%+ 1 (dword-register cpu)) (dword-register %))
           (= (pc %) (%+ size (pc cpu)))]}
   (-> (dword-register cpu %inc)
+      (pc (partial %+ size))))
+
+(defmethod exec :ldi [cpu {size :size}]
+  {:pre [(s/valid? cpu)]
+   :post [(s/valid? %)
+          (= (a %) (<hl> cpu))
+          (= (%inc (hl cpu)) (hl %))
+          (= (pc %) (%+ size (pc cpu)))]}
+  (-> (a cpu (<hl> cpu))
+      (hl %inc)
       (pc (partial %+ size))))
 
 (defn positive? [address]
