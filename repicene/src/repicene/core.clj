@@ -86,12 +86,22 @@
     (-> (dword-register cpu dword)
         (pc (partial %+ size)))))
 
-(defmethod exec :call [cpu {[_ cond address] :asm, size :size}]
+(defn- call [cpu cond address size]
   (let [next-pc (+ size (pc cpu))]
-    (if (cond cpu)
-      (-> (push-sp cpu next-pc)
-          (pc (address cpu)))
-      (pc cpu next-pc))))
+      (if (cond cpu)
+        (-> (push-sp cpu next-pc)
+            (pc address))
+        (pc cpu next-pc))))
+
+(defmethod exec :call [cpu {[_ cond address] :asm, size :size}]
+  (call cpu cond (address cpu) size))
+
+(defmethod exec :rst [cpu {[_ address] :asm, size :size}]
+  {:pre [(s/valid? cpu) (s/word? address)]
+   :post [(s/valid? %)
+          (= address (pc %))
+          (= (%+ size (pc cpu)) (dword-at % (sp %)))]}
+  (call cpu (constantly true) address size))
 
 (defmethod exec :ret [cpu {[_ cond] :asm, size :size}]
   (if (cond cpu)
@@ -180,7 +190,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (pc 0x100)
-    (update-in [:x-breakpoints] conj 0x2A3)))
+    (update-in [:x-breakpoints] conj 0x7EF)))
 
 #_(def cpu
     (->
