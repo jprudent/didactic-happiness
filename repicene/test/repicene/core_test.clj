@@ -17,7 +17,8 @@
     "call 0x0004" [0xCD 0x04 0x00]
     "ret" [0xC9]
     "nop" [0x00]
-    "push hl" [0xe5]))
+    "push hl" [0xe5]
+    "cp 0x90" [0xFE 0x90]))
 
 (defn compile [program]
   (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0))))
@@ -75,7 +76,14 @@
       (is (= 0xE000 (sp cpu)))
       (let [cpu-afer-push (cpu-cycle cpu)]
         (is (= 0xDFFE (sp cpu-afer-push)))
-        (is (= 0xABCD (dword-at cpu-afer-push 0xDFFE)))))))
+        (is (= 0xABCD (dword-at cpu-afer-push 0xDFFE))))))
+  (testing "cp 0x90"
+      (let [cpu (-> (compile ["cp 0x90"])
+                    (new-cpu)
+                    (a 0xAA))]
+        (is (= 0xAA (a cpu)))
+        (let [cpu-afer-cp (cpu-cycle cpu)]
+          (is (= 0xAA (a cpu-afer-cp)))))))
 
 (deftest memory
   (testing "memory is persistant"

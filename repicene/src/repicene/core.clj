@@ -1,7 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %+ dword-at %inc a <hl> hl z?]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n?]]
             [repicene.history :as history]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
@@ -52,7 +52,7 @@
              "destination" (destination (pc cpu2 (pc cpu))))
     cpu2))
 
-(defn dec-sp [cpu] (sp cpu (partial %+ -2)))
+(defn dec-sp [cpu] (sp cpu (partial %16+ -2)))
 (defn push-sp [cpu dword]
   {:pre  [(s/valid? cpu) (s/dword? dword)]
    :post [(s/valid? %)]}
@@ -63,13 +63,13 @@
   [cpu {[_ dword-register] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
-          (= (sp cpu) (%+ 2 (sp %)))
+          (= (sp cpu) (%16+ 2 (sp %)))
           (= (dword-at % (sp %)) (dword-register %))
-          (= (pc %) (%+ size (pc cpu)))]}
+          (= (pc %) (%16+ size (pc cpu)))]}
   (-> (push-sp cpu (dword-register cpu))
-      (pc (partial %+ size))))
+      (pc (partial %16+ size))))
 
-(defn inc-sp [cpu] (sp cpu (partial %+ 2)))
+(defn inc-sp [cpu] (sp cpu (partial %16+ 2)))
 (defn pop-sp [cpu]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? (second %)) (s/address? (first %))]}
@@ -79,12 +79,12 @@
   [cpu {[_ dword-register] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
-          (= (sp cpu) (%+ -2 (sp %)))
+          (= (sp cpu) (%16+ -2 (sp %)))
           (= (dword-at cpu (sp cpu)) (dword-register %))
-          (= (pc %) (%+ size (pc cpu)))]}
+          (= (pc %) (%16+ size (pc cpu)))]}
   (let [[dword cpu] (pop-sp cpu)]
     (-> (dword-register cpu dword)
-        (pc (partial %+ size)))))
+        (pc (partial %16+ size)))))
 
 (defn- call [cpu cond address size]
   (let [next-pc (+ size (pc cpu))]
@@ -100,31 +100,31 @@
   {:pre  [(s/valid? cpu) (s/word? address)]
    :post [(s/valid? %)
           (= address (pc %))
-          (= (%+ size (pc cpu)) (dword-at % (sp %)))]}
+          (= (%16+ size (pc cpu)) (dword-at % (sp %)))]}
   (call cpu (constantly true) address size))
 
 (defmethod exec :ret [cpu {[_ cond] :asm, size :size}]
   (if (cond cpu)
     (let [[return-address cpu] (pop-sp cpu)]
       (pc cpu return-address))
-    (sp cpu (partial %+ size))))
+    (sp cpu (partial %16+ size))))
 
 (defmethod exec :inc [cpu {[_ dword-register] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
-   :post [(= (%+ 1 (dword-register cpu)) (dword-register %))
-          (= (pc %) (%+ size (pc cpu)))]}
-  (-> (dword-register cpu %inc)
-      (pc (partial %+ size))))
+   :post [(= (%16+ 1 (dword-register cpu)) (dword-register %))
+          (= (pc %) (%16+ size (pc cpu)))]}
+  (-> (dword-register cpu %16inc)
+      (pc (partial %16+ size))))
 
 (defmethod exec :ldi [cpu {size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
           (= (a %) (<hl> cpu))
-          (= (%inc (hl cpu)) (hl %))
-          (= (pc %) (%+ size (pc cpu)))]}
+          (= (%16inc (hl cpu)) (hl %))
+          (= (pc %) (%16+ size (pc cpu)))]}
   (-> (a cpu (<hl> cpu))
-      (hl %inc)
-      (pc (partial %+ size))))
+      (hl %16inc)
+      (pc (partial %16+ size))))
 
 (defn positive? [address]
   (zero? (bit-and address 2r10000000)))
@@ -144,17 +144,45 @@
   {:pre  [(s/valid? cpu) (s/word? (relative-address cpu))]
    :post [(s/valid? %)]}
   (let [jump (if (cond cpu) (two-complement (relative-address cpu)) 0)]
-    (pc cpu (partial %+ size jump))))
+    (pc cpu (partial %16+ size jump))))
 
 (defmethod exec :or [cpu {[_ word-register] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
           (= (a %) (bit-or (a cpu) (word-register cpu)))
-          (= (pc %) (%+ size (pc cpu)))]}
+          (= (pc %) (%16+ size (pc cpu)))]}
   (let [value (bit-or (a cpu) (word-register cpu))]
     (-> (a cpu value)
         (z? (zero? value))
-        (pc (partial %+ size)))))
+        (pc (partial %16+ size)))))
+
+(defn low-nibble [word]
+  {:pre  [(s/word? word)]
+   :post [(s/nibble? %)]}
+  (bit-and word 0xF))
+
+(defn sub-a [cpu source]
+  (let [left-operand  (source cpu)
+        right-operand (a cpu)]
+    (println "sub" right-operand left-operand (%8- right-operand left-operand))
+    (-> (a cpu (%8- right-operand left-operand))
+        (z? (= right-operand left-operand))
+        (c? (< right-operand left-operand))
+        (h? (< (low-nibble right-operand) (low-nibble left-operand)))
+        (n? true))))
+
+(defmethod exec :sub [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (-> (sub-a cpu word-register)
+      (pc (partial %16+ size))))
+
+(defmethod exec :cp [cpu {[_ source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %) (= (a cpu) (a %))]}
+  (-> (sub-a cpu source)
+      (a (a cpu))                                                               ;;restore a register (throw away the result)
+      (pc (partial %16+ size))))
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))

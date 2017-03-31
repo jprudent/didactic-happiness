@@ -19,19 +19,29 @@
 (defn in? [[from to _] address]
   (<= from address to))
 
-(defn %address
+(defn %16
   "Address arithmetic should be 0xFFFF modular arithmetic"
   [f & args]
   {:post [(s/dword? %)]}
   (mod (apply f args) 0x10000))
 
-(def %+
+(def %16+
   "Add numbers and make it a valid address (mod 0xFFFF)"
-  (partial %address +))
+  (partial %16 +))
 
-(def %inc
+(defn %8
+  "Word arithmetic should be 0xFF modular arithmetic"
+  [f & args]
+  {:post [(s/word? %)]}
+  (mod (apply f args) 0xFF))
+
+(def %8-
+  "Sub numbers and make it a valid word (mod 0xFF)"
+  (partial %8 -))
+
+(def %16inc
   "Increment parameter and make it a valid address (mod 0xFFFF)"
-  (partial %+ 1))
+  (partial %16+ 1))
 
 (defn lookup-backend [memory address]                                           ;; could be memeoized
   (some (fn [backend]
@@ -57,7 +67,7 @@
   ([{:keys [::s/memory]} address]
    {:pre  [(dword? address) (s/memory? memory)]
     :post [(dword? %)]}
-   (cat8 (word-at memory (%+ 1 address)) (word-at memory address))))            ;; dword are stored little endian
+   (cat8 (word-at memory (%16+ 1 address)) (word-at memory address))))            ;; dword are stored little endian
 
 (defn high-word
   "1 arg version : returns the high word composing the unsigned dword
@@ -128,7 +138,7 @@
       :post [(s/valid? %)]}
      (if (= (bit-test (f cpu) pos) set?)
        cpu
-       (f cpu (bit-flip (f cpu) pos))))))
+       (f cpu (%8 bit-flip (f cpu) pos))))))
 
 (def z? (def-flag 2r10000000))
 (def n? (def-flag 2r01000000))
@@ -282,6 +292,14 @@
    0x7D (->instruction [:ld a l] 4 1 (constantly "ld a,l"))
    0x7E (->instruction [:ld a <hl>] 8 1 (constantly "ld a,<hl>"))
    0x7F (->instruction [:ld a a] 4 1 (constantly "ld a,a"))
+   0x90 (->instruction [:sub b] 4 1 (constantly "sub b"))
+   0x91 (->instruction [:sub c] 4 1 (constantly "sub c"))
+   0x92 (->instruction [:sub d] 4 1 (constantly "sub d"))
+   0x93 (->instruction [:sub e] 4 1 (constantly "sub e"))
+   0x94 (->instruction [:sub h] 4 1 (constantly "sub h"))
+   0x95 (->instruction [:sub l] 4 1 (constantly "sub l"))
+   0x96 (->instruction [:sub <hl>] 8 1 (constantly "sub [hl]"))
+   0x97 (->instruction [:sub a] 4 1 (constantly "sub a"))
    0xB0 (->instruction [:or b] 4 1 (constantly "or b"))
    0xB1 (->instruction [:or c] 4 1 (constantly "or c"))
    0xB2 (->instruction [:or d] 4 1 (constantly "or d"))
@@ -290,6 +308,14 @@
    0xB5 (->instruction [:or l] 4 1 (constantly "or l"))
    0xB6 (->instruction [:or <hl>] 4 1 (constantly "or (hl)"))
    0xB7 (->instruction [:or a] 4 1 (constantly "or a"))
+   0xB8 (->instruction [:cp b] 4 1 (constantly "cp b"))
+   0xB9 (->instruction [:cp c] 4 1 (constantly "cp c"))
+   0xBA (->instruction [:cp d] 4 1 (constantly "cp d"))
+   0xBB (->instruction [:cp e] 4 1 (constantly "cp e"))
+   0xBC (->instruction [:cp h] 4 1 (constantly "cp h"))
+   0xBD (->instruction [:cp l] 4 1 (constantly "cp l"))
+   0xBE (->instruction [:cp <hl>] 8 1 (constantly "cp [hl]"))
+   0xBF (->instruction [:cp a] 4 1 (constantly "cp a"))
    0xC0 (->instruction [:ret nz?] [20 8] 3 (constantly "ret nz"))
    0xC1 (->instruction [:pop bc] 12 1 (constantly "pop bc"))
    0xC2 (->instruction [:jp nz? address] [16 12] 3 #(str "jp nz " (hex-dword %)))
@@ -314,10 +340,12 @@
    0xE5 (->instruction [:push hl] 16 1 (constantly "push hl"))
    0xE7 (->instruction [:rst 0x20] 16 1 (constantly "rst 20"))
    0xEF (->instruction [:rst 0x28] 16 1 (constantly "rst 28"))
+   0xF0 (->instruction [:ld a <FF00+n>] 12 2 #(str "ldh a,[FF00+" (hex-word %) "]"))
    0xF1 (->instruction [:pop af] 12 1 (constantly "pop af"))
    0xF3 (->instruction [:di] 4 1 (constantly "di"))
    0xF5 (->instruction [:push af] 16 1 (constantly "push af"))
    0xF7 (->instruction [:rst 0x30] 16 1 (constantly "rst 30"))
+   0xFA (->instruction [:ld a <address>] 12 2 #(str "ldh a,[" (hex-dword %) "]"))
    0xFB (->instruction [:ei] 4 1 (constantly "ei"))
-   0xFE (->instruction [:ld a <FF00+n>] 12 2 #(str "ldh a,[FF00+" (hex-word %) "]"))
+   0xFE (->instruction [:cp word] 8 2 #(str "cp " (hex-word %)))
    0xFF (->instruction [:rst 0x38] 16 1 (constantly "rst 38"))})

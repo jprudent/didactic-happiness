@@ -20,8 +20,11 @@
                            ::memory
                            ::history]))
 
+(s/def ::nibble (s/and integer? #(<= 0 % 0xF)))
+
 (def valid? (partial s/valid? ::cpu))
 (def dword? (partial s/valid? ::dword))
 (def address? (partial s/valid? ::address ))
 (def word? (partial s/valid? ::word))
 (def memory? (partial s/valid? ::memory))
+(def nibble? (partial s/valid? ::nibble))
