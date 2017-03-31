@@ -21,6 +21,7 @@
                              [0xD000 0xDFFF wram-1]
                              [0xFF00 0xFF7F io]
                              [0xFF80 0xFFFF hram]]
+     ::s/mode               ::s/running
      :debug-chan-rx         (chan)
      :debug-chan-tx         (chan)
      :x-breakpoints         []
@@ -182,6 +183,12 @@
    :post [(s/valid? %) (= (a cpu) (a %))]}
   (-> (sub-a cpu source)
       (a (a cpu))                                                               ;;restore a register (throw away the result)
+      (pc (partial %16+ size))))
+
+(defmethod exec :stop [cpu {size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %) (= ::s/stopped (::s/mode %))]}
+  (-> (assoc cpu ::s/mode ::s/stopped)
       (pc (partial %16+ size))))
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]

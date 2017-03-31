@@ -15,10 +15,12 @@
 (s/def ::memory-backend (s/tuple ::address ::address coll?))
 (s/def ::memory (and vector? (s/coll-of ::memory-backend :kind vector?)))
 (s/def ::history (and list? #(<= (count %) 100)))
+(s/def ::mode #{::running ::stopped})
 (s/def ::cpu (s/keys :req [::registers
                            ::interrupt-enabled?
                            ::memory
-                           ::history]))
+                           ::history
+                           ::mode]))
 
 (s/def ::nibble (s/and integer? #(<= 0 % 0xF)))
 
