@@ -191,6 +191,18 @@
   (-> (assoc cpu ::s/mode ::s/stopped)
       (pc (partial %16+ size))))
 
+(defmethod exec :and [cpu {[_ source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (let [result (bit-and (source cpu) (a cpu))]
+    (-> (a cpu result)
+        (z? (= 0 result))
+        (n? false)
+        (h? true)
+        (c? false)
+        (pc (partial %16+ size))))
+  )
+
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))
 
