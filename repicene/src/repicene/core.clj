@@ -1,15 +1,16 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n?]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc]]
             [repicene.history :as history]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
 
 (defn new-cpu [rom]
   (let [wram-1 (vec (take 0x1000 (repeat 0)))
-        io     (vec (take 0x80 (repeat 0)))
-        hram   (vec (take 0x80 (repeat 0)))]
+        io     (vec (take 0x0080 (repeat 0)))
+        hram   (vec (take 0x0080 (repeat 0)))
+        vram   (vec (take 0x2000 (repeat 0)))]
     {::s/registers          {::s/AF 0
                              ::s/BC 0
                              ::s/DE 0
@@ -18,6 +19,7 @@
                              ::s/PC 0}
      ::s/interrupt-enabled? true
      ::s/memory             [[0x0000 0x7FFF rom]
+                             [0x8000 0x9FFF vram]
                              [0xD000 0xDFFF wram-1]
                              [0xFF00 0xFF7F io]
                              [0xFF80 0xFFFF hram]]
@@ -42,16 +44,8 @@
 
 (defmethod exec :ld [cpu {[_ destination source] :asm, size :size}]
   {:post [(= (source (pc % (pc cpu))) (destination (pc % (pc cpu))))]}
-  (println
-    "!!! before"
-    "source " (source cpu)
-    "destination " (destination cpu)
-    "@" (pc cpu))
-  (let [cpu2 (destination cpu (source cpu))
-        cpu2 (pc cpu2 (partial + size))]
-    (println "!!! after source" (source (pc cpu2 (pc cpu)))
-             "destination" (destination (pc cpu2 (pc cpu))))
-    cpu2))
+  (-> (destination cpu (source cpu))
+      (pc (partial + size))))
 
 (defn dec-sp [cpu] (sp cpu (partial %16+ -2)))
 (defn push-sp [cpu dword]
@@ -110,12 +104,28 @@
       (pc cpu return-address))
     (sp cpu (partial %16+ size))))
 
-(defmethod exec :inc [cpu {[_ dword-register] :asm, size :size}]
+(defmethod exec :inc16 [cpu {[_ dword-register] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(= (%16+ 1 (dword-register cpu)) (dword-register %))
           (= (pc %) (%16+ size (pc cpu)))]}
   (-> (dword-register cpu %16inc)
       (pc (partial %16+ size))))
+
+(defn low-nibble [word]
+  {:pre  [(s/word? word)]
+   :post [(s/nibble? %)]}
+  (bit-and word 0xF))
+
+(defmethod exec :inc [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (let [value  (word-register cpu)
+        result (%8inc value)]
+    (-> (word-register cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? (> 0xF (inc (low-nibble value))))
+        (pc (partial %16+ size)))))
 
 (defmethod exec :ldi [cpu {size :size}]
   {:pre  [(s/valid? cpu)]
@@ -156,11 +166,6 @@
     (-> (a cpu value)
         (z? (zero? value))
         (pc (partial %16+ size)))))
-
-(defn low-nibble [word]
-  {:pre  [(s/word? word)]
-   :post [(s/nibble? %)]}
-  (bit-and word 0xF))
 
 (defn sub-a [cpu source]
   (let [left-operand  (source cpu)
@@ -247,7 +252,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (pc 0x100)
-    (update-in [:x-breakpoints] conj 0x740)))
+    (update-in [:x-breakpoints] conj 0x784)))
 
 #_(def cpu
     (->

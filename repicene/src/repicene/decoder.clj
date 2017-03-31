@@ -39,6 +39,10 @@
   "Sub numbers and make it a valid word (mod 0xFF)"
   (partial %8 -))
 
+(def %8inc
+  "Increment parameter and make it a valid word (mod 0xFF)"
+  (partial + 1))
+
 (def %16inc
   "Increment parameter and make it a valid address (mod 0xFFFF)"
   (partial %16+ 1))
@@ -209,26 +213,34 @@
 (def decoder
   {0x00 (->instruction [:nop] 4 1 (constantly "nop"))
    0x01 (->instruction [:ld bc dword] 12 3 #(str "ld bc," (hex-dword %)))
-   0x03 (->instruction [:inc bc] 8 1 (constantly "inc bc"))
+   0x03 (->instruction [:inc16 bc] 8 1 (constantly "inc bc"))
+   0x04 (->instruction [:inc b] 4 1 (constantly "inc b"))
    0x06 (->instruction [:ld b word] 8 2 #(str "ld b," (hex-word %)))
+   0x0C (->instruction [:inc c] 4 1 (constantly "inc c"))
    0x0E (->instruction [:ld c word] 8 2 #(str "ld c," (hex-word %)))
    0x10 (->instruction [:stop 0] 4 1 (constantly "stop"))
    0x11 (->instruction [:ld de dword] 12 3 #(str "ld de," (hex-dword %)))
-   0x13 (->instruction [:inc de] 8 1 (constantly "inc de"))
+   0x13 (->instruction [:inc16 de] 8 1 (constantly "inc de"))
+   0x14 (->instruction [:inc d] 4 1 (constantly "inc d"))
    0x16 (->instruction [:ld d word] 8 2 #(str "ld d," (hex-word %)))
    0x18 (->instruction [:jr always word] 12 2 #(str "jr " (hex-word %)))
+   0x1C (->instruction [:inc e] 4 1 (constantly "inc e"))
    0x1E (->instruction [:ld e word] 8 2 #(str "ld e," (hex-word %)))
    0x20 (->instruction [:jr nz? word] [12 8] 2 #(str "jr nz " (hex-word %)))
    0x21 (->instruction [:ld hl dword] 12 3 #(str "ld hl," (hex-dword %)))
-   0x23 (->instruction [:inc hl] 8 1 (constantly "inc hl"))
+   0x23 (->instruction [:inc16 hl] 8 1 (constantly "inc hl"))
+   0x24 (->instruction [:inc h] 4 1 (constantly "inc h"))
    0x26 (->instruction [:ld h word] 8 2 #(str "ld h," (hex-word %)))
    0x28 (->instruction [:jr z? word] [12 8] 2 #(str "jr z " (hex-word %)))
    0x2A (->instruction [:ldi a <hl>] 8 1 (constantly "ldi a,[hl]"))
+   0x2C (->instruction [:inc l] 4 1 (constantly "inc l"))
    0x2E (->instruction [:ld l word] 8 2 #(str "ld l," (hex-word %)))
    0x30 (->instruction [:jr nc? word] [12 8] 2 #(str "jr nc " (hex-word %)))
    0x31 (->instruction [:ld sp dword] 12 3 #(str "ld sp," (hex-dword %)))
-   0x33 (->instruction [:inc sp] 8 1 (constantly "inc sp"))
+   0x33 (->instruction [:inc16 sp] 8 1 (constantly "inc sp"))
+   0x34 (->instruction [:inc <hl>] 12 1 (constantly "inc [hl]"))
    0x38 (->instruction [:jr c? word] [12 8] 2 #(str "jr c " (hex-word %)))
+   0x3C (->instruction [:inc a] 4 1 (constantly "inc a"))
    0x3E (->instruction [:ld a word] 8 2 #(str "ld a," (hex-word %)))
    0x40 (->instruction [:ld b b] 4 1 (constantly "ld b,b"))
    0x41 (->instruction [:ld b c] 4 1 (constantly "ld b,c"))
