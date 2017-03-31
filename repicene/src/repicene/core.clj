@@ -1,7 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc %8dec %16dec]]
             [repicene.history :as history]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
@@ -127,14 +127,35 @@
         (h? (> 0xF (inc (low-nibble value))))
         (pc (partial %16+ size)))))
 
-(defmethod exec :ldi [cpu {size :size}]
+(defmethod exec :dec [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (let [value  (word-register cpu)
+        result (%8dec value)]
+    (-> (word-register cpu result)
+        (z? (zero? result))
+        (n? true)
+        (h? (> 0xF (inc (low-nibble value))))
+        (pc (partial %16+ size)))))
+
+(defmethod exec :ldi [cpu {[_ destination source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
-          (= (a %) (<hl> cpu))
+          (= (destination %) (source cpu))
           (= (%16inc (hl cpu)) (hl %))
           (= (pc %) (%16+ size (pc cpu)))]}
-  (-> (a cpu (<hl> cpu))
+  (-> (destination cpu (source cpu))
       (hl %16inc)
+      (pc (partial %16+ size))))
+
+(defmethod exec :ldd [cpu {[_ destination source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)
+          (= (destination %) (source cpu))
+          (= (%16dec (hl cpu)) (hl %))
+          (= (pc %) (%16+ size (pc cpu)))]}
+  (-> (destination cpu (source cpu))
+      (hl %16dec)
       (pc (partial %16+ size))))
 
 (defn positive? [address]
@@ -252,7 +273,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (pc 0x100)
-    (update-in [:x-breakpoints] conj 0x784)))
+    (update-in [:x-breakpoints] conj 0x7CC)))
 
 #_(def cpu
     (->

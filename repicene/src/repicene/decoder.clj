@@ -41,11 +41,19 @@
 
 (def %8inc
   "Increment parameter and make it a valid word (mod 0xFF)"
-  (partial + 1))
+  (partial %8 inc))
+
+(def %8dec
+  "Decrement parameter and make it a valid word (mod 0xFF)"
+  (partial %8 dec))
 
 (def %16inc
   "Increment parameter and make it a valid address (mod 0xFFFF)"
-  (partial %16+ 1))
+  (partial %16 inc))
+
+(def %16dec
+  "Decrement parameter and make it a valid address (mod 0xFFFF)"
+  (partial %16 dec))
 
 (defn lookup-backend [memory address]                                           ;; could be memeoized
   (some (fn [backend]
@@ -71,7 +79,7 @@
   ([{:keys [::s/memory]} address]
    {:pre  [(dword? address) (s/memory? memory)]
     :post [(dword? %)]}
-   (cat8 (word-at memory (%16+ 1 address)) (word-at memory address))))            ;; dword are stored little endian
+   (cat8 (word-at memory (%16+ 1 address)) (word-at memory address))))          ;; dword are stored little endian
 
 (defn high-word
   "1 arg version : returns the high word composing the unsigned dword
@@ -138,7 +146,7 @@
   (fn
     ([cpu] (bit-test (f cpu) pos))
     ([cpu set?]
-     {:pre [(s/valid? cpu) (boolean? set?)]
+     {:pre  [(s/valid? cpu) (boolean? set?)]
       :post [(s/valid? %)]}
      (if (= (bit-test (f cpu) pos) set?)
        cpu
@@ -183,11 +191,16 @@
   ([cpu val]
    (set-word-at cpu (+ 0xFF00 (word cpu)) val)))
 
-(defn <hl>
-  ([{:keys [::s/memory] :as cpu}]
-   (word-at memory (hl cpu)))
-  ([cpu val]
-   (set-word-at cpu (hl cpu) val)))
+(defn register-pointer [dword-register]
+  (fn
+    ([{:keys [::s/memory] :as cpu}]
+     (word-at memory (dword-register cpu)))
+    ([cpu val]
+     (set-word-at cpu (dword-register cpu) val))))
+
+(def <hl> (register-pointer hl))
+(def <bc> (register-pointer bc))
+(def <de> (register-pointer de))
 
 (defn <address>
   ([{:keys [::s/memory] :as cpu}]
@@ -213,34 +226,49 @@
 (def decoder
   {0x00 (->instruction [:nop] 4 1 (constantly "nop"))
    0x01 (->instruction [:ld bc dword] 12 3 #(str "ld bc," (hex-dword %)))
+   0x02 (->instruction [:ld <bc> a] 8 1 (constantly "ld [bc],a"))
    0x03 (->instruction [:inc16 bc] 8 1 (constantly "inc bc"))
    0x04 (->instruction [:inc b] 4 1 (constantly "inc b"))
+   0x05 (->instruction [:dec b] 4 1 (constantly "dec b"))
    0x06 (->instruction [:ld b word] 8 2 #(str "ld b," (hex-word %)))
+   0x0A (->instruction [:ld a <bc>] 8 1 (constantly "ld a,[bc]"))
    0x0C (->instruction [:inc c] 4 1 (constantly "inc c"))
+   0x0D (->instruction [:dec c] 4 1 (constantly "dec c"))
    0x0E (->instruction [:ld c word] 8 2 #(str "ld c," (hex-word %)))
    0x10 (->instruction [:stop 0] 4 1 (constantly "stop"))
    0x11 (->instruction [:ld de dword] 12 3 #(str "ld de," (hex-dword %)))
+   0x12 (->instruction [:ld <de> a] 8 1 (constantly "ld [de],8"))
    0x13 (->instruction [:inc16 de] 8 1 (constantly "inc de"))
    0x14 (->instruction [:inc d] 4 1 (constantly "inc d"))
+   0x15 (->instruction [:dec d] 4 1 (constantly "dec d"))
    0x16 (->instruction [:ld d word] 8 2 #(str "ld d," (hex-word %)))
    0x18 (->instruction [:jr always word] 12 2 #(str "jr " (hex-word %)))
+   0x1A (->instruction [:ld a <de>] 8 1(constantly "ld a,[de]"))
    0x1C (->instruction [:inc e] 4 1 (constantly "inc e"))
+   0x1D (->instruction [:dec e] 4 1 (constantly "dec e"))
    0x1E (->instruction [:ld e word] 8 2 #(str "ld e," (hex-word %)))
    0x20 (->instruction [:jr nz? word] [12 8] 2 #(str "jr nz " (hex-word %)))
    0x21 (->instruction [:ld hl dword] 12 3 #(str "ld hl," (hex-dword %)))
+   0x22 (->instruction [:ldi <hl> a] 8 1 (constantly "ldi [hl],a"))
    0x23 (->instruction [:inc16 hl] 8 1 (constantly "inc hl"))
    0x24 (->instruction [:inc h] 4 1 (constantly "inc h"))
+   0x25 (->instruction [:dec h] 4 1 (constantly "dec h"))
    0x26 (->instruction [:ld h word] 8 2 #(str "ld h," (hex-word %)))
    0x28 (->instruction [:jr z? word] [12 8] 2 #(str "jr z " (hex-word %)))
    0x2A (->instruction [:ldi a <hl>] 8 1 (constantly "ldi a,[hl]"))
    0x2C (->instruction [:inc l] 4 1 (constantly "inc l"))
+   0x2D (->instruction [:dec l] 4 1 (constantly "dec l"))
    0x2E (->instruction [:ld l word] 8 2 #(str "ld l," (hex-word %)))
    0x30 (->instruction [:jr nc? word] [12 8] 2 #(str "jr nc " (hex-word %)))
    0x31 (->instruction [:ld sp dword] 12 3 #(str "ld sp," (hex-dword %)))
+   0x32 (->instruction [:ldd <hl> a] 8 1 (constantly "ldd [hl],a"))
    0x33 (->instruction [:inc16 sp] 8 1 (constantly "inc sp"))
    0x34 (->instruction [:inc <hl>] 12 1 (constantly "inc [hl]"))
+   0x35 (->instruction [:dec <hl>] 4 1 (constantly "dec [hl]"))
    0x38 (->instruction [:jr c? word] [12 8] 2 #(str "jr c " (hex-word %)))
+   0x3A (->instruction [:ldd a <hl>] 8 1 (constantly "ldd a,[hl]"))
    0x3C (->instruction [:inc a] 4 1 (constantly "inc a"))
+   0x3D (->instruction [:dec a] 4 1 (constantly "dec a"))
    0x3E (->instruction [:ld a word] 8 2 #(str "ld a," (hex-word %)))
    0x40 (->instruction [:ld b b] 4 1 (constantly "ld b,b"))
    0x41 (->instruction [:ld b c] 4 1 (constantly "ld b,c"))
