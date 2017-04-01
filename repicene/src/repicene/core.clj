@@ -1,7 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc %8dec %16dec]]
+            [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc %8dec %16dec %8]]
             [repicene.history :as history]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
             [repicene.schema :as s]))
@@ -150,7 +150,6 @@
 (defmethod exec :ldd [cpu {[_ destination source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
-          (= (destination %) (source cpu))
           (= (%16dec (hl cpu)) (hl %))
           (= (pc %) (%16+ size (pc cpu)))]}
   (-> (destination cpu (source cpu))
@@ -227,7 +226,20 @@
         (c? false)
         (pc (partial %16+ size)))))
 
-(defmethod exec :xor[cpu {[_ source] :asm, size :size}]
+(defmethod exec :add [cpu {[_ source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (let [x      (source cpu)
+        y      (a cpu)
+        result (%8 + x y)]
+    (-> (a cpu result)
+        (z? (= 0 result))
+        (n? false)
+        (h? (> (+ (low-nibble y) (low-nibble x)) 0xF))
+        (c? (> (+ x y) 0xFF))
+        (pc (partial %16+ size)))))
+
+(defmethod exec :xor [cpu {[_ source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
   (let [result (bit-xor (source cpu) (a cpu))]

@@ -243,7 +243,7 @@
    0x15 (->instruction [:dec d] 4 1 (constantly "dec d"))
    0x16 (->instruction [:ld d word] 8 2 #(str "ld d," (hex-word %)))
    0x18 (->instruction [:jr always word] 12 2 #(str "jr " (hex-word %)))
-   0x1A (->instruction [:ld a <de>] 8 1(constantly "ld a,[de]"))
+   0x1A (->instruction [:ld a <de>] 8 1 (constantly "ld a,[de]"))
    0x1C (->instruction [:inc e] 4 1 (constantly "inc e"))
    0x1D (->instruction [:dec e] 4 1 (constantly "dec e"))
    0x1E (->instruction [:ld e word] 8 2 #(str "ld e," (hex-word %)))
@@ -333,6 +333,14 @@
    0x7D (->instruction [:ld a l] 4 1 (constantly "ld a,l"))
    0x7E (->instruction [:ld a <hl>] 8 1 (constantly "ld a,<hl>"))
    0x7F (->instruction [:ld a a] 4 1 (constantly "ld a,a"))
+   0x80 (->instruction [:add b] 4 1 (constantly "add b"))
+   0x81 (->instruction [:add c] 4 1 (constantly "add c"))
+   0x82 (->instruction [:add d] 4 1 (constantly "add d"))
+   0x83 (->instruction [:add e] 4 1 (constantly "add e"))
+   0x84 (->instruction [:add h] 4 1 (constantly "add h"))
+   0x85 (->instruction [:add l] 4 1 (constantly "add l"))
+   0x86 (->instruction [:add <hl>] 4 1 (constantly "add <hl>"))
+   0x87 (->instruction [:add a] 4 1 (constantly "add a"))
    0x90 (->instruction [:sub b] 4 1 (constantly "sub b"))
    0x91 (->instruction [:sub c] 4 1 (constantly "sub c"))
    0x92 (->instruction [:sub d] 4 1 (constantly "sub d"))
@@ -379,6 +387,7 @@
    0xC3 (->instruction [:jp always address] 8 3 #(str "jp " (hex-dword %)))
    0xC4 (->instruction [:call nz? address] 24 3 #(str "call nz " (hex-dword %)))
    0xC5 (->instruction [:push bc] 16 1 (constantly "push bc"))
+   0xC6 (->instruction [:add word] 8 2 #(str "add " (hex-word %)))
    0xC7 (->instruction [:rst 0x00] 16 1 (constantly "rst 00"))
    0xCF (->instruction [:rst 0x08] 16 1 (constantly "rst 08"))
    0xC9 (->instruction [:ret always] 16 1 (constantly "ret"))
@@ -408,3 +417,9 @@
    0xFB (->instruction [:ei] 4 1 (constantly "ei"))
    0xFE (->instruction [:cp word] 8 2 #(str "cp " (hex-word %)))
    0xFF (->instruction [:rst 0x38] 16 1 (constantly "rst 38"))})
+
+#_(defn mkop [op start]
+    (map
+      (fn [i reg]
+        (str (hex8 i) " (->instruction [:" op " " reg "] 4 1 (constantly \"" op " " reg "\"))"))
+      (range start (+ start 8)) ["b" "c" "d" "e" "h" "l" "<hl>" "a"]))
