@@ -53,9 +53,11 @@
 
 (def empty-button [:div.debugger-button])
 
+(defn- flag [af pos set unset]
+  )
 (defn registers
   "returns the UI component that display the registers"
-  [{:keys [::s/registers]}]
+  [{{:keys [::s/AF] :as registers} ::s/registers}]
   (println "registers " registers)
   (when registers
     [:div.debugger-registers
@@ -67,14 +69,21 @@
            ::s/DE
            ::s/HL
            ::s/SP
-           ::s/PC])]))
+           ::s/PC])
+     [:div.debugger-register
+      [:span.debugger-registerName "Flgs"]
+      [:span
+       (if (bit-test AF 7) "Z" "z")
+       (if (bit-test AF 6) "N" "n")
+       (if (bit-test AF 5) "H" "h")
+       (if (bit-test AF 4) "C" "c")]]]))
 
 (defn instruction
   [pc [address bytes asm :as key]]
   "foo"
-  (let [block     "debugger"
-        debugger-block       (partial bem block)
-        line-elem (partial debugger-block "instructionLine")]
+  (let [block          "debugger"
+        debugger-block (partial bem block)
+        line-elem      (partial debugger-block "instructionLine")]
     ^{:key key} [:div
                  {:class (line-elem [(when (= pc address) "atPc")])}
                  [:div {:class (debugger-block "address")} (hex-dword address)]
