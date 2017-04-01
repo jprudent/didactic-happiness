@@ -182,18 +182,19 @@
           (= (a %) (bit-or (a cpu) (word-register cpu)))
           (= (pc %) (%16+ size (pc cpu)))]}
   (let [value (bit-or (a cpu) (word-register cpu))]
+    (println "or " (a cpu) " " (word-register cpu) " = " value)
     (-> (a cpu value)
         (z? (zero? value))
         (pc (partial %16+ size)))))
 
 (defn sub-a [cpu source]
-  (let [left-operand  (source cpu)
-        right-operand (a cpu)]
-    (println "sub" right-operand left-operand (%8- right-operand left-operand))
-    (-> (a cpu (%8- right-operand left-operand))
-        (z? (= right-operand left-operand))
-        (c? (< right-operand left-operand))
-        (h? (< (low-nibble right-operand) (low-nibble left-operand)))
+  (let [y  (source cpu)
+        x (a cpu)]
+    (println "sub" x y (%8- x y) "c" (< x y))
+    (-> (a cpu (%8- x y))
+        (z? (= y x))
+        (c? (< x y))
+        (h? (< (low-nibble x) (low-nibble y)))
         (n? true))))
 
 (defmethod exec :sub [cpu {[_ word-register] :asm, size :size}]
