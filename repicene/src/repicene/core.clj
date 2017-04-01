@@ -141,7 +141,6 @@
 (defmethod exec :ldi [cpu {[_ destination source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
-          (= (destination %) (source cpu))
           (= (%16inc (hl cpu)) (hl %))
           (= (pc %) (%16+ size (pc cpu)))]}
   (-> (destination cpu (source cpu))
@@ -226,8 +225,21 @@
         (n? false)
         (h? true)
         (c? false)
-        (pc (partial %16+ size))))
-  )
+        (pc (partial %16+ size)))))
+
+(defmethod exec :xor[cpu {[_ source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (let [result (bit-xor (source cpu) (a cpu))]
+    (-> (a cpu result)
+        (z? (= 0 result))
+        (n? false)
+        (h? false)
+        (c? false)
+        (pc (partial %16+ size)))))
+
+
+
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))

@@ -115,5 +115,5 @@
                   (new-cpu)
                   (pc 0x100))]
       (is (= 0x100 (pc cpu)))
-      #_(cpu-loop cpu))
+      (cpu-loop cpu))
     #_(is (= 11 (a (cpu-cycle (demo-gameboy)))))))
