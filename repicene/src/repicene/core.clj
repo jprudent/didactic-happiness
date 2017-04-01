@@ -138,6 +138,18 @@
         (h? (> 0xF (inc (low-nibble value))))
         (pc (partial %16+ size)))))
 
+(defmethod exec :rlca [cpu {size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (let [x      (a cpu)
+        result (bit-shift-left x 1)]
+    (-> (a cpu result)
+        (z? false)
+        (n? false)
+        (h? false)
+        (c? (bit-test x 7))
+        (pc (partial %16+ size)))))
+
 (defmethod exec :ldi [cpu {[_ destination source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
@@ -188,7 +200,7 @@
         (pc (partial %16+ size)))))
 
 (defn sub-a [cpu source]
-  (let [y  (source cpu)
+  (let [y (source cpu)
         x (a cpu)]
     (println "sub" x y (%8- x y) "c" (< x y))
     (-> (a cpu (%8- x y))

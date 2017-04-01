@@ -231,6 +231,7 @@
    0x04 (->instruction [:inc b] 4 1 (constantly "inc b"))
    0x05 (->instruction [:dec b] 4 1 (constantly "dec b"))
    0x06 (->instruction [:ld b word] 8 2 #(str "ld b," (hex-word %)))
+   0x07 (->instruction [:rlca] 4 1 (constantly "rlca"))
    0x0A (->instruction [:ld a <bc>] 8 1 (constantly "ld a,[bc]"))
    0x0C (->instruction [:inc c] 4 1 (constantly "inc c"))
    0x0D (->instruction [:dec c] 4 1 (constantly "dec c"))
