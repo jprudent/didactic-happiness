@@ -180,6 +180,14 @@
   (-> (sub-a cpu word-register)
       (pc (partial %16+ size))))
 
+(defn bool->int [b] (if b 1 0))
+
+(defmethod exec :sbc [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (-> (sub-a cpu #(%8 + (word-register cpu) (bool->int (c? cpu))))
+      (pc (partial %16+ size))))
+
 (defmethod exec :cp [cpu {[_ source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %) (= (a cpu) (a %))]}
@@ -218,8 +226,6 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
   (add cpu (source cpu) size))
-
-(defn bool->int [b] (if b 1 0))
 
 (defmethod exec :adc [cpu {[_ source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
