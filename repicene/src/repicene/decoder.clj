@@ -217,7 +217,7 @@
 (defn fetch [{:keys [::s/memory] :as cpu}]
   {:pre  [(s/valid? cpu)]
    :post [(not (nil? %))]}
-  #_(println "fetch " (hex8 (word-at memory (pc cpu))))
+  (println "fetch " (hex8 (word-at memory (pc cpu))))
   (word-at memory (pc cpu)))
 
 (defrecord instruction [asm cycles size to-string])
@@ -489,11 +489,12 @@
    0x04 (->instruction [:inc b] 4 1 (constantly "inc b"))
    0x05 (->instruction [:dec b] 4 1 (constantly "dec b"))
    0x06 (->instruction [:ld b word] 8 2 #(str "ld b," (hex-word %)))
-   0x07 (->instruction [:rlc a] 4 1 (constantly "rlca"))
+   0x07 (->instruction [:rlca] 4 1 (constantly "rlca"))
    0x0A (->instruction [:ld a <bc>] 8 1 (constantly "ld a,[bc]"))
    0x0C (->instruction [:inc c] 4 1 (constantly "inc c"))
    0x0D (->instruction [:dec c] 4 1 (constantly "dec c"))
    0x0E (->instruction [:ld c word] 8 2 #(str "ld c," (hex-word %)))
+   0x0F (->instruction [:rrca] 4 1 (constantly "rrca"))
    0x10 (->instruction [:stop 0] 4 1 (constantly "stop"))
    0x11 (->instruction [:ld de dword] 12 3 #(str "ld de," (hex-dword %)))
    0x12 (->instruction [:ld <de> a] 8 1 (constantly "ld [de],8"))
@@ -501,11 +502,13 @@
    0x14 (->instruction [:inc d] 4 1 (constantly "inc d"))
    0x15 (->instruction [:dec d] 4 1 (constantly "dec d"))
    0x16 (->instruction [:ld d word] 8 2 #(str "ld d," (hex-word %)))
+   0x17 (->instruction [:rla] 4 1 #(constantly "rla"))
    0x18 (->instruction [:jr always word] 12 2 #(str "jr " (hex-word %)))
    0x1A (->instruction [:ld a <de>] 8 1 (constantly "ld a,[de]"))
    0x1C (->instruction [:inc e] 4 1 (constantly "inc e"))
    0x1D (->instruction [:dec e] 4 1 (constantly "dec e"))
    0x1E (->instruction [:ld e word] 8 2 #(str "ld e," (hex-word %)))
+   0x1F (->instruction [:rra] 4 1 (constantly "rra"))
    0x20 (->instruction [:jr nz? word] [12 8] 2 #(str "jr nz " (hex-word %)))
    0x21 (->instruction [:ld hl dword] 12 3 #(str "ld hl," (hex-dword %)))
    0x22 (->instruction [:ldi <hl> a] 8 1 (constantly "ldi [hl],a"))

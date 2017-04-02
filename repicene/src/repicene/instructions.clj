@@ -115,18 +115,6 @@
         (h? (> 0xF (inc (low-nibble value))))
         (pc (partial %16+ size)))))
 
-(defmethod exec :rlc [cpu {[_ word-register] :asm, size :size}]
-  {:pre  [(s/valid? cpu)]
-   :post [(s/valid? %)]}
-  (let [x      (word-register cpu)
-        result (bit-shift-left x 1)]
-    (-> (word-register cpu result)
-        (z? false)
-        (n? false)
-        (h? false)
-        (c? (bit-test x 7))
-        (pc (partial %16+ size)))))
-
 (defmethod exec :ldi [cpu {[_ destination source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
@@ -240,30 +228,150 @@
         (c? false)
         (pc (partial %16+ size)))))
 
+(defmethod exec :sla [cpu {[_ source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (let [value  (source cpu)
+        result (bit-shift-left value 1)]
+    (-> (source cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? false)
+        (c? (bit-test value 7))
+        (pc (partial %16+ size)))))
+
 (defmethod exec :srl [cpu {[_ source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
   (let [value  (source cpu)
         result (bit-shift-right value 1)]
     (-> (source cpu result)
-        (z? (= 0 result))
+        (z? (zero? result))
         (n? false)
         (h? false)
         (c? (bit-test value 0))
         (pc (partial %16+ size)))))
 
-(defmethod exec :rr [cpu {[_ source] :asm, size :size}]
+(defmethod exec :sra [cpu {[_ source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
-  (let [value  (source cpu)
-        result (let [shifted (bit-shift-right value 1)]
-                 (if (c? cpu) (bit-set shifted 7) shifted))]
+  (let [value   (source cpu)
+        highest (bit-and value 2r10000000)
+        result  (-> (bit-shift-right value 1)
+                    (bit-or highest))]                                          ;; MSB doesn't change !
     (-> (source cpu result)
-        (z? (= 0 result))
+        (z? (zero? result))
         (n? false)
         (h? false)
         (c? (bit-test value 0))
         (pc (partial %16+ size)))))
+
+(defn bool->int [b] (if b 1 0))
+
+(defn rotate-left [word]
+  {:pre  [(s/word? word)]
+   :post [(s/word? %)]}
+  (let [highest (bool->int (bit-test word 7))]
+    (-> (bit-shift-left word 1)
+        (bit-or highest))))
+
+(defn rlc [cpu word-register size]
+  (let [x      (word-register cpu)
+        result (rotate-left x)]
+    (-> (word-register cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? false)
+        (c? (bit-test x 7))
+        (pc (partial %16+ size)))))
+
+;; rotate left, Old bit 7 to Carry flag.
+(defmethod exec :rlc [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (rlc cpu word-register size))
+
+(defmethod exec :rlca [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (-> (rlc cpu word-register size)
+      (z? false)))
+
+(defn rl [cpu source size]
+  (let [value  (source cpu)
+        result (bit-or (bit-shift-left value 1)
+                       (bool->int (c? cpu)))]
+    (-> (source cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? false)
+        (c? (bit-test value 7))
+        (pc (partial %16+ size)))))
+
+;; rotate left through carry flag
+(defmethod exec :rl [cpu {[_ source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (rl cpu source size))
+
+(defmethod exec :rla [cpu {[_ source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (-> (rl cpu source size)
+      (z? false)))
+
+(defn rotate-right [word]
+  {:pre  [(s/word? word)]
+   :post [(s/word? %)]}
+  (let [highest (-> (bit-and word 1)
+                    (bit-shift-left 7))]
+    (-> (bit-shift-right word 1)
+        (bit-or highest))))
+
+(defn rrc [cpu word-register size]
+  (let [x      (word-register cpu)
+        result (rotate-right x)]
+    (-> (word-register cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? false)
+        (c? (bit-test x 0))
+        (pc (partial %16+ size)))))
+
+;; rotate right, Old bit 7 to Carry flag.
+(defmethod exec :rrc [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (rrc cpu word-register size))
+
+(defmethod exec :rrca [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (-> (rrc cpu word-register size)
+      (z? false)))
+
+(defn rr [cpu word-register size]
+  (let [value  (word-register cpu)
+          result (bit-or (bit-shift-right value 1)
+                         (bit-shift-left (bool->int (c? cpu)) 7))]
+      (-> (word-register cpu result)
+          (z? (zero? result))
+          (n? false)
+          (h? false)
+          (c? (bit-test value 0))
+          (pc (partial %16+ size)))))
+
+;; rotate right through carry flag
+(defmethod exec :rr [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (rr cpu word-register size))
+
+(defmethod exec :rra [cpu {[_ word-register] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (-> (rr cpu word-register size)
+      (z? false)))
 
 (defmethod exec :extra [cpu {[_ opcode] :asm size :size}]
   {:pre  [(s/valid? cpu)]
