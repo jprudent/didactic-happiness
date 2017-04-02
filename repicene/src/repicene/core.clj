@@ -46,7 +46,7 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? cpu)]}
   (let [instr (instruction-at-pc cpu)
-        _     (println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
+        #__     #_(println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
         ret   (history/save cpu)
         ret   (exec ret instr)]
     ret
