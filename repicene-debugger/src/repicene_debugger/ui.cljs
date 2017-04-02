@@ -53,8 +53,6 @@
 
 (def empty-button [:div.debugger-button])
 
-(defn- flag [af pos set unset]
-  )
 (defn registers
   "returns the UI component that display the registers"
   [{{:keys [::s/AF] :as registers} ::s/registers}]

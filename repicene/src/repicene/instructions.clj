@@ -1,6 +1,7 @@
 (ns repicene.instructions
-  (:require [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc %8dec %16dec %8 extra-decoder]]
-            [repicene.schema :as s]))
+  (:require [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc %8dec %16dec %8 extra-decoder low-word]]
+            [repicene.schema :as s]
+            [clojure.test :refer [is]]))
 
 (defmulti exec (fn [_ {:keys [asm]}] (first asm)))
 
@@ -20,7 +21,7 @@
       (pc inc)))
 
 (defmethod exec :ld [cpu {[_ destination source] :asm, size :size}]
-  {:post [(= (source (pc % (pc cpu))) (destination (pc % (pc cpu))))]}
+  {:post [(is (= (source cpu) (destination (pc % (pc cpu)))))]}
   (-> (destination cpu (source cpu))
       (pc (partial + size))))
 
@@ -79,7 +80,7 @@
   (if (cond cpu)
     (let [[return-address cpu] (pop-sp cpu)]
       (pc cpu return-address))
-    (sp cpu (partial %16+ size))))
+    (pc cpu (partial %16+ size))))
 
 (defmethod exec :inc16 [cpu {[_ dword-register] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
@@ -216,7 +217,7 @@
   (let [y      (a cpu)
         result (%8 + x y)]
     (-> (a cpu result)
-        (z? (= 0 result))
+        (z? (zero? result))
         (n? false)
         (h? (> (+ (low-nibble y) (low-nibble x)) 0xF))
         (c? (> (+ x y) 0xFF))
@@ -226,6 +227,29 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
   (add cpu (source cpu) size))
+
+(defmethod exec :add-hl [cpu {[_ source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (let [x (hl cpu)
+        y (source cpu)]
+    (-> (hl cpu (%16+ x y))
+        (n? false)
+        (h? (> (+ (bit-and x 0x0FFF) (bit-and y 0x0FFF)) 0xFFF))
+        (c? (> (+ x y) 0xFFFF))
+        (pc (partial %16+ size)))))
+
+(defmethod exec :add-sp [cpu {[_ source] :asm, size :size}]
+  {:pre  [(s/valid? cpu)]
+   :post [(s/valid? %)]}
+  (let [x (sp cpu)
+        y (source cpu)]
+    (-> (sp cpu (%16+ x y))
+        (z? false)
+        (n? false)
+        (h? (> (+ (low-nibble y) (low-nibble x)) 0xF))
+        (c? (> (+ (low-word x) y) 0xFF))
+        (pc (partial %16+ size)))))
 
 (defmethod exec :adc [cpu {[_ source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]

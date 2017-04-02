@@ -18,7 +18,8 @@
     "ret" [0xC9]
     "nop" [0x00]
     "push hl" [0xe5]
-    "cp 0x90" [0xFE 0x90]))
+    "cp 0x90" [0xFE 0x90]
+    "ld l,[hl]", [0x6E]))
 
 (defn compile [program]
   (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0))))
@@ -83,7 +84,16 @@
                     (a 0xAA))]
         (is (= 0xAA (a cpu)))
         (let [cpu-afer-cp (cpu-cycle cpu)]
-          (is (= 0xAA (a cpu-afer-cp)))))))
+          (is (= 0xAA (a cpu-afer-cp))))))
+  (testing "ld l,[hl]"
+    (let [cpu (-> (compile ["ld l,[hl]"])
+                  (new-cpu)
+                  (hl 0x8000)
+                  (set-word-at 0x8000 0xEE))]
+      (is (= 0x8000 (hl cpu)))
+      (is (= 0xEE (word-at (::s/memory cpu) 0x8000)))
+      (let [cpu-after-ld (cpu-cycle cpu)]
+        (is (= 0xEE (l cpu-after-ld)))))))
 
 (deftest memory
   (testing "memory is persistant"
