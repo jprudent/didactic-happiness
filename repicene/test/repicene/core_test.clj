@@ -79,12 +79,12 @@
         (is (= 0xDFFE (sp cpu-afer-push)))
         (is (= 0xABCD (dword-at cpu-afer-push 0xDFFE))))))
   (testing "cp 0x90"
-      (let [cpu (-> (compile ["cp 0x90"])
-                    (new-cpu)
-                    (a 0xAA))]
-        (is (= 0xAA (a cpu)))
-        (let [cpu-afer-cp (cpu-cycle cpu)]
-          (is (= 0xAA (a cpu-afer-cp))))))
+    (let [cpu (-> (compile ["cp 0x90"])
+                  (new-cpu)
+                  (a 0xAA))]
+      (is (= 0xAA (a cpu)))
+      (let [cpu-afer-cp (cpu-cycle cpu)]
+        (is (= 0xAA (a cpu-afer-cp))))))
   (testing "ld l,[hl]"
     (let [cpu (-> (compile ["ld l,[hl]"])
                   (new-cpu)
@@ -115,9 +115,9 @@
     (let [cpu (-> (compile [["jr 0xFE", 0xFE]])                                 ;;infinite loop
                   (new-cpu))]
       (is (= 100 (count (::s/history (loop [i 0 cpu cpu]
-                                             (if (>= i 200)
-                                               cpu
-                                               (recur (inc i) (cpu-cycle cpu)))))))))))
+                                       (if (>= i 200)
+                                         cpu
+                                         (recur (inc i) (cpu-cycle cpu)))))))))))
 
 (deftest integration
   (testing "instructions"

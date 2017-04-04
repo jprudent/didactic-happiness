@@ -5,8 +5,9 @@
   [cpu]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? cpu)]}
-  (let [history (-> (::s/history cpu)
-                    (conj cpu))]
+  (let [nohistory-cpu (assoc cpu ::s/history '())
+        history   (-> (::s/history cpu)
+                      (conj nohistory-cpu))]
     (->> (drop-last (- (count history) 100) history)
          (assoc cpu ::s/history))))
 
@@ -14,4 +15,5 @@
   [cpu]
   {:pre  [(s/valid? cpu)]
    :post [(or (nil? %) (s/valid? %))]}
-  (first (::s/history cpu)))
+  (when-let [[previous & others] (::s/history cpu)]
+    (assoc previous ::s/history others)))

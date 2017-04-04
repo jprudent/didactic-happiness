@@ -28,7 +28,7 @@
      :debug-chan-rx         (chan)
      :debug-chan-tx         (chan)
      :x-breakpoints         []
-     ::s/history            '()}))
+     ::s/history            nil}))
 
 
 
