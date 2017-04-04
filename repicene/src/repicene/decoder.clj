@@ -217,7 +217,7 @@
 (defn fetch [{:keys [::s/memory] :as cpu}]
   {:pre  [(s/valid? cpu)]
    :post [(not (nil? %))]}
-  (println "fetch " (hex8 (word-at memory (pc cpu))))
+  #_(println "fetch " (hex8 (word-at memory (pc cpu))))
   (word-at memory (pc cpu)))
 
 (defrecord instruction [asm cycles size to-string])
@@ -505,7 +505,7 @@
    0x14 (->instruction [:inc d] 4 1 (constantly "inc d"))
    0x15 (->instruction [:dec d] 4 1 (constantly "dec d"))
    0x16 (->instruction [:ld d word] 8 2 #(str "ld d," (hex-word %)))
-   0x17 (->instruction [:rla] 4 1 #(constantly "rla"))
+   0x17 (->instruction [:rla] 4 1 (constantly "rla"))
    0x18 (->instruction [:jr always word] 12 2 #(str "jr " (hex-word %)))
    0x19 (->instruction [:add-hl de] 8 1 (constantly "add hl,de"))
    0x1A (->instruction [:ld a <de>] 8 1 (constantly "ld a,[de]"))

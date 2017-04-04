@@ -30,10 +30,6 @@
      :x-breakpoints         []
      ::s/history            nil}))
 
-
-
-
-
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
   (some (partial = (pc cpu)) x-breakpoints))
 
@@ -46,7 +42,7 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? cpu)]}
   (let [instr (instruction-at-pc cpu)
-        #__     #_(println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
+        _     (println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
         ret   (history/save cpu)
         ret   (exec ret instr)]
     ret
