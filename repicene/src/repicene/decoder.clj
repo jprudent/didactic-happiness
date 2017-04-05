@@ -35,12 +35,12 @@
   {:post [(s/word? %)]}
   (let [r (apply f args)]
     (if (pos? r)
-      (mod r 0xFF)
+      (mod r 0x100)
       (-> (* -1 r)
           (bit-not)
           (bit-and 0xFF)
           (inc)
-          (mod 0xFF)))))
+          (mod 0x100)))))
 
 (def %8-
   "Sub numbers and make it a valid word (mod 0xFF)"
@@ -169,10 +169,10 @@
 
 (defn set-word-at [{:keys [::s/memory w-breakpoints] :as cpu} address val]
   {:pre [(dword? address) (word? val)]}
-  (println "word-at " (hex16 address))
+  #_(println "word-at " (hex16 address))
 
   (when (w-breakpoints address)
-    (println "Writing at" address ":" val))
+    (println "Writing at" address ":" (char val)))
 
   (let [[index [from & _]] (lookup-backend-index memory address)
         backend-relative-address (- address from)]

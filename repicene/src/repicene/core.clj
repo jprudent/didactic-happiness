@@ -75,7 +75,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (pc 0x100)
-    (update-in [:x-breakpoints] conj 0x213)
+    (update-in [:x-breakpoints] conj 0x784)
     (update-in [:w-breakpoints] conj 0xFF01)))
 
 #_(def cpu
