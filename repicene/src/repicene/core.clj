@@ -28,6 +28,7 @@
      :debug-chan-rx         (chan)
      :debug-chan-tx         (chan)
      :x-breakpoints         []
+     :w-breakpoints         #{}
      ::s/history            nil}))
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
@@ -42,7 +43,7 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? cpu)]}
   (let [instr (instruction-at-pc cpu)
-        _     (println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
+        #__     #_(println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
         ret   (history/save cpu)
         ret   (exec ret instr)]
     ret
@@ -74,7 +75,8 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (pc 0x100)
-    (update-in [:x-breakpoints] conj 0x213)))
+    (update-in [:x-breakpoints] conj 0x213)
+    (update-in [:w-breakpoints] conj 0xFF01)))
 
 #_(def cpu
     (->

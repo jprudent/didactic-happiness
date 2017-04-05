@@ -19,7 +19,8 @@
     "nop" [0x00]
     "push hl" [0xe5]
     "cp 0x90" [0xFE 0x90]
-    "ld l,[hl]", [0x6E]))
+    "ld l,[hl]", [0x6E]
+    "sub a,0x05", [0xD6 0x05]))
 
 (defn compile [program]
   (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0))))
@@ -93,7 +94,13 @@
       (is (= 0x8000 (hl cpu)))
       (is (= 0xEE (word-at (::s/memory cpu) 0x8000)))
       (let [cpu-after-ld (cpu-cycle cpu)]
-        (is (= 0xEE (l cpu-after-ld)))))))
+        (is (= 0xEE (l cpu-after-ld))))))
+  (testing "sub a,0x05"
+    (let [cpu (-> (compile ["sub a,0x05"])
+                  (new-cpu)
+                  (a 0x03))]
+      (is (= 0x03 (a cpu)))
+      (is (= 0xFE (a (cpu-cycle cpu)))))))
 
 (deftest memory
   (testing "memory is persistant"
@@ -123,7 +130,8 @@
   (testing "instructions"
     (let [cpu (-> (load-rom "roms/cpu_instrs/cpu_instrs.gb")
                   (new-cpu)
-                  (pc 0x100))]
+                  (pc 0x100)
+                  (update-in [:w-breakpoints] conj 0xFF01))]
       (is (= 0x100 (pc cpu)))
       (cpu-loop cpu))
     #_(is (= 11 (a (cpu-cycle (demo-gameboy)))))))

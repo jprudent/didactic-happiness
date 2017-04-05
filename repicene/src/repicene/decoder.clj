@@ -33,7 +33,14 @@
   "Word arithmetic should be 0xFF modular arithmetic"
   [f & args]
   {:post [(s/word? %)]}
-  (mod (apply f args) 0xFF))
+  (let [r (apply f args)]
+    (if (pos? r)
+      (mod r 0xFF)
+      (-> (* -1 r)
+          (bit-not)
+          (bit-and 0xFF)
+          (inc)
+          (mod 0xFF)))))
 
 (def %8-
   "Sub numbers and make it a valid word (mod 0xFF)"
@@ -159,9 +166,14 @@
 (def nz? (complement z?))
 (def nc? (complement c?))
 
-(defn set-word-at [{:keys [::s/memory] :as cpu} address val]
+
+(defn set-word-at [{:keys [::s/memory w-breakpoints] :as cpu} address val]
   {:pre [(dword? address) (word? val)]}
-  #_(println "word-at " (hex16 address))
+  (println "word-at " (hex16 address))
+
+  (when (w-breakpoints address)
+    (println "Writing at" address ":" val))
+
   (let [[index [from & _]] (lookup-backend-index memory address)
         backend-relative-address (- address from)]
     (update-in cpu [::s/memory index 2] assoc backend-relative-address val)))
