@@ -8,7 +8,6 @@
 
 (enable-console-print!)
 
-(println "This is from src/repicene-debugger/core.cljs. Go ahead and edit it and see reloading in action.")
 
 (defn make-ws
   "Open a websocket to specified address. Returns a vector of two async chans
@@ -42,25 +41,27 @@
 (defn pc []
   (get-in @app-state [:gameboy ::s/registers ::s/PC]))
 
-(defn do-step-over []
-  (go (>! ws-tx :step-over)
-      (>! ws-tx (inspect-params))))
+(defn do-step-into []
+  (go (>! ws-tx :step-into)))
 
 (defn do-back-step []
-  (go (>! ws-tx :back-step)
-      (>! ws-tx (inspect-params))))
+  (go (>! ws-tx :back-step)))
+
+(defn do-reset []
+  (go (>! ws-tx :reset)))
 
 (defn hello-world []
   [:div
-   [:a {:href "#" :on-click #(go (>! ws-tx (inspect-params)))} "Lien magique"]
+   [:a {:href "#" :on-click #(go (>! ws-tx (inspect-params)))} "Inspect"]
    [:div.debugger
     (ui/registers (:gameboy @app-state))
     (ui/instructions (:gameboy @app-state) (pc))
     (ui/memory (:gameboy @app-state))
     [:div
      (into ui/empty-button [{:on-click #(go (>! ws-tx :resume))} "Resume"])
-     (into ui/empty-button [{:on-click do-step-over} "Step over"])
-     (into ui/empty-button [{:on-click do-back-step} "Back step"])]]])
+     (into ui/empty-button [{:on-click do-step-into} "Step into"])
+     (into ui/empty-button [{:on-click do-back-step} "Back step"])
+     (into ui/empty-button [{:on-click do-reset} "Reset"])]]])
 
 (reagent/render-component [hello-world]
                           (. js/document (getElementById "app")))
@@ -76,13 +77,26 @@
   [{:keys [response]}]
   (swap! app-state assoc :gameboy response))
 
-(defmethod response-handler :decode-memory
+(defmethod response-handler :step-into
   [{:keys [response]}]
-  (swap! app-state assoc :instructions response))
+  (swap! app-state assoc :gameboy response))
+
+(defmethod response-handler :back-step
+  [{:keys [response]}]
+  (swap! app-state assoc :gameboy response))
+
+
+(defmethod response-handler :break
+  [_]
+  (go (>! ws-tx (inspect-params))))
+
+(defmethod response-handler :reset
+  [_]
+  (go (>! ws-tx (inspect-params))))
 
 (defmethod response-handler :default
   [response]
-  (println "Error! Unhandled response" response))
+  (println "Error! Unhandled response'" response "'"))
 
 (go-loop []
          (response-handler (<! ws-rx))

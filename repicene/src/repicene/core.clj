@@ -1,11 +1,11 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command]]
-            [repicene.history :as history]
             [repicene.decoder :refer [pc fetch decoder hex16]]
             [repicene.instructions :refer [exec]]
             [clojure.core.async :refer [go >! chan poll! <!! thread]]
-            [repicene.schema :as s]))
+            [repicene.schema :as s]
+            [repicene.cpu :refer [cpu-cycle start-debugging]]))
 
 (defn new-cpu [rom]
   (let [wram-1 (vec (take 0x1000 (repeat 0)))
@@ -27,47 +27,38 @@
      ::s/mode               ::s/running
      :debug-chan-rx         (chan)
      :debug-chan-tx         (chan)
-     :x-breakpoints         []
+     :x-breakpoints         #{}
+     :x-once-breakpoints    #{}
      :w-breakpoints         #{}
      ::s/history            nil}))
 
 (defn x-bp? [{:keys [x-breakpoints] :as cpu}]
-  (some (partial = (pc cpu)) x-breakpoints))
+  (x-breakpoints (pc cpu)))
 
-(defn instruction-at-pc [cpu]
-  {:pre  [(s/valid? cpu)]
-   :post [(not (nil? %))]}
-  (get decoder (fetch cpu)))
+(defn- debug-session [{:keys [debugging? debug-chan-rx] :as cpu}]
+  (if debugging?
+    (recur (process-debug-command cpu (<!! debug-chan-rx)))
+    cpu))
 
-(defn cpu-cycle [cpu]
-  {:pre  [(s/valid? cpu)]
-   :post [(s/valid? cpu)]}
-  (let [instr (instruction-at-pc cpu)
-        #__     #_(println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
-        ret   (history/save cpu)
-        ret   (exec ret instr)]
-    ret
-    ))
+(defn process-breakpoint [{:keys [debug-chan-tx] :as cpu}]
+  (go (>! debug-chan-tx {:command :break}))
+  (debug-session (start-debugging cpu)))
 
+(defn process-once-breakpoint [cpu x-once-bps]
+  (->> (update cpu :x-once-breakpoints #(apply disj %1 x-once-bps))
+       (process-breakpoint)))
 
-(defn process-breakpoint [{:keys [debug-chan-rx] :as cpu}]
-  (println "breakpoint at " (pc cpu))
-  (loop [cpu     cpu
-         command (<!! debug-chan-rx)]
-    (println "while waiting for resume, i received" command)
-    (cond
-      (= :resume command) cpu
-      (= :step-over command) (recur (cpu-cycle cpu) (<!! debug-chan-rx))
-      (= :back-step command) (recur (history/restore cpu) (<!! debug-chan-rx))
-      :default (recur (process-debug-command cpu command)
-                      (<!! debug-chan-rx)))))
+(defn x-once-bp [{:keys [x-once-breakpoints] :as cpu}]
+  (not-empty (filter #(% cpu) x-once-breakpoints)))
 
 (defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
-  (let [command (poll! debug-chan-rx)]
+  (let [command    (poll! debug-chan-rx)
+        x-once-bps (x-once-bp cpu)]
     (recur
       (cond-> cpu
               command (process-debug-command command)
               (x-bp? cpu) (process-breakpoint)
+              x-once-bps (process-once-breakpoint x-once-bps)
               :always (cpu-cycle)))))
 
 (defn demo-gameboy []
@@ -75,7 +66,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (pc 0x100)
-    (update-in [:x-breakpoints] conj 0x784)
+    (update-in [:x-breakpoints] conj 0x77F)
     (update-in [:w-breakpoints] conj 0xFF01)))
 
 #_(def cpu

@@ -99,9 +99,9 @@
   [[address content]]
   (let [block          "debugger"
         debugger-block (partial bem block)]
-    [:div {:class (debugger-block "memoryLine")}
-     [:div {:class (debugger-block "address")} (hex-dword address)]
-     [:div {:class (debugger-block "hexabytes")} (hex-dword content)]]))
+    ^{:key address} [:div {:class (debugger-block "memoryLine")}
+                 [:div {:class (debugger-block "address")} (hex-dword address)]
+                 [:div {:class (debugger-block "hexabytes")} (hex-dword content)]]))
 
 (defn memory
   [{[[start end dump :as sp-region] & _] :regions}]

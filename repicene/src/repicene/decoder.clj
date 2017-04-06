@@ -691,7 +691,8 @@
    0xC8 (->instruction [:ret z?] [20 8] 1 (constantly "ret z"))
    0xC9 (->instruction [:ret always] 16 1 (constantly "ret"))
    0xCA (->instruction [:jp z? address] [16 12] 3 #(str "jp z " (hex-dword %)))
-   0xCB (->instruction [:extra word] 4 1 #(:to-string (extra-decoder (word %)))) ;; Size is 1 because extra instructions have size 1 too
+   0xCB (->instruction [:extra word] 4 1 (fn [cpu]
+                                           ((:to-string (extra-decoder (word cpu))) cpu))) ;; Size is 1 because extra instructions have size 1 too
    0xCC (->instruction [:call z? address] 24 3 #(str "call z " (hex-dword %)))
    0xCD (->instruction [:call always address] 24 3 #(str "call " (hex-dword %)))
    0xCE (->instruction [:adc word] 8 2 #(str "adc " (hex-word %)))

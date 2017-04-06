@@ -1,7 +1,9 @@
 (ns repicene.debug
-  (:require [clojure.core.async :refer [go >! <!!]]
+  (:require [clojure.core.async :refer [go >! <!! poll!]]
             [repicene.decoder :refer [decoder word-at pc unknown hex16 dword-at]]
-            [repicene.schema :as s]))
+            [repicene.schema :as s]
+            [repicene.cpu :refer [cpu-cycle stop-debugging]]
+            [repicene.history :as history]))
 
 (defn- ->response [command response]
   {:command command :response response})
@@ -54,15 +56,36 @@
   [_]
   (throw (Exception. "Harakiri")))
 
-(defmethod handle-debug-command :default
+(defmethod handle-debug-command :reset
   [_]
-  [identity (constantly (do (println "unknown command")
+  [#(pc % 0x100) (constantly :ok)])
+
+(defmethod handle-debug-command :resume
+  [_]
+  [stop-debugging (constantly :ok)])
+
+(defmethod handle-debug-command :step-into
+  [_]
+  [cpu-cycle (fn [cpu]
+               (into (debug-view cpu)
+                     {:instructions (take 10 (decode-from cpu))}))])
+
+(defmethod handle-debug-command :back-step
+  [_]
+  [history/restore (fn [cpu]
+                     (into (debug-view cpu)
+                           {:instructions (take 10 (decode-from cpu))}))])
+
+(defmethod handle-debug-command :default
+  [command]
+  [identity (constantly (do (println "unknown command" command)
                             "J'aime faire des craquettes au chien"))])
 
 (defn process-debug-command
   [{:keys [debug-chan-tx] :as cpu} command]
-  (let [[new-cpu response] ((apply juxt (handle-debug-command command)) cpu)
-        tx-response (->response command response)]
-    (go (>! debug-chan-tx tx-response))
+  (let [[modify-cpu-fn response-fn] (handle-debug-command command)
+        new-cpu  (modify-cpu-fn cpu)
+        response (response-fn new-cpu)]
+    (go (>! debug-chan-tx (->response command response)))
     new-cpu))
 
