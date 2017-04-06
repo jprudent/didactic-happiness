@@ -15,6 +15,7 @@
   [cpu]
   {:pre  [(s/valid? cpu)]
    :post [(or (nil? %) (s/valid? %))]}
-  (when-let [[previous & others] (::s/history cpu)]
+  (if-let [[previous & others] (::s/history cpu)]
     (-> (assoc previous ::s/history others)
-        (assoc :debugging? (:debugging? cpu)))))
+        (assoc :debugging? (:debugging? cpu)))
+    cpu))

@@ -45,7 +45,7 @@
   (debug-session (start-debugging cpu)))
 
 (defn process-once-breakpoint [cpu x-once-bps]
-  (->> (update cpu :x-once-breakpoints #(apply disj %1 x-once-bps))
+  (->> (apply update cpu :x-once-breakpoints disj x-once-bps)
        (process-breakpoint)))
 
 (defn x-once-bp [{:keys [x-once-breakpoints] :as cpu}]
@@ -66,7 +66,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (pc 0x100)
-    (update-in [:x-breakpoints] conj 0x77F)
+    (update-in [:x-breakpoints] conj 0x100)
     (update-in [:w-breakpoints] conj 0xFF01)))
 
 #_(def cpu

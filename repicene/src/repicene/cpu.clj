@@ -4,7 +4,7 @@
             [repicene.instructions :refer [exec]]
             [repicene.schema :as s]))
 
-(defn- instruction-at-pc [cpu]
+(defn instruction-at-pc [cpu]
   {:pre  [(s/valid? cpu)]
    :post [(not (nil? %))]}
   (get decoder (fetch cpu)))

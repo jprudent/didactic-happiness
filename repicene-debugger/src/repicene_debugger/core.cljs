@@ -44,6 +44,9 @@
 (defn do-step-into []
   (go (>! ws-tx :step-into)))
 
+(defn do-step-over []
+  (go (>! ws-tx :step-over)))
+
 (defn do-back-step []
   (go (>! ws-tx :back-step)))
 
@@ -60,6 +63,7 @@
     [:div
      (into ui/empty-button [{:on-click #(go (>! ws-tx :resume))} "Resume"])
      (into ui/empty-button [{:on-click do-step-into} "Step into"])
+     (into ui/empty-button [{:on-click do-step-over} "Step over"])
      (into ui/empty-button [{:on-click do-back-step} "Back step"])
      (into ui/empty-button [{:on-click do-reset} "Reset"])]]])
 
@@ -80,6 +84,11 @@
 (defmethod response-handler :step-into
   [{:keys [response]}]
   (swap! app-state assoc :gameboy response))
+
+(defmethod response-handler :step-over
+  [{:keys [response]}]
+  (when (not= :running response)
+    (swap! app-state assoc :gameboy response)))
 
 (defmethod response-handler :back-step
   [{:keys [response]}]

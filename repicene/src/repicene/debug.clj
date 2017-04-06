@@ -1,8 +1,8 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!! poll!]]
-            [repicene.decoder :refer [decoder word-at pc unknown hex16 dword-at]]
+            [repicene.decoder :refer [decoder word-at pc unknown hex16 dword-at %16]]
             [repicene.schema :as s]
-            [repicene.cpu :refer [cpu-cycle stop-debugging]]
+            [repicene.cpu :refer [cpu-cycle instruction-at-pc stop-debugging]]
             [repicene.history :as history]))
 
 (defn- ->response [command response]
@@ -62,7 +62,7 @@
 
 (defmethod handle-debug-command :resume
   [_]
-  [stop-debugging (constantly :ok)])
+  [stop-debugging (constantly :running)])
 
 (defmethod handle-debug-command :step-into
   [_]
@@ -75,6 +75,21 @@
   [history/restore (fn [cpu]
                      (into (debug-view cpu)
                            {:instructions (take 10 (decode-from cpu))}))])
+
+(defmethod handle-debug-command :step-over
+  [_]
+  [(fn [cpu]
+     (let [{[kind & _] :asm size :size} (instruction-at-pc cpu)
+           next-instr (+ (pc cpu) size)]
+       (if (= :call kind)
+         (-> (update cpu :x-once-breakpoints conj #(= (pc %) next-instr))
+             (stop-debugging))
+         (cpu-cycle cpu))))
+   (fn [{:keys [debugging?] :as cpu}]
+     (if debugging?
+       (into (debug-view cpu)
+             {:instructions (take 10 (decode-from cpu))})
+       :running))])
 
 (defmethod handle-debug-command :default
   [command]
