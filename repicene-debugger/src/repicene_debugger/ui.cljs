@@ -77,23 +77,24 @@
        (if (bit-test AF 4) "C" "c")]]]))
 
 (defn instruction
-  [pc [address bytes asm :as key]]
+  [pc x-breakpoints [address bytes asm :as key]]
   "foo"
   (let [block          "debugger"
         debugger-block (partial bem block)
         line-elem      (partial debugger-block "instructionLine")]
     ^{:key key} [:div
                  {:class (line-elem [(when (= pc address) "atPc")])}
+                 [:div {:class (debugger-block "bp")} (if (x-breakpoints address) "●" "")]
                  [:div {:class (debugger-block "address")} (hex-dword address)]
                  [:div {:class (debugger-block "hexabytes")} (apply str (map hex-word bytes))]
                  [:div {:class (debugger-block "asm")} asm]]))
 
 (defn instructions
-  [{:keys [instructions]} pc]
+  [{:keys [instructions ::s/x-breakpoints]} pc]
   (when instructions
     [:div.debugger-instructions
      (window-title "Program")
-     (map (partial instruction pc) instructions)]))
+     (map (partial instruction pc x-breakpoints) instructions)]))
 
 (defn address-dump
   [[address content]]

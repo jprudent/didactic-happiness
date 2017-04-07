@@ -60,6 +60,12 @@ body {
     color: #000;
 }
 
+.debugger-bp {
+    color: red;
+    width: 1em;
+    cursor: pointer;
+}
+
 .debugger-address {
     margin-right: 1em;
     width: 3em;

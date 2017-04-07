@@ -27,12 +27,13 @@
      ::s/mode               ::s/running
      :debug-chan-rx         (chan)
      :debug-chan-tx         (chan)
-     :x-breakpoints         #{}
+     ::s/x-breakpoints      #{}
      :x-once-breakpoints    #{}
      :w-breakpoints         #{}
+     :debugging?            nil
      ::s/history            nil}))
 
-(defn x-bp? [{:keys [x-breakpoints] :as cpu}]
+(defn x-bp? [{:keys [::s/x-breakpoints] :as cpu}]
   (x-breakpoints (pc cpu)))
 
 (defn- debug-session [{:keys [debugging? debug-chan-rx] :as cpu}]
@@ -66,7 +67,7 @@
     (load-rom "roms/cpu_instrs/cpu_instrs.gb")
     (new-cpu)
     (pc 0x100)
-    (update-in [:x-breakpoints] conj 0x100)
+    (update-in [::s/x-breakpoints] conj 0x100)
     (update-in [:w-breakpoints] conj 0xFF01)))
 
 #_(def cpu
@@ -82,6 +83,6 @@
         (load-rom "roms/cpu_instrs/cpu_instrs.gb")
         (new-cpu)
         (assoc-in [::s/registers :PC] 0x100)
-        (update-in [:x-breakpoints] conj 0x637)))
+        (update-in [::s/x-breakpoints] conj 0x637)))
     (thread (cpu-loop cpu))
     (async/>!! (debug-chan-tx cpu) "yolo"))

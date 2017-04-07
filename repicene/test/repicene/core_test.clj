@@ -4,7 +4,8 @@
             [repicene.decoder :refer :all]
             [repicene.schema :as s]
             [repicene.history :as history]
-            [repicene.file-loader :refer [load-rom]]))
+            [repicene.file-loader :refer [load-rom]]
+            [repicene.cpu :refer [cpu-cycle]]))
 
 (defn to-bytecode [asm]
   (condp = asm
@@ -117,7 +118,7 @@
       (is (= cpu1 (history/restore cpu2)))
       (is (= cpu0 (history/restore (history/restore cpu2))))
       (is (= cpu0 (history/restore cpu1)))
-      (is (nil? (history/restore cpu0)))))
+      (is (= cpu0 (history/restore cpu0)) "When history is empty it returns the same cpu")))
   (testing "history is limited"
     (let [cpu (-> (compile [["jr 0xFE", 0xFE]])                                 ;;infinite loop
                   (new-cpu))]
@@ -133,5 +134,5 @@
                   (pc 0x100)
                   (update-in [:w-breakpoints] conj 0xFF01))]
       (is (= 0x100 (pc cpu)))
-      (cpu-loop cpu))
+      #_(cpu-loop cpu))
     #_(is (= 11 (a (cpu-cycle (demo-gameboy)))))))

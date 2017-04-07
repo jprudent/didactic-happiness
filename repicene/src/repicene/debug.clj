@@ -35,7 +35,7 @@
              (decode-from cpu next-pc))))))
 
 (defn- debug-view [gameboy]
-  (select-keys gameboy [::s/registers]))
+  (select-keys gameboy [::s/registers ::s/x-breakpoints]))
 
 (defn- memory-dump
   ([cpu start end]
