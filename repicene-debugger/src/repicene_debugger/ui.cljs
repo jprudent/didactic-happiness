@@ -56,7 +56,6 @@
 (defn registers
   "returns the UI component that display the registers"
   [{{:keys [::s/AF] :as registers} ::s/registers}]
-  (println "registers " registers)
   (when registers
     [:div.debugger-registers
      (window-title "Registers")
