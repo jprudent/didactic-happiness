@@ -91,6 +91,20 @@
              {:instructions (take 10 (decode-from cpu))})
        :running))])
 
+(defmethod handle-debug-command :add-breakpoint
+  [[_ address]]
+  [#(update % ::s/x-breakpoints conj address)
+   (fn [cpu]
+     (into (debug-view cpu)
+           {:instructions (take 10 (decode-from cpu))}))])
+
+(defmethod handle-debug-command :remove-breakpoint
+  [[_ address]]
+  [#(update % ::s/x-breakpoints disj address)
+   (fn [cpu]
+     (into (debug-view cpu)
+           {:instructions (take 10 (decode-from cpu))}))])
+
 (defmethod handle-debug-command :default
   [command]
   [identity (constantly (do (println "unknown command" command)

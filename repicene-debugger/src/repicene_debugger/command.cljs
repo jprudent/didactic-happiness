@@ -18,6 +18,12 @@
 (defn do-reset []
   (go (>! tx :reset)))
 
+(defn add-breakpoint [address]
+  (go (>! tx [:add-breakpoint address])))
+
+(defn remove-breakpoint [address]
+  (go (>! tx [:remove-breakpoint address])))
+
 (defn inspect-params []
   [:inspect {:regions [[0xDF00 0xDFFF]]}])
 

@@ -4,7 +4,8 @@
             [goog.string :as gstring]
             [goog.string.format]
             [clojure.string :as string]
-            [repicene.schema :as s]))
+            [repicene.schema :as s]
+            [repicene-debugger.command :as cmd]))
 
 (defn format
   "wrapper for gstring/format that unfortunately misplaced arguments,
@@ -80,10 +81,16 @@
   "foo"
   (let [block          "debugger"
         debugger-block (partial bem block)
-        line-elem      (partial debugger-block "instructionLine")]
+        line-elem      (partial debugger-block "instructionLine")
+        has-bp         (x-breakpoints address)
+        toggle-bp      (if has-bp
+                         (partial cmd/remove-breakpoint address)
+                         (partial cmd/add-breakpoint address))]
     ^{:key key} [:div
                  {:class (line-elem [(when (= pc address) "atPc")])}
-                 [:div {:class (debugger-block "bp")} (if (x-breakpoints address) "●" "")]
+                 [:div {:class    (debugger-block "bp")
+                        :on-click toggle-bp}
+                  (when has-bp "●")]
                  [:div {:class (debugger-block "address")} (hex-dword address)]
                  [:div {:class (debugger-block "hexabytes")} (apply str (map hex-word bytes))]
                  [:div {:class (debugger-block "asm")} asm]]))
@@ -100,8 +107,8 @@
   (let [block          "debugger"
         debugger-block (partial bem block)]
     ^{:key address} [:div {:class (debugger-block "memoryLine")}
-                 [:div {:class (debugger-block "address")} (hex-dword address)]
-                 [:div {:class (debugger-block "hexabytes")} (hex-dword content)]]))
+                     [:div {:class (debugger-block "address")} (hex-dword address)]
+                     [:div {:class (debugger-block "hexabytes")} (hex-dword content)]]))
 
 (defn memory
   [{[[start end dump :as sp-region] & _] :regions}]

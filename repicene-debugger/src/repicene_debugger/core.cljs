@@ -64,6 +64,14 @@
   [_]
   (cmd/do-inspect))
 
+(defmethod response-handler :add-breakpoint
+  [{:keys [response]}]
+  (swap! app-state assoc :gameboy response))
+
+(defmethod response-handler :remove-breakpoint
+  [{:keys [response]}]
+  (swap! app-state assoc :gameboy response))
+
 (defmethod response-handler :default
   [response]
   (println "Error! Unhandled response'" response "'"))
