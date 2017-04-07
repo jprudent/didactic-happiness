@@ -15,6 +15,9 @@
 (defn do-back-step []
   (go (>! tx :back-step)))
 
+(defn do-return []
+  (go (>! tx :return)))
+
 (defn do-reset []
   (go (>! tx :reset)))
 

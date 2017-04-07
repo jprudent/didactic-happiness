@@ -1,6 +1,6 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!! poll!]]
-            [repicene.decoder :refer [decoder word-at pc unknown hex16 dword-at %16]]
+            [repicene.decoder :refer [decoder word-at pc sp unknown hex16 dword-at %16]]
             [repicene.schema :as s]
             [repicene.cpu :refer [cpu-cycle instruction-at-pc stop-debugging]]
             [repicene.history :as history]))
@@ -104,6 +104,16 @@
    (fn [cpu]
      (into (debug-view cpu)
            {:instructions (take 10 (decode-from cpu))}))])
+
+
+(defmethod handle-debug-command :return
+  [_]
+  [(fn [cpu]
+     (let [ret (dword-at cpu (sp cpu))]
+       (println "ret addr" ret)
+       (-> (update cpu :x-once-breakpoints conj #(= (pc %) ret))
+           (stop-debugging))))
+   (constantly :running)])
 
 (defmethod handle-debug-command :default
   [command]

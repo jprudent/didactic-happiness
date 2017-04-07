@@ -27,6 +27,7 @@
      (into ui/empty-button [{:on-click cmd/do-resume} "Resume"])
      (into ui/empty-button [{:on-click cmd/do-step-into} "Step into"])
      (into ui/empty-button [{:on-click cmd/do-step-over} "Step over"])
+     (into ui/empty-button [{:on-click cmd/do-return} "Return"])
      (into ui/empty-button [{:on-click cmd/do-back-step} "Back step"])
      (into ui/empty-button [{:on-click cmd/do-reset} "Reset"])]]])
 
@@ -69,6 +70,10 @@
   (swap! app-state assoc :gameboy response))
 
 (defmethod response-handler :remove-breakpoint
+  [{:keys [response]}]
+  (swap! app-state assoc :gameboy response))
+
+(defmethod response-handler :return
   [{:keys [response]}]
   (swap! app-state assoc :gameboy response))
 
