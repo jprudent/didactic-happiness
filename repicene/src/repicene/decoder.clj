@@ -1,5 +1,6 @@
 (ns repicene.decoder
-  (:require [repicene.schema :as s :refer [dword? word?]]))
+  (:require [repicene.schema :as s :refer [dword? word?]])
+  (:import (java.io Writer)))
 
 (def hex8
   "Transform a word to it's hexadecimal string representation"
@@ -114,24 +115,34 @@
    (bit-or (bit-and dword 0xFF00) val)))
 
 (defn def-dword-register [register]
-  (fn
-    ([cpu]
-     {:pre  [(s/valid? cpu)]
-      :post [(s/dword? %)]}
-     (get-in cpu [::s/registers register]))
-    ([cpu modifier]
-     {:pre  [(s/valid? cpu) (or (fn? modifier) (s/dword? modifier))]
-      :post [(s/valid? %)]}
-     (if (fn? modifier)
-       (update-in cpu [::s/registers register] modifier)
-       (assoc-in cpu [::s/registers register] modifier)))))
+  (with-meta
+    (fn
+      ([cpu]
+       {:pre  [(s/valid? cpu)]
+        :post [(s/dword? %)]}
+       (get-in cpu [::s/registers register]))
+      ([cpu modifier]
+       {:pre  [(s/valid? cpu) (or (fn? modifier) (s/dword? modifier))]
+        :post [(s/valid? %)]}
+       (if (fn? modifier)
+         (update-in cpu [::s/registers register] modifier)
+         (assoc-in cpu [::s/registers register] modifier))))
+    {:type    :operand
+     :operand (symbol (name register))}))
 
-(defn def-word-register [high-or-low dword-register]
-  (fn
-    ([cpu]
-     (high-or-low (dword-register cpu)))
-    ([cpu val]
-     (dword-register cpu (high-or-low (dword-register cpu) val)))))
+(defn def-word-register [high-or-low dword-register register-name]
+  (with-meta
+    (fn
+      ([cpu]
+       (high-or-low (dword-register cpu)))
+      ([cpu val]
+       (dword-register cpu (high-or-low (dword-register cpu) val))))
+    {:type :operand
+     :operand register-name}))
+
+(defmethod print-method :operand
+  [o ^Writer w]
+  (print-method (:operand (meta o)) w))
 
 (def pc (def-dword-register ::s/PC))
 (def sp (def-dword-register ::s/SP))
@@ -140,14 +151,14 @@
 (def de (def-dword-register ::s/DE))
 (def hl (def-dword-register ::s/HL))
 
-(def a (def-word-register high-word af))
-(def f (def-word-register low-word af))
-(def b (def-word-register high-word bc))
-(def c (def-word-register low-word bc))
-(def d (def-word-register high-word de))
-(def e (def-word-register low-word de))
-(def h (def-word-register high-word hl))
-(def l (def-word-register low-word hl))
+(def a (def-word-register high-word af 'a))
+(def f (def-word-register low-word af 'f))
+(def b (def-word-register high-word bc 'b))
+(def c (def-word-register low-word bc 'c))
+(def d (def-word-register high-word de 'd))
+(def e (def-word-register low-word de 'e))
+(def h (def-word-register high-word hl 'h))
+(def l (def-word-register low-word hl 'l))
 
 (defn def-flag [pos]
   (fn
