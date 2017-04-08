@@ -127,6 +127,18 @@
                                          cpu
                                          (recur (inc i) (cpu-cycle cpu)))))))))))
 
+(deftest completeness
+  (testing "all instructions can be decoded"
+    (doseq [i (range 256)]
+      (is (not (nil? (decoder i))) (str "instruction " (hex8 i) " is decoded"))))
+  (testing "all extra instructions can be decoded"
+      (doseq [i (range 256)]
+        (is (not (nil? (extra-decoder i))) (str "instruction " (hex8 i) " is decoded")))))
+
+#_(deftest decompiler
+  (testing "it can decompile any bytes"
+    ()))
+
 (deftest integration
   (testing "instructions"
     (let [cpu (-> (load-rom "roms/cpu_instrs/cpu_instrs.gb")

@@ -415,8 +415,8 @@
 (defmethod exec :extra [cpu {[_ opcode] :asm size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
-  (-> (pc cpu (partial %16+ size))
-      (exec (extra-decoder (opcode cpu)))))
+  (-> (exec cpu (extra-decoder (opcode cpu)))                                   ;; we don't care if pc is not set correctly because extra only needs register and memory pointer
+      (pc cpu (partial %16+ size))))
 
 (defmethod exec :dec16 [cpu {[_ dword-register] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
