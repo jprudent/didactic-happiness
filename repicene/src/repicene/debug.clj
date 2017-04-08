@@ -23,21 +23,22 @@
     [(to-string cpu) size]))
 
 
-(defn next-address-of-prev [cpu n]
-  (let [cpu-0-pc      (pc cpu)
+(defn next-address-of-prev [cpu n]                                              ;; 150 ms =
+  (let [cpu-0-pc      (pc cpu)                                                  ;; 20
         cpu-1-pc      (%16 - cpu-0-pc n)
-        _             (println "cpu-1-pc" (hex16 cpu-1-pc))
-        cpu-1         (pc cpu cpu-1-pc)
-        instruction-1 (instruction-at-pc cpu-1)]
-    (println (hex16 cpu-0-pc) n instruction-1)
+        #__             #_(println "cpu-1-pc" (hex16 cpu-1-pc))
+        cpu-1         (pc cpu cpu-1-pc)                                         ;; 40
+        instruction-1 (instruction-at-pc cpu-1)]                                ;; 80
+    #_(println (hex16 cpu-0-pc) n instruction-1)
     (%16 + cpu-1-pc (:size instruction-1))))
 
 (defn prev-addrs
   ([cpu]
-   (let [prev-addr (%16 -
-                        (pc cpu)
+   (let [pc-cpu    (pc cpu)
+         prev-addr (%16 -
+                        pc-cpu
                         (or (first
-                              (filter #(= (pc cpu) (next-address-of-prev cpu %))
+                              (filter #(= pc-cpu (next-address-of-prev cpu %))
                                       (range 3 0 -1)))
                             1))]
      (lazy-seq
@@ -45,7 +46,7 @@
              (prev-addrs (pc cpu prev-addr)))))))
 
 (defn decode-from
-  ([cpu] (decode-from cpu #_(pc cpu) (nth (prev-addrs cpu) 10)))
+  ([cpu] (decode-from cpu (pc cpu) #_(nth (prev-addrs cpu) 3)))
   ([{:keys [::s/memory] :as cpu} address]
    {:pre [(s/address? address) (s/valid? cpu)]}
    (lazy-seq
@@ -68,11 +69,15 @@
 (defn dump-region [cpu [start end]]
   [start end (memory-dump cpu start end)])
 
+(defn ->debug-view [options cpu]
+  (into (debug-view cpu)
+        {:instructions (take 10 (decode-from cpu))
+         :regions      (when-let [regions (:regions options)]
+                         (map (partial dump-region cpu) regions))}))
+
 (defmethod handle-debug-command :inspect
-  [[_ {:keys [regions]}]]
-  [identity (fn [cpu] (into (debug-view cpu)
-                            {:instructions (take 20 (decode-from cpu))
-                             :regions      (map (partial dump-region cpu) regions)}))])
+  [[_ options]]
+  [identity (partial ->debug-view options)])
 
 (defmethod handle-debug-command :kill
   [_]
@@ -88,15 +93,11 @@
 
 (defmethod handle-debug-command :step-into
   [_]
-  [cpu-cycle (fn [cpu]
-               (into (debug-view cpu)
-                     {:instructions (take 20 (decode-from cpu))}))])
+  [cpu-cycle (partial ->debug-view {})])
 
 (defmethod handle-debug-command :back-step
   [_]
-  [history/restore (fn [cpu]
-                     (into (debug-view cpu)
-                           {:instructions (take 20 (decode-from cpu))}))])
+  [history/restore (partial ->debug-view {})])
 
 (defmethod handle-debug-command :step-over
   [_]
@@ -109,23 +110,18 @@
          (cpu-cycle cpu))))
    (fn [{:keys [debugging?] :as cpu}]
      (if debugging?
-       (into (debug-view cpu)
-             {:instructions (take 10 (decode-from cpu))})
+       (->debug-view {} cpu)
        :running))])
 
 (defmethod handle-debug-command :add-breakpoint
   [[_ address]]
   [#(update % ::s/x-breakpoints conj address)
-   (fn [cpu]
-     (into (debug-view cpu)
-           {:instructions (take 20 (decode-from cpu))}))])
+   (partial ->debug-view {})])
 
 (defmethod handle-debug-command :remove-breakpoint
   [[_ address]]
   [#(update % ::s/x-breakpoints disj address)
-   (fn [cpu]
-     (into (debug-view cpu)
-           {:instructions (take 20 (decode-from cpu))}))])
+   (partial ->debug-view {})])
 
 
 (defmethod handle-debug-command :return

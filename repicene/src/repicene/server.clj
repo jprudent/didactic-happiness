@@ -13,7 +13,7 @@
                                     (throw e)))))
   (go-loop []
     (let [response (prn-str (<! debug-chan-tx))]
-      (println "sending " response)
+      #_(println "sending " response)
       (http-kit/send! ws-channel response)
       (recur))))
 
