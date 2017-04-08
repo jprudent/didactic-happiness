@@ -8,6 +8,7 @@
             [repicene.cpu :refer [cpu-cycle start-debugging]]))
 
 (defn new-cpu [rom]
+  {:pre [(= 0x8000 (count rom))]}
   (let [wram-1 (vec (take 0x1000 (repeat 0)))
         io     (vec (take 0x0080 (repeat 0)))
         hram   (vec (take 0x0080 (repeat 0)))
@@ -64,7 +65,7 @@
 
 (defn demo-gameboy []
   (->
-    (load-rom "roms/cpu_instrs/cpu_instrs.gb")
+    (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb"))
     (new-cpu)
     (pc 0x100)
     (update-in [::s/x-breakpoints] conj 0x100)

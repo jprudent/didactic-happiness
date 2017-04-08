@@ -22,8 +22,30 @@
   (let [{:keys [to-string size]} (or (decoder (word-at memory address)) unknown)]
     [(to-string cpu) size]))
 
+
+(defn next-address-of-prev [cpu n]
+  (let [cpu-0-pc      (pc cpu)
+        cpu-1-pc      (%16 - cpu-0-pc n)
+        _             (println "cpu-1-pc" (hex16 cpu-1-pc))
+        cpu-1         (pc cpu cpu-1-pc)
+        instruction-1 (instruction-at-pc cpu-1)]
+    (println (hex16 cpu-0-pc) n instruction-1)
+    (%16 + cpu-1-pc (:size instruction-1))))
+
+(defn prev-addrs
+  ([cpu]
+   (let [prev-addr (%16 -
+                        (pc cpu)
+                        (or (first
+                              (filter #(= (pc cpu) (next-address-of-prev cpu %))
+                                      (range 3 0 -1)))
+                            1))]
+     (lazy-seq
+       (cons prev-addr
+             (prev-addrs (pc cpu prev-addr)))))))
+
 (defn decode-from
-  ([cpu] (decode-from cpu (pc cpu)))
+  ([cpu] (decode-from cpu #_(pc cpu) (nth (prev-addrs cpu) 10)))
   ([{:keys [::s/memory] :as cpu} address]
    {:pre [(s/address? address) (s/valid? cpu)]}
    (lazy-seq
@@ -49,7 +71,7 @@
 (defmethod handle-debug-command :inspect
   [[_ {:keys [regions]}]]
   [identity (fn [cpu] (into (debug-view cpu)
-                            {:instructions (take 10 (decode-from cpu))
+                            {:instructions (take 20 (decode-from cpu))
                              :regions      (map (partial dump-region cpu) regions)}))])
 
 (defmethod handle-debug-command :kill
@@ -68,13 +90,13 @@
   [_]
   [cpu-cycle (fn [cpu]
                (into (debug-view cpu)
-                     {:instructions (take 10 (decode-from cpu))}))])
+                     {:instructions (take 20 (decode-from cpu))}))])
 
 (defmethod handle-debug-command :back-step
   [_]
   [history/restore (fn [cpu]
                      (into (debug-view cpu)
-                           {:instructions (take 10 (decode-from cpu))}))])
+                           {:instructions (take 20 (decode-from cpu))}))])
 
 (defmethod handle-debug-command :step-over
   [_]
@@ -96,14 +118,14 @@
   [#(update % ::s/x-breakpoints conj address)
    (fn [cpu]
      (into (debug-view cpu)
-           {:instructions (take 10 (decode-from cpu))}))])
+           {:instructions (take 20 (decode-from cpu))}))])
 
 (defmethod handle-debug-command :remove-breakpoint
   [[_ address]]
   [#(update % ::s/x-breakpoints disj address)
    (fn [cpu]
      (into (debug-view cpu)
-           {:instructions (take 10 (decode-from cpu))}))])
+           {:instructions (take 20 (decode-from cpu))}))])
 
 
 (defmethod handle-debug-command :return

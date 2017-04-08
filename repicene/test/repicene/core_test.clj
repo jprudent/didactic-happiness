@@ -2,10 +2,14 @@
   (:require [clojure.test :refer :all]
             [repicene.core :refer :all]
             [repicene.decoder :refer :all]
+            [repicene.debug :refer :all]
             [repicene.schema :as s]
             [repicene.history :as history]
             [repicene.file-loader :refer [load-rom]]
-            [repicene.cpu :refer [cpu-cycle]]))
+            [repicene.cpu :refer [cpu-cycle]]
+            [clojure.spec.gen :as gen]
+            [clojure.spec :as spec]
+            [clojure.spec.test :as stest]))
 
 (defn to-bytecode [asm]
   (condp = asm
@@ -22,6 +26,9 @@
     "cp 0x90" [0xFE 0x90]
     "ld l,[hl]", [0x6E]
     "sub a,0x05", [0xD6 0x05]))
+
+(defn complete-program [bytes]
+  (take 0x8000 (concat bytes (repeat 0))))
 
 (defn compile [program]
   (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0))))
@@ -132,12 +139,24 @@
     (doseq [i (range 256)]
       (is (not (nil? (decoder i))) (str "instruction " (hex8 i) " is decoded"))))
   (testing "all extra instructions can be decoded"
-      (doseq [i (range 256)]
-        (is (not (nil? (extra-decoder i))) (str "instruction " (hex8 i) " is decoded")))))
+    (doseq [i (range 256)]
+      (is (not (nil? (extra-decoder i))) (str "instruction " (hex8 i) " is decoded")))))
 
-#_(deftest decompiler
+(defn random-program [size]
+  (-> (spec/coll-of ::s/word :distinct true :count size)
+      spec/gen
+      gen/sample
+      first
+      complete-program))
+
+;;todo this is sloooow
+(deftest decompiler
   (testing "it can decompile any bytes"
-    ()))
+    (let [cpu (-> (random-program 100)
+                  (new-cpu))]
+      (doseq [decoded (take 50 (decode-from cpu))]
+        (is (spec/valid? ::s/disassembled decoded)
+            (spec/explain-str ::s/disassembled decoded))))))
 
 (deftest integration
   (testing "instructions"
