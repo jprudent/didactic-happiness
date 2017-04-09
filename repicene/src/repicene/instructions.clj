@@ -6,7 +6,6 @@
 (defmulti exec (fn [_ {:keys [asm]}] (first asm)))
 
 (defmethod exec :nop [cpu _]
-  (clojure.spec/explain ::s/cpu cpu)
   (pc cpu inc))
 
 (defmethod exec :jp [cpu {[_ condition address] :asm, size :size}]

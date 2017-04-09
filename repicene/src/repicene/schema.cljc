@@ -15,7 +15,7 @@
 (s/def ::registers (s/keys :req [::AF ::BC ::DE ::HL ::SP ::PC]))
 (s/def ::interrupt-enabled? boolean?)
 (s/def ::memory-backend
-  (s/tuple ::address ::address (s/coll-of ::word))
+  (s/tuple ::address ::address (s/and vector? (s/coll-of ::word)))
   #_(s/and
       (fn [[start end _]] (< start end))
       (fn [[start end mem]] (= (count mem) (inc (- end start))))))

@@ -54,6 +54,7 @@
   (not-empty (filter #(% cpu) x-once-breakpoints)))
 
 (defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
+  {:pre [(s/valid? cpu)]}
   (let [command    (poll! debug-chan-rx)
         x-once-bps (x-once-bp cpu)]
     (recur
@@ -63,13 +64,18 @@
               x-once-bps (process-once-breakpoint x-once-bps)
               :always (cpu-cycle)))))
 
-(defn demo-gameboy []
-  (->
-    (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb"))
-    (new-cpu)
-    (pc 0x100)
-    (update-in [::s/x-breakpoints] conj 0x100)
-    (update-in [:w-breakpoints] conj 0xFF01)))
+(defn demo-gameboy
+  ([]
+   (->
+     (vec (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb")))
+     (new-cpu)
+     (pc 0x100)
+     (update-in [::s/x-breakpoints] conj 0x100)
+     (update-in [:w-breakpoints] conj 0xFF01)))
+  ([coredump]
+   (let [gameboy (-> (demo-gameboy)
+                   (merge (read-string (slurp coredump))))]
+     (update-in gameboy [::s/x-breakpoints] conj (pc gameboy)))))
 
 #_(def cpu
     (->

@@ -2,7 +2,8 @@
   (:require [org.httpkit.server :as http-kit]
             [repicene.core :refer [demo-gameboy cpu-loop]]
             [clojure.edn :as edn]
-            [clojure.core.async :refer [go go-loop >! <! thread]]))
+            [clojure.core.async :refer [go go-loop >! <! thread]]
+            [repicene.schema :as s]))
 
 (defn connect! [ws-channel {:keys [debug-chan-tx] :as gameboy}]
   (println "client connected")
@@ -30,8 +31,7 @@
 
 (defn debug-handler [{:keys [uri] :as request}]
   (when (clojure.string/starts-with? uri "/ws/debug")
-    (let [gameboy (demo-gameboy)]
-      ;; what if there is an exception?
+    (let [gameboy (demo-gameboy "coredump91819266723115")] ;; what if there is an exception?
       (http-kit/with-channel
         request channel
         (connect! channel gameboy)

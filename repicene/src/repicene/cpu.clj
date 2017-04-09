@@ -18,9 +18,13 @@
 (defn cpu-cycle [cpu]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? cpu)]}
-  (let [instr (instruction-at-pc cpu)
-        #__     #_(println "before " (str "@" (hex16 (pc cpu))) ((:to-string instr) cpu))
-        ret   (history/save cpu)
-        ret   (exec ret instr)]
-    ret
-    ))
+  (try
+    (let [instr (instruction-at-pc cpu)
+          ret   (history/save cpu)
+          ret   (exec ret instr)]
+      ret)
+    (catch Exception e
+      (let [filename (str "coredump" (System/nanoTime))]
+        (spit filename (prn-str (dissoc cpu ::s/history :debug-chan-rx :debug-chan-tx)))
+        (println "exception occured cpu. core dump in" filename)
+        (throw e)))))
