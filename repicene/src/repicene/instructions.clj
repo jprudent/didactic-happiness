@@ -95,6 +95,11 @@
    :post [(s/nibble? %)]}
   (bit-and word 0xF))
 
+(defn high-nibble [word]
+  {:pre  [(s/word? word)]
+   :post [(s/nibble? %)]}
+  (bit-shift-right word 4))
+
 (defmethod exec :inc [cpu {[_ word-register] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
@@ -161,9 +166,11 @@
           (= (a %) (bit-or (a cpu) (word-register cpu)))
           (= (pc %) (%16+ size (pc cpu)))]}
   (let [value (bit-or (a cpu) (word-register cpu))]
-    #_(println "or " (a cpu) " " (word-register cpu) " = " value)
     (-> (a cpu value)
         (z? (zero? value))
+        (n? false)
+        (h? false)
+        (c? false)
         (pc (partial %16+ size)))))
 
 (defn sub-a [cpu source]
@@ -412,6 +419,22 @@
    :post [(s/valid? %)]}
   (-> (rr cpu a size)
       (z? false)))
+
+(defn swap [word]
+  {:pre  [(s/word? word)]
+   :post [(s/word? %)]}
+  (let [low  (low-nibble word)
+        high (high-nibble word)]
+    (bit-or (bit-shift-left low 4) high)))
+
+(defmethod exec :swap [cpu {[_ word-register] :asm size :size}]
+  (let [result (swap (word-register cpu))]
+    (-> (word-register cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? false)
+        (c? false)
+        (pc (partial %16+ size)))))
 
 (defmethod exec :extra [cpu {[_ opcode] :asm size :size}]
   {:pre  [(s/valid? cpu)]
