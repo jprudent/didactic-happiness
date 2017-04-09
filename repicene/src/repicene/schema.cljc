@@ -14,7 +14,11 @@
 (s/def ::PC ::dword)
 (s/def ::registers (s/keys :req [::AF ::BC ::DE ::HL ::SP ::PC]))
 (s/def ::interrupt-enabled? boolean?)
-(s/def ::memory-backend (s/and (s/tuple ::address ::address (s/coll-of ::word)) (fn [[start end _]] (< start end)) (fn [[start end mem]] (= (count mem) (inc (- end start))))))
+(s/def ::memory-backend
+  (s/tuple ::address ::address (s/coll-of ::word))
+  #_(s/and
+      (fn [[start end _]] (< start end))
+      (fn [[start end mem]] (= (count mem) (inc (- end start))))))
 (s/def ::memory (s/and vector? (s/coll-of ::memory-backend :kind vector?)))
 (s/def ::history (s/or :no-history nil?
                        :with-history (s/and coll? #(<= (count %) 100))))
@@ -29,11 +33,14 @@
 
 (s/def ::nibble (s/and integer? #(<= 0 % 0xF)))
 
-(def valid? (partial s/valid? ::cpu))
-(def dword? (partial s/valid? ::dword))
-(def address? (partial s/valid? ::address))
-(def word? (partial s/valid? ::word))
-(def memory? (partial s/valid? ::memory))
-(def nibble? (partial s/valid? ::nibble))
+(defn validate [kw]
+  #_(constantly true)
+  (partial s/valid? kw))
+(def valid? (validate ::cpu))
+(def dword? (validate ::dword))
+(def address? (validate ::address))
+(def word? (validate ::word))
+(def memory? (validate ::memory))
+(def nibble? (validate ::nibble))
 
 (s/def ::disassembled (s/tuple ::address (s/and (s/coll-of ::word) #(<= 1 (count %) 3)) string?))

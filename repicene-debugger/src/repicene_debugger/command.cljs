@@ -1,6 +1,7 @@
 (ns repicene-debugger.command
   (:require [cljs.core.async :refer [>!]]
-            [repicene-debugger.communication :refer [tx]])
+            [repicene-debugger.communication :refer [tx]]
+            [repicene.schema :as s])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (defn do-resume []
@@ -22,6 +23,7 @@
   (go (>! tx :reset)))
 
 (defn add-breakpoint [address]
+  {:pre [(s/address? address)]}
   (go (>! tx [:add-breakpoint address])))
 
 (defn remove-breakpoint [address]

@@ -8,38 +8,39 @@ body {
 }
 
 .debugger {
-    width: 50em;
     display: flex;
-    justify-content: space-evenly;
+    justify-content: left;
+}
+
+.window {
+    padding: 0.4em;
+    border-radius: 0.4em;
+    border: 2px solid #000;
+    background-color: darkslategrey;
+}
+
+.window-line {
+    font-size: 1em;
+    background-color: #000;
+    color: lime;
+    display: flex;
 }
 
 .debugger-instructions {
     width: 25em;
-    padding: 0.4em;
-    border-radius: 0.4em;
-    border: 2px solid #000;
-    background-color: darkslategrey;
 }
 
 .debugger-registers {
     width: 15em;
-    padding: 0.4em;
-    border-radius: 0.4em;
-    border: 2px solid #000;
-    background-color: darkslategrey;
 }
 
 .debugger-memoryDump {
     width: 15em;
-    padding: 0.4em;
-    border-radius: 0.4em;
-    border: 2px solid #000;
-    background-color: darkslategrey;
 }
 
 .debugger-memoryDumpContent {
-    max-height: 10em;
-    overflow: scroll;
+    max-height: 12em;
+    overflow-y: scroll;
 }
 
 .debugger-instructions:first-child,
@@ -49,10 +50,7 @@ body {
 
 .debugger-instructionLine {
     /*font-family: retro, serif;*/
-    font-size: 1em;
-    background-color: #000;
-    color: lime;
-    display: flex;
+
 }
 
 .debugger-instructionLine__atPc {
@@ -80,10 +78,6 @@ body {
 }
 
 .debugger-register {
-    font-size: 1em;
-    background-color: #000;
-    color: lime;
-    display: flex;
 }
 
 .debugger-registerName {
@@ -104,11 +98,7 @@ body {
 }
 
 .debugger-memoryLine {
-    /*font-family: retro, serif;*/
-    font-size: 1em;
-    background-color: #000;
-    color: lime;
-    display: flex;
+
 }
 
 .debugger-button {
@@ -124,4 +114,25 @@ body {
 .debugger-button:hover {
     color:black;
     background-color:lime;
+}
+
+.action {
+    cursor: pointer;
+}
+
+.debugger-address__breakpoint {
+    flex:auto
+}
+
+.debugger-close-button {
+    color:red;
+}
+
+.window-input {
+    height: 1em;
+    font-size: 1em;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    width: 5em;
 }

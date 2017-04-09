@@ -23,6 +23,7 @@
     (ui/registers (:gameboy @app-state))
     (ui/instructions (:gameboy @app-state) (pc))
     (ui/memory (:gameboy @app-state))
+    (ui/breakpoints (:gameboy @app-state))
     [:div
      (into ui/empty-button [{:on-click cmd/do-resume} "Resume"])
      (into ui/empty-button [{:on-click cmd/do-step-into} "Step into"])

@@ -1,11 +1,15 @@
 (ns repicene-debugger.ui
   "Contains all the components that makes the ui"
   (:require [clojure.string :refer [split replace]]
+            [reagent.core :as reagent :refer [atom]]
             [goog.string :as gstring]
             [goog.string.format]
             [clojure.string :as string]
             [repicene.schema :as s]
             [repicene-debugger.command :as cmd]))
+
+(enable-console-print!)
+(println "UI module")
 
 (defn format
   "wrapper for gstring/format that unfortunately misplaced arguments,
@@ -31,6 +35,12 @@
   {:pre [(<= 0 x 0xFF)]}
   (hex x 2))
 
+(defn hexstr->int
+  [hex-str]
+  {:post [(or (nil? %) (number? %))]}
+  (let [converted (js/parseInt hex-str 16)]
+    (if (js/isNaN converted) nil converted)))
+
 (defn bem
   ([block element] (bem block element nil))
   ([block element modifiers]
@@ -44,7 +54,7 @@
 (defn register [register value]
   (let [bem (partial bem "debugger")]
     ^{:key register}
-    [:div
+    [:div.window-line
      {:class (bem "register")}
      [:span {:class (bem "registerName")} (name register)]
      [:span {:class (bem "registerValue")} (hex-dword value)]]))
@@ -58,7 +68,7 @@
   "returns the UI component that display the registers"
   [{{:keys [::s/AF] :as registers} ::s/registers}]
   (when registers
-    [:div.debugger-registers
+    [:div.debugger-registers.window
      (window-title "Registers")
      (map (fn [register-name]
             (register register-name (register-name registers)))
@@ -68,7 +78,7 @@
            ::s/HL
            ::s/SP
            ::s/PC])
-     [:div.debugger-register
+     [:div.debugger-register.window-line
       [:span.debugger-registerName "Flgs"]
       [:span
        (if (bit-test AF 7) "Z" "z")
@@ -86,7 +96,7 @@
         toggle-bp      (if has-bp
                          (partial cmd/remove-breakpoint address)
                          (partial cmd/add-breakpoint address))]
-    ^{:key key} [:div
+    ^{:key key} [:div.window-line
                  {:class (line-elem [(when (= pc address) "atPc")])}
                  [:div {:class    (debugger-block "bp")
                         :on-click toggle-bp}
@@ -98,7 +108,7 @@
 (defn instructions
   [{:keys [instructions ::s/x-breakpoints]} pc]
   (when instructions
-    [:div.debugger-instructions
+    [:div.debugger-instructions.window
      (window-title "Program")
      (map (partial instruction pc x-breakpoints) instructions)]))
 
@@ -106,13 +116,44 @@
   [[address content]]
   (let [block          "debugger"
         debugger-block (partial bem block)]
-    ^{:key address} [:div {:class (debugger-block "memoryLine")}
+    ^{:key address} [:div.window-line {:class (debugger-block "memoryLine")}
                      [:div {:class (debugger-block "address")} (hex-dword address)]
                      [:div {:class (debugger-block "hexabytes")} (hex-dword content)]]))
 
 (defn memory
   [{[[start end dump :as sp-region] & _] :regions}]
   (when sp-region
-    [:div.debugger-memoryDump
+    [:div.debugger-memoryDump.window
      (window-title (str "Dump [" (hex-dword start) "-" (hex-dword end) "]"))
      [:div.debugger-memoryDumpContent (map address-dump dump)]]))
+
+(defn breakpoint [address]
+  ^{:key address} [:div.window-line
+                   [:div.debugger-address__breakpoint (hex-dword address)]
+                   [:div.debugger-close-button.action {:on-click #(cmd/remove-breakpoint address)} "✘"]])
+
+
+(defn add-breakpoint-component []
+  (let [input-bp       (atom "hexa")
+        set-breakpoint #(let [address (hexstr->int @input-bp)]
+                         (println "received address " address)
+                         (if (s/address? address)
+                           (cmd/add-breakpoint address)
+                           (println "invalid address")))]
+    (fn []
+      [:div
+       [:input.window-input
+        {:type        :text
+         :value       @input-bp
+         :on-change   #(reset! input-bp (-> % .-target .-value))
+         :on-key-down #(case (.-which %)
+                        13 (set-breakpoint)
+                        (reset! input-bp (-> % .-target .-value)))}]])))
+
+(defn breakpoints
+  [{:keys [::s/x-breakpoints]}]
+  [:div.debugger-breakpoints.window
+   (window-title "Breakpoints")
+   (map breakpoint x-breakpoints)
+   [add-breakpoint-component]
+   ])
