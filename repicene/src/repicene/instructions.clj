@@ -100,22 +100,22 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
   (let [value  (word-register cpu)
-        result (%8inc value)]
+        result (%8 inc value)]
     (-> (word-register cpu result)
         (z? (zero? result))
         (n? false)
-        (h? (> 0xF (inc (low-nibble value))))
+        (h? (> (inc (low-nibble value)) 0xF))
         (pc (partial %16+ size)))))
 
 (defmethod exec :dec [cpu {[_ word-register] :asm, size :size}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
   (let [value  (word-register cpu)
-        result (%8dec value)]
+        result (%8 dec value)]
     (-> (word-register cpu result)
         (z? (zero? result))
         (n? true)
-        (h? (> 0xF (inc (low-nibble value))))
+        (h? (> (dec (low-nibble value)) 0xF))
         (pc (partial %16+ size)))))
 
 (defmethod exec :ldi [cpu {[_ destination source] :asm, size :size}]

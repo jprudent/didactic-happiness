@@ -753,7 +753,7 @@
    0xE6 (->instruction [:and word] 4 2 #(str "and " (hex-word %)))
    0xE7 (->instruction [:rst 0x20] 16 1 (constantly "rst 20"))
    0xE8 (->instruction [:add-sp word] 16 2 #(str "add sp," (hex-word %)))
-   0xE9 (->instruction [:jp always <hl>] 4 1 (constantly "jp [hl]"))
+   0xE9 (->instruction [:jp always hl] 4 1 (constantly "jp hl"))
    0xEA (->instruction [:ld <address> a] 16 3 #(str "ld [" (hex-dword %) "],a"))
    0xEB (->instruction [:invalid] 0 1 (constantly "invalid"))
    0xEC (->instruction [:invalid] 0 1 (constantly "invalid"))
