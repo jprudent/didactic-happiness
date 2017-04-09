@@ -34,8 +34,8 @@
 (s/def ::nibble (s/and integer? #(<= 0 % 0xF)))
 
 (defn validate [kw]
-  #_(constantly true)
-  (partial s/valid? kw))
+  (constantly true)
+  #_(partial s/valid? kw))
 (def valid? (validate ::cpu))
 (def dword? (validate ::dword))
 (def address? (validate ::address))

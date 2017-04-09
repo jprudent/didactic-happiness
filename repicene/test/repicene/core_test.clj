@@ -160,10 +160,10 @@
 
 (deftest integration
   (testing "instructions"
-    (let [cpu (-> (load-rom "roms/cpu_instrs/cpu_instrs.gb")
+    (let [cpu (-> (vec (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb")))
                   (new-cpu)
                   (pc 0x100)
                   (update-in [:w-breakpoints] conj 0xFF01))]
       (is (= 0x100 (pc cpu)))
-      #_(cpu-loop cpu))
+      (cpu-loop cpu))
     #_(is (= 11 (a (cpu-cycle (demo-gameboy)))))))

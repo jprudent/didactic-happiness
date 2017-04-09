@@ -1,5 +1,6 @@
 (ns repicene.decoder
-  (:require [repicene.schema :as s :refer [dword? word?]])
+  (:require [repicene.schema :as s :refer [dword? word?]]
+            [repicene.bits :refer [two-complement]])
   (:import (java.io Writer)))
 
 (def hex8
@@ -189,6 +190,7 @@
         backend-relative-address (- address from)]
     (update-in cpu [::s/memory index 2] assoc backend-relative-address val)))
 
+
 (defn set-dword-at [cpu address val]
   {:pre [(dword? address) (dword? val)]}
   (-> (set-word-at cpu address (low-word val))
@@ -212,7 +214,7 @@
 
 (def sp+n
   (with-meta
-    (fn [cpu] (%16 + (sp cpu) (word cpu)))
+    (fn [cpu] (%16 + (sp cpu) (two-complement (word cpu))))
     {:type :operand
      :operand 'sp+word}))
 

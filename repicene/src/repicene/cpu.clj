@@ -1,6 +1,6 @@
 (ns repicene.cpu
   (:require [repicene.history :as history]
-            [repicene.decoder :refer [fetch decoder]]
+            [repicene.decoder :refer [pc hex16 fetch decoder]]
             [repicene.instructions :refer [exec]]
             [repicene.schema :as s]))
 
@@ -26,5 +26,5 @@
     (catch Exception e
       (let [filename (str "coredump" (System/nanoTime))]
         (spit filename (prn-str (dissoc cpu ::s/history :debug-chan-rx :debug-chan-tx)))
-        (println "exception occured cpu. core dump in" filename)
+        (println "exception occured at" (hex16 (pc cpu)) ". core dump in" filename)
         (throw e)))))

@@ -9,10 +9,13 @@
 
 (defn new-cpu [rom]
   {:pre [(= 0x8000 (count rom))]}
-  (let [wram-1 (vec (take 0x1000 (repeat 0)))
-        io     (vec (take 0x0080 (repeat 0)))
-        hram   (vec (take 0x0080 (repeat 0)))
-        vram   (vec (take 0x2000 (repeat 0)))]
+  (let [wram-0  (vec (take 0x1000 (repeat 0)))
+        wram-1  (vec (take 0x1000 (repeat 0)))
+        io      (vec (take 0x0080 (repeat 0)))
+        hram    (vec (take 0x0080 (repeat 0)))
+        vram    (vec (take 0x2000 (repeat 0)))
+        ext-ram (vec (take 0x2000 (repeat 0)))
+        oam-ram (vec (take 0x00A0 (repeat 0)))]
     {::s/registers          {::s/AF 0
                              ::s/BC 0
                              ::s/DE 0
@@ -22,7 +25,10 @@
      ::s/interrupt-enabled? true
      ::s/memory             [[0x0000 0x7FFF rom]
                              [0x8000 0x9FFF vram]
+                             [0xA000 0xBFFF ext-ram]
+                             [0xC000 0xCFFF wram-0]
                              [0xD000 0xDFFF wram-1]
+                             [0xFE00 0xFE9F oam-ram]
                              [0xFF00 0xFF7F io]
                              [0xFF80 0xFFFF hram]]
      ::s/mode               ::s/running
@@ -74,7 +80,7 @@
      (update-in [:w-breakpoints] conj 0xFF01)))
   ([coredump]
    (let [gameboy (-> (demo-gameboy)
-                   (merge (read-string (slurp coredump))))]
+                     (merge (read-string (slurp coredump))))]
      (update-in gameboy [::s/x-breakpoints] conj (pc gameboy)))))
 
 #_(def cpu

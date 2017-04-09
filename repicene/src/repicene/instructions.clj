@@ -1,7 +1,8 @@
 (ns repicene.instructions
   (:require [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc %8dec %16dec %8 %16 extra-decoder low-word]]
             [repicene.schema :as s]
-            [clojure.test :refer [is]]))
+            [clojure.test :refer [is]]
+            [repicene.bits :refer [two-complement]]))
 
 (defmulti exec (fn [_ {:keys [asm]}] (first asm)))
 
@@ -139,20 +140,6 @@
   (-> (destination cpu (source cpu))
       (hl %16dec)
       (pc (partial %16+ size))))
-
-(defn positive? [address]
-  (zero? (bit-and address 2r10000000)))
-
-(defn abs "(abs n) is the absolute value of n" [n]
-  {:pre [(number? n)]}
-  (if (neg? n) (- n) n))
-
-(defn two-complement [word]
-  {:pre  [(s/word? word)]
-   :post [(<= (abs %) 127)]}
-  (if (positive? word)
-    word
-    (* -1 (bit-and (inc (bit-not word)) 0xFF))))
 
 (defmethod exec :jr [cpu {[_ cond relative-address] :asm, size :size}]
   {:pre  [(s/valid? cpu) (s/word? (relative-address cpu))]
