@@ -147,13 +147,22 @@
 
 (def pc (def-dword-register ::s/PC))
 (def sp (def-dword-register ::s/SP))
-(def af (def-dword-register ::s/AF))
+(def af
+  (let [normal-dword-register (def-dword-register ::s/AF)]
+    (fn
+      ([cpu] (normal-dword-register cpu))
+      ([cpu modifier]
+       (normal-dword-register cpu
+                              (if (fn? modifier)
+                                (comp (partial bit-and 0xFFF0) modifier)
+                                (bit-and 0xFFF0 modifier)))))))
 (def bc (def-dword-register ::s/BC))
 (def de (def-dword-register ::s/DE))
 (def hl (def-dword-register ::s/HL))
 
-(def a (def-word-register high-word af 'a))
-(def f (def-word-register low-word af 'f))
+(def pure-af (def-dword-register ::s/AF))
+(def a (def-word-register high-word pure-af 'a))
+(def f (def-word-register low-word pure-af 'f))
 (def b (def-word-register high-word bc 'b))
 (def c (def-word-register low-word bc 'c))
 (def d (def-word-register high-word de 'd))
@@ -209,13 +218,13 @@
 (def word
   (with-meta
     (fn [{:keys [::s/memory] :as cpu}] (word-at memory (%16 inc (pc cpu))))
-    {:type :operand
+    {:type    :operand
      :operand 'word}))
 
 (def sp+n
   (with-meta
     (fn [cpu] (%16 + (sp cpu) (two-complement (word cpu))))
-    {:type :operand
+    {:type    :operand
      :operand 'sp+word}))
 
 (defn <FF00+n>
@@ -764,7 +773,7 @@
    0xEF (->instruction [:rst 0x28] 16 1 (constantly "rst 28"))
    0xF0 (->instruction [:ld a <FF00+n>] 12 2 #(str "ldh a,[FF00+" (hex-word %) "]"))
    0xF1 (->instruction [:pop af] 12 1 (constantly "pop af"))
-   0xF2 (->instruction [:ld a,<FF00+c>] 8 2 (constantly "ld a,[c]"))
+   0xF2 (->instruction [:ld a, <FF00+c>] 8 2 (constantly "ld a,[c]"))
    0xF3 (->instruction [:di] 4 1 (constantly "di"))
    0xF4 (->instruction [:invalid] 0 1 (constantly "invalid"))
    0xF5 (->instruction [:push af] 16 1 (constantly "push af"))

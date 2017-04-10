@@ -160,7 +160,7 @@
 
 (deftest integration
   (testing "instructions"
-    (let [cpu (-> (vec (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb")))
+    (let [cpu (-> (vec (take 0x8000 (load-rom "roms/cpu_instrs/individual/01-special.gb")))
                   (new-cpu)
                   (pc 0x100)
                   (update-in [:w-breakpoints] conj 0xFF01))]

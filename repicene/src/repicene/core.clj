@@ -73,7 +73,7 @@
 (defn demo-gameboy
   ([]
    (->
-     (vec (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb")))
+     (vec (take 0x8000 (load-rom "roms/cpu_instrs/individual/01-special.gb")))
      (new-cpu)
      (pc 0x100)
      (update-in [::s/x-breakpoints] conj 0x100)

@@ -31,7 +31,7 @@
 
 (defn debug-handler [{:keys [uri] :as request}]
   (when (clojure.string/starts-with? uri "/ws/debug")
-    (let [gameboy (demo-gameboy "coredump95016845173606")] ;; what if there is an exception?
+    (let [gameboy (demo-gameboy)] ;; what if there is an exception?
       (http-kit/with-channel
         request channel
         (connect! channel gameboy)

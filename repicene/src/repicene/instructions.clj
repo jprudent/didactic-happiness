@@ -55,7 +55,7 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)
           (= (sp cpu) (%16+ -2 (sp %)))
-          (= (dword-at cpu (sp cpu)) (dword-register %))
+          #_(= (dword-at cpu (sp cpu)) (dword-register %))                      ;;not true for pop af
           (= (pc %) (%16+ size (pc cpu)))]}
   (let [[dword cpu] (pop-sp cpu)]
     (-> (dword-register cpu dword)
