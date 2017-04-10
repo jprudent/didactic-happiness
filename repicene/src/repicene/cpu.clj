@@ -19,12 +19,10 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? cpu)]}
   (try
-    (let [instr (instruction-at-pc cpu)
-          ret   (history/save cpu)
-          ret   (exec ret instr)]
-      ret)
+    (history/save! cpu)
+    (exec cpu (instruction-at-pc cpu))
     (catch Exception e
       (let [filename (str "coredump" (System/nanoTime))]
-        (spit filename (prn-str (dissoc cpu ::s/history :debug-chan-rx :debug-chan-tx)))
+        (spit filename (prn-str (dissoc cpu :history-chan :debug-chan-rx :debug-chan-tx)))
         (println "exception occured at" (hex16 (pc cpu)) ". core dump in" filename)
         (throw e)))))

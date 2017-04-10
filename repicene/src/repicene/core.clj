@@ -3,7 +3,7 @@
             [repicene.debug :refer [process-debug-command]]
             [repicene.decoder :refer [pc fetch decoder hex16]]
             [repicene.instructions :refer [exec]]
-            [clojure.core.async :refer [go >! chan poll! <!! thread]]
+            [clojure.core.async :refer [sliding-buffer go >! chan poll! <!! thread]]
             [repicene.schema :as s]
             [repicene.cpu :refer [cpu-cycle start-debugging]]))
 
@@ -34,11 +34,11 @@
      ::s/mode               ::s/running
      :debug-chan-rx         (chan)
      :debug-chan-tx         (chan)
+     :history-chan          (chan (sliding-buffer 100))
      ::s/x-breakpoints      #{}
      :x-once-breakpoints    #{}
      :w-breakpoints         #{}
-     :debugging?            nil
-     ::s/history            nil}))
+     :debugging?            nil}))
 
 (defn x-bp? [{:keys [::s/x-breakpoints] :as cpu}]
   (x-breakpoints (pc cpu)))

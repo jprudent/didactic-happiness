@@ -1,21 +1,28 @@
 (ns repicene.history
-  (:require [repicene.schema :as s]))
+  (:require [repicene.schema :as s]
+            [clojure.core.async :refer [go chan sliding-buffer <!! >!! >! go-loop alts!! timeout]]))
 
-(defn save
-  [cpu]
+(defn save!
+  [{:keys [history-chan] :as cpu}]
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? cpu)]}
-  (let [nohistory-cpu (assoc cpu ::s/history '())
-        history   (-> (::s/history cpu)
-                      (conj nohistory-cpu))]
-    (->> (drop-last (- (count history) 100) history)
-         (assoc cpu ::s/history))))
+  (>!! history-chan cpu))
 
-(defn restore
-  [cpu]
+(defn read-chan [chan]
+  (first (alts!! [chan (timeout 10)])))
+
+(defn restore!
+  [{:keys [history-chan] :as cpu}]
   {:pre  [(s/valid? cpu)]
    :post [(or (nil? %) (s/valid? %))]}
-  (if-let [[previous & others] (::s/history cpu)]
-    (-> (assoc previous ::s/history others)
-        (assoc :debugging? (:debugging? cpu)))
-    cpu))
+  (loop [older  (read-chan history-chan)
+         backup '()]
+    (if older
+      (let [value (read-chan history-chan)]
+        (recur value (conj backup older)))
+      (let [[most-recent & elderly] backup]
+        (loop [[recent & others] elderly]
+          (when recent
+            (>!! history-chan recent)
+            (recur others)))
+        (or most-recent cpu)))))

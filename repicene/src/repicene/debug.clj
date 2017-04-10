@@ -97,7 +97,7 @@
 
 (defmethod handle-debug-command :back-step
   [_]
-  [history/restore (partial ->debug-view {})])
+  [history/restore! (partial ->debug-view {})])
 
 (defmethod handle-debug-command :step-over
   [_]

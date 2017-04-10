@@ -15,27 +15,26 @@
 (s/def ::registers (s/keys :req [::AF ::BC ::DE ::HL ::SP ::PC]))
 (s/def ::interrupt-enabled? boolean?)
 (s/def ::memory-backend
-  (s/tuple ::address ::address (s/and vector? (s/coll-of ::word)))
-  #_(s/and
-      (fn [[start end _]] (< start end))
-      (fn [[start end mem]] (= (count mem) (inc (- end start))))))
+  (s/and
+    (s/tuple ::address ::address (s/and vector? (s/coll-of ::word)))
+    (fn [[start end _]] (< start end))
+    (fn [[start end mem]] (= (count mem) (inc (- end start))))))
 (s/def ::memory (s/and vector? (s/coll-of ::memory-backend :kind vector?)))
-(s/def ::history (s/or :no-history nil?
-                       :with-history (s/and coll? #(<= (count %) 100))))
+
 (s/def ::mode #{::running ::stopped})
 (s/def ::x-breakpoints (and set? (s/coll-of ::address)))
 (s/def ::cpu (s/keys :req [::registers
                            ::interrupt-enabled?
                            ::memory
-                           ::history
                            ::mode
                            ::x-breakpoints]))
 
 (s/def ::nibble (s/and integer? #(<= 0 % 0xF)))
 
 (defn validate [kw]
-  (constantly true)
-  #_(partial s/valid? kw))
+  #_(constantly true)
+  (partial s/valid? kw))
+
 (def valid? (validate ::cpu))
 (def dword? (validate ::dword))
 (def address? (validate ::address))

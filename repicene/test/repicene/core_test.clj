@@ -9,7 +9,8 @@
             [repicene.cpu :refer [cpu-cycle]]
             [clojure.spec.gen :as gen]
             [clojure.spec :as spec]
-            [clojure.spec.test :as stest]))
+            [clojure.spec.test :as stest]
+            [clojure.core.async :refer [offer! <! >! >!! go poll! chan go alts!! timeout]]))
 
 (defn to-bytecode [asm]
   (condp = asm
@@ -122,17 +123,9 @@
                    (pc 0x100))
           cpu1 (cpu-cycle cpu0)
           cpu2 (cpu-cycle cpu1)]
-      (is (= cpu1 (history/restore cpu2)))
-      (is (= cpu0 (history/restore (history/restore cpu2))))
-      (is (= cpu0 (history/restore cpu1)))
-      (is (= cpu0 (history/restore cpu0)) "When history is empty it returns the same cpu")))
-  (testing "history is limited"
-    (let [cpu (-> (compile [["jr 0xFE", 0xFE]])                                 ;;infinite loop
-                  (new-cpu))]
-      (is (= 100 (count (::s/history (loop [i 0 cpu cpu]
-                                       (if (>= i 200)
-                                         cpu
-                                         (recur (inc i) (cpu-cycle cpu)))))))))))
+      (is (= cpu1 (history/restore! cpu2)))
+      (is (= cpu0 (history/restore! cpu1)))
+      (is (= cpu0 (history/restore! cpu0)) "When history is empty it returns the same cpu"))))
 
 (deftest completeness
   (testing "all instructions can be decoded"
@@ -158,12 +151,28 @@
         (is (spec/valid? ::s/disassembled decoded)
             (spec/explain-str ::s/disassembled decoded))))))
 
+(defn kill-when-break!
+  [cpu]
+  (go
+    (<! (:debug-chan-tx cpu))
+    (>! (:debug-chan-rx cpu) :kill)))
+
 (deftest integration
   (testing "instructions"
     (let [cpu (-> (vec (take 0x8000 (load-rom "roms/cpu_instrs/individual/01-special.gb")))
                   (new-cpu)
                   (pc 0x100)
-                  (update-in [:w-breakpoints] conj 0xFF01))]
-      (is (= 0x100 (pc cpu)))
-      (cpu-loop cpu))
+                  (update-in [:w-breakpoints] conj 0xFF01)
+                  (assoc ::s/x-breakpoints #{0xC7D2}))]
+      (is (s/valid? cpu))
+      (kill-when-break! cpu)
+      (let [response-chan (chan)]
+        (go
+          (try
+            (cpu-loop cpu)
+            (catch Exception _
+              (println "exception")
+              (>! response-chan true))))
+        (is (first (alts!! [response-chan (timeout 20000)])))
+        (go (offer! (:debug-chan-rx cpu) :kill))))
     #_(is (= 11 (a (cpu-cycle (demo-gameboy)))))))
