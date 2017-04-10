@@ -1,8 +1,9 @@
 (ns repicene.instructions
-  (:require [repicene.decoder :refer [pc fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc %8dec %16dec %8 %16 extra-decoder low-word]]
+  (:require [repicene.decoder :refer [pc af fetch hex16 decoder set-dword-at word-at sp <FF00+n> %16+ %8- dword-at %16inc a <hl> hl z? c? h? n? %8inc %8dec %16dec %8 %16 extra-decoder low-word]]
             [repicene.schema :as s]
             [clojure.test :refer [is]]
-            [repicene.bits :refer [two-complement]]))
+            [repicene.bits :refer [two-complement]]
+            [repicene.dada :refer [daa]]))
 
 (defmulti exec (fn [_ {:keys [asm]}] (first asm)))
 
@@ -433,4 +434,8 @@
   {:pre  [(s/valid? cpu)]
    :post [(s/valid? %)]}
   (-> (dword-register cpu (%16 dec (dword-register cpu)))
+      (pc (partial %16+ size))))
+
+(defmethod exec :daa [cpu {size :size}]
+  (-> (af cpu daa)
       (pc (partial %16+ size))))
