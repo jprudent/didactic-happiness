@@ -10,7 +10,7 @@
             [clojure.spec.gen :as gen]
             [clojure.spec :as spec]
             [clojure.spec.test :as stest]
-            [clojure.core.async :refer [offer! <! >! >!! go poll! chan go alts!! timeout]]))
+            [clojure.core.async :refer [offer! <! >! >!! <!! go poll! chan go alts!! timeout]]))
 
 (defn to-bytecode [asm]
   (condp = asm
@@ -157,7 +157,7 @@
     (<! (:debug-chan-tx cpu))
     (>! (:debug-chan-rx cpu) :kill)))
 
-(defn test-rom [path delay]
+(defn test-rom [path seconds]
   (let [cpu (-> (vec (take 0x8000 (load-rom path)))
                 (new-cpu)
                 (pc 0x100)
@@ -167,15 +167,15 @@
     (kill-when-break! cpu)
     (let [response-chan (chan)]
       (go
-        (try
-          (cpu-loop cpu)
-          (catch Exception _
-            (>! response-chan true))))
-      (is (first (alts!! [response-chan (timeout delay)])))
+        (time
+          (try
+            (cpu-loop cpu)
+            (catch Exception _
+              (>! response-chan true)))))
+      (is (first (alts!! [response-chan (timeout (* 1000 seconds))])) path)
       (go (offer! (:debug-chan-rx cpu) :kill)))))
 
 (deftest integration
   (testing "01-specials"
-    (test-rom "roms/cpu_instrs/individual/01-special.gb" 60000))
-  (testing "03-op sp,hl.gb"
-    (test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 60000)))
+    (test-rom "roms/cpu_instrs/individual/01-special.gb" 60)
+    (test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 1000)))

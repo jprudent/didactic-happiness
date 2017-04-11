@@ -9,13 +9,15 @@
 
 (defn new-cpu [rom]
   {:pre [(= 0x8000 (count rom))]}
-  (let [wram-0  (vec (take 0x1000 (repeat 0)))
-        wram-1  (vec (take 0x1000 (repeat 0)))
-        io      (vec (take 0x0080 (repeat 0)))
-        hram    (vec (take 0x0080 (repeat 0)))
-        vram    (vec (take 0x2000 (repeat 0)))
-        ext-ram (vec (take 0x2000 (repeat 0)))
-        oam-ram (vec (take 0x00A0 (repeat 0)))]
+  (let [wram-0    (vec (take 0x1000 (repeat 0)))
+        wram-1    (vec (take 0x1000 (repeat 0)))
+        io        (vec (take 0x0080 (repeat 0)))
+        hram      (vec (take 0x0080 (repeat 0)))
+        vram      (vec (take 0x2000 (repeat 0)))
+        ext-ram   (vec (take 0x2000 (repeat 0)))
+        oam-ram   (vec (take 0x00A0 (repeat 0)))
+        echo      (vec (take 0x1E00 (repeat 0)))
+        unusable (vec (take 0x0060 (repeat 0)))]
     {::s/registers          {::s/AF 0
                              ::s/BC 0
                              ::s/DE 0
@@ -28,7 +30,9 @@
                              [0xA000 0xBFFF ext-ram]
                              [0xC000 0xCFFF wram-0]
                              [0xD000 0xDFFF wram-1]
+                             [0xE000 0xFDFF echo]                               ;;todo real echo
                              [0xFE00 0xFE9F oam-ram]
+                             [0xFEA0 0xFEFF unusable]
                              [0xFF00 0xFF7F io]
                              [0xFF80 0xFFFF hram]]
      ::s/mode               ::s/running
