@@ -157,22 +157,25 @@
     (<! (:debug-chan-tx cpu))
     (>! (:debug-chan-rx cpu) :kill)))
 
+(defn test-rom [path delay]
+  (let [cpu (-> (vec (take 0x8000 (load-rom path)))
+                (new-cpu)
+                (pc 0x100)
+                (update-in [:w-breakpoints] conj 0xFF01)
+                (assoc ::s/x-breakpoints #{0xC7D2}))]
+    (is (s/valid? cpu))
+    (kill-when-break! cpu)
+    (let [response-chan (chan)]
+      (go
+        (try
+          (cpu-loop cpu)
+          (catch Exception _
+            (>! response-chan true))))
+      (is (first (alts!! [response-chan (timeout delay)])))
+      (go (offer! (:debug-chan-rx cpu) :kill)))))
+
 (deftest integration
-  (testing "instructions"
-    (let [cpu (-> (vec (take 0x8000 (load-rom "roms/cpu_instrs/individual/01-special.gb")))
-                  (new-cpu)
-                  (pc 0x100)
-                  (update-in [:w-breakpoints] conj 0xFF01)
-                  (assoc ::s/x-breakpoints #{0xC7D2}))]
-      (is (s/valid? cpu))
-      (kill-when-break! cpu)
-      (let [response-chan (chan)]
-        (go
-          (try
-            (cpu-loop cpu)
-            (catch Exception _
-              (println "exception")
-              (>! response-chan true))))
-        (is (first (alts!! [response-chan (timeout 20000)])))
-        (go (offer! (:debug-chan-rx cpu) :kill))))
-    #_(is (= 11 (a (cpu-cycle (demo-gameboy)))))))
+  (testing "01-specials"
+    (test-rom "roms/cpu_instrs/individual/01-special.gb" 60000))
+  (testing "03-op sp,hl.gb"
+    (test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 60000)))
