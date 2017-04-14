@@ -1,6 +1,8 @@
 (ns repicene.schema
   (:require [clojure.spec :as s]
             [clojure.spec :as s]
+            [clojure.spec :as s]
+            [clojure.spec :as s]
             [clojure.spec :as s]))
 
 (s/def ::dword (s/and integer? #(<= 0 % 0xFFFF)))
@@ -22,7 +24,8 @@
 (s/def ::memory (s/and vector? (s/coll-of ::memory-backend :kind vector?)))
 
 (s/def ::mode #{::running ::stopped})
-(s/def ::x-breakpoints (and set? (s/coll-of ::address)))
+(s/def ::x-breakpoint (s/tuple ::address #{:once-breakpoint :permanent-breakpoint}))
+(s/def ::x-breakpoints (s/map-of ::address ::x-breakpoint))
 (s/def ::cpu (s/keys :req [::registers
                            ::interrupt-enabled?
                            ::memory
@@ -41,5 +44,6 @@
 (def word? (validate ::word))
 (def memory? (validate ::memory))
 (def nibble? (validate ::nibble))
+(def x-breakpoint? (validate ::x-breakpoint))
 
 (s/def ::disassembled (s/tuple ::address (s/and (s/coll-of ::word) #(<= 1 (count %) 3)) string?))

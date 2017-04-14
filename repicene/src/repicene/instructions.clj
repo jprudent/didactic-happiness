@@ -301,8 +301,6 @@
         (c? (bit-test value 0))
         (pc (partial %16+ size)))))
 
-
-
 (defn rotate-left [word]
   {:pre  [(s/word? word)]
    :post [(s/word? %)]}
@@ -439,3 +437,19 @@
 (defmethod exec :daa [cpu {size :size}]
   (-> (af cpu daa)
       (pc (partial %16+ size))))
+
+(defmethod exec :breakpoint
+  [{:keys [::s/x-breakpoints] :as cpu} _]
+  (let [current-pc (pc cpu)
+        [original _]   (get x-breakpoints current-pc)]
+    (println "processing breakpoint" current-pc original)
+    (-> (set-dword-at cpu current-pc original)
+        (assoc :break? :permanent-breakpoint))))
+
+(defmethod exec :once-breakpoint
+  [{:keys [::s/x-breakpoints] :as cpu} _]
+  (let [current-pc (pc cpu)
+        [original _] (get x-breakpoints current-pc)]
+    (println "processing breakpoint" current-pc original)
+    (-> (set-dword-at cpu current-pc original)
+        (assoc :break? :once-breakpoint))))

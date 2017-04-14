@@ -154,16 +154,19 @@
 (defn kill-when-break!
   [cpu]
   (go
-    (<! (:debug-chan-tx cpu))
+    (println "received " (<! (:debug-chan-tx cpu)))
     (>! (:debug-chan-rx cpu) :kill)))
 
 (defn test-rom [path seconds]
   (let [cpu (-> (vec (take 0x8000 (load-rom path)))
                 (new-cpu)
                 (pc 0x100)
-                (update-in [:w-breakpoints] conj 0xFF01)
-                (assoc ::s/x-breakpoints #{0xC7D2}))]
-    (is (s/valid? cpu))
+                (set-w-breakpoint 0xFF01
+                                  (fn [cpu val]
+                                    (println "SERIAL: " (char val))
+                                    cpu))
+                (set-breakpoint 0xC7D2 :permanent-breakpoint))]
+    (is (s/valid? cpu) (spec/explain ::s/cpu cpu))
     (kill-when-break! cpu)
     (let [response-chan (chan)]
       (go
@@ -178,4 +181,4 @@
 (deftest integration
   (testing "01-specials"
     (test-rom "roms/cpu_instrs/individual/01-special.gb" 60)
-    (test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 1000)))
+    #_(test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 60)))

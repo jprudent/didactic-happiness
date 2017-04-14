@@ -190,14 +190,13 @@
 
 (defn set-word-at [{:keys [::s/memory w-breakpoints] :as cpu} address val]
   {:pre [(dword? address) (word? val)]}
-  #_(println "word-at " (hex16 address))
-
-  (when (w-breakpoints address)
-    (println "Writing at" address ":" (char val)))
 
   (let [[index [from & _]] (lookup-backend-index memory address)
-        backend-relative-address (- address from)]
-    (update-in cpu [::s/memory index 2] assoc backend-relative-address val)))
+        backend-relative-address (- address from)
+        cpu                      (update-in cpu [::s/memory index 2] assoc backend-relative-address val)]
+    (if-let [hook (w-breakpoints address)]
+      (hook cpu val)
+      cpu)))
 
 
 (defn set-dword-at [cpu address val]
@@ -742,8 +741,8 @@
    0xD0 (->instruction [:ret nc?] [20 8] 1 (constantly "ret nc"))
    0xD1 (->instruction [:pop de] 12 1 (constantly "pop de"))
    0xD2 (->instruction [:jp nc? address] [16 12] 3 #(str "jp nc " (hex-dword %)))
+   0xD3 (->instruction [:breakpoint] 0 1 (constantly "bp"))
    0xD4 (->instruction [:call nc? address] 24 3 #(str "call nc " (hex-dword %)))
-   0xD3 (->instruction [:invalid] 0 1 (constantly "invalid"))
    0xD5 (->instruction [:push de] 16 1 (constantly "push de"))
    0xD6 (->instruction [:sub word] 8 2 #(str "sub " (hex-word %)))
    0xD7 (->instruction [:rst 0x10] 16 1 (constantly "rst 10"))
@@ -758,7 +757,7 @@
    0xE0 (->instruction [:ld <FF00+n> a] 12 2 #(str "ldh [FF00+" (hex-word %) "],a"))
    0xE1 (->instruction [:pop hl] 12 1 (constantly "pop hl"))
    0xE2 (->instruction [:ld <FF00+c> a] 8 2 (constantly "ld [c],a"))
-   0xE3 (->instruction [:invalid] 0 1 (constantly "invalid"))
+   0xE3 (->instruction [:once-breakpoint] 0 1 (constantly "once bp"))
    0xE4 (->instruction [:invalid] 0 1 (constantly "invalid"))
    0xE5 (->instruction [:push hl] 16 1 (constantly "push hl"))
    0xE6 (->instruction [:and word] 4 2 #(str "and " (hex-word %)))
@@ -787,6 +786,11 @@
    0xFD (->instruction [:invalid] 0 1 (constantly "invalid"))
    0xFE (->instruction [:cp word] 8 2 #(str "cp " (hex-word %)))
    0xFF (->instruction [:rst 0x38] 16 1 (constantly "rst 38"))})
+
+(defn instruction-at-pc [cpu]
+  {:pre  [(s/valid? cpu)]
+   :post [(not (nil? %))]}
+  (get decoder (fetch cpu)))
 
 #_(defn mkop [op start]
     (map

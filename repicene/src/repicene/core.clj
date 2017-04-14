@@ -1,11 +1,11 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
-            [repicene.debug :refer [process-debug-command]]
+            [repicene.debug :refer [process-debug-command process-breakpoint set-breakpoint]]
             [repicene.decoder :refer [pc fetch decoder hex16]]
             [repicene.instructions :refer [exec]]
             [clojure.core.async :refer [sliding-buffer go >! chan poll! <!! thread]]
             [repicene.schema :as s]
-            [repicene.cpu :refer [cpu-cycle start-debugging]]))
+            [repicene.cpu :refer [cpu-cycle]]))
 
 (defn new-cpu [rom]
   {:pre [(= 0x8000 (count rom))]}
@@ -39,39 +39,17 @@
      :debug-chan-rx         (chan)
      :debug-chan-tx         (chan)
      :history-chan          (chan (sliding-buffer 100))
-     ::s/x-breakpoints      #{}
-     :x-once-breakpoints    #{}
-     :w-breakpoints         #{}
+     ::s/x-breakpoints      {}
+     :w-breakpoints         {}
      :debugging?            nil}))
-
-(defn x-bp? [{:keys [::s/x-breakpoints] :as cpu}]
-  (x-breakpoints (pc cpu)))
-
-(defn- debug-session [{:keys [debugging? debug-chan-rx] :as cpu}]
-  (if debugging?
-    (recur (process-debug-command cpu (<!! debug-chan-rx)))
-    cpu))
-
-(defn process-breakpoint [{:keys [debug-chan-tx] :as cpu}]
-  (go (>! debug-chan-tx {:command :break}))
-  (debug-session (start-debugging cpu)))
-
-(defn process-once-breakpoint [cpu x-once-bps]
-  (->> (apply update cpu :x-once-breakpoints disj x-once-bps)
-       (process-breakpoint)))
-
-(defn x-once-bp [{:keys [x-once-breakpoints] :as cpu}]
-  (not-empty (filter #(% cpu) x-once-breakpoints)))
 
 (defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
   {:pre [(s/valid? cpu)]}
-  (let [command    (poll! debug-chan-rx)
-        x-once-bps (x-once-bp cpu)]
+  (let [command    (poll! debug-chan-rx)]
     (recur
       (cond-> cpu
               command (process-debug-command command)
-              (x-bp? cpu) (process-breakpoint)
-              x-once-bps (process-once-breakpoint x-once-bps)
+              (:break? cpu) (process-breakpoint)
               :always (cpu-cycle)))))
 
 (defn demo-gameboy
@@ -80,12 +58,12 @@
      (vec (take 0x8000 (load-rom "roms/cpu_instrs/individual/01-special.gb")))
      (new-cpu)
      (pc 0x100)
-     (update-in [::s/x-breakpoints] conj 0x100)
-     (update-in [:w-breakpoints] conj 0xFF01)))
+     (set-breakpoint 0x0100 :permanent-breakpoint)
+     (set-breakpoint 0xFF01 :permanent-breakpoint)))
   ([coredump]
    (let [gameboy (-> (demo-gameboy)
                      (merge (read-string (slurp coredump))))]
-     (update-in gameboy [::s/x-breakpoints] conj (pc gameboy)))))
+     (set-breakpoint gameboy (pc gameboy) :permanent-breakpoint))))
 
 #_(def cpu
     (->

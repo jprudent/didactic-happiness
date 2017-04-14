@@ -1,9 +1,60 @@
 (ns repicene.debug
-  (:require [clojure.core.async :refer [go >! <!! poll!]]
-            [repicene.decoder :refer [decoder word-at pc sp unknown hex16 dword-at %16]]
+  (:require [clojure.core.async :refer [go >! <!! >!! poll!]]
+            [repicene.decoder :refer [decoder set-word-at word-at pc sp unknown hex16 dword-at %16 instruction-at-pc]]
             [repicene.schema :as s]
-            [repicene.cpu :refer [cpu-cycle instruction-at-pc stop-debugging]]
-            [repicene.history :as history]))
+    #_[repicene.cpu :refer [cpu-cycle instruction-at-pc stop-debugging]]
+            [repicene.history :as history]
+            [repicene.instructions :refer [exec]]))
+
+(defn set-w-breakpoint
+  [cpu address hook]
+  (update-in cpu [:w-breakpoints] assoc address hook))
+
+(def breakpoint-opcodes
+  {:permanent-breakpoint 0xD3
+   :once-breakpoint      0xE3})
+
+(defn add-breakpoint [cpu address breakpoint]
+  {:pre  [(s/valid? cpu)
+          (s/address? address)
+          (s/x-breakpoint? breakpoint)]
+   :post [(s/valid? %)]}
+  (update-in cpu [::s/x-breakpoints] assoc address breakpoint))
+
+(defn w-memory-hook [address kind]
+  (fn [cpu val]
+    (println "writing " val "at" address)
+    (let [cpu (-> (update-in cpu [:w-breakpoints] dissoc address)               ;; remove write memory hook because ...
+                  (set-word-at address (breakpoint-opcodes kind))               ;; we write at this exact same place
+                  (add-breakpoint address [val kind])                           ;; overwrite the breakpoint with the new original value
+                  (set-w-breakpoint address (w-memory-hook address kind)))]     ;; and set back the original write memory hook
+      (println "breakpoints " (::s/x-breakpoints cpu))
+      cpu)))
+
+(defn set-breakpoint
+  [{:keys [::s/memory] :as cpu} address kind]
+  {:pre  [(s/valid? cpu) (s/address? address)]
+   :post [(s/valid? cpu)]}
+  (let [original (word-at memory address)]
+    (-> (set-word-at cpu address (breakpoint-opcodes kind))
+        (add-breakpoint address [original kind])
+        (set-w-breakpoint address (w-memory-hook address kind)))))              ;; if memory region is written we override it, todo if we try to read it, we are screwed
+
+(defn remove-breakpoint [{:keys [::s/x-breakpoints] :as cpu} address]
+  {:pre  [(s/valid? cpu) (s/address? address)]
+   :post [(s/valid? cpu)]}
+  (let [[original _] (get x-breakpoints (pc cpu))]
+    (set-word-at cpu (pc cpu) original)
+    (update-in [::s/x-breakpoints] dissoc address)))
+
+(defn after-break [{:keys [::s/x-breakpoints] :as cpu}]
+  (let [[_ kind] (get x-breakpoints (pc cpu))]
+    (if (= :once-breakpoint kind)
+      (remove-breakpoint cpu (pc cpu))
+      (set-breakpoint cpu (pc cpu) kind))))
+
+(defn stop-debugging [cpu]
+  (assoc cpu :break? nil))
 
 (defn- ->response [command response]
   {:command command :response response})
@@ -22,31 +73,8 @@
   (let [{:keys [to-string size]} (or (decoder (word-at memory address)) unknown)]
     [(to-string cpu) size]))
 
-
-(defn next-address-of-prev [cpu n]                                              ;; 150 ms =
-  (let [cpu-0-pc      (pc cpu)                                                  ;; 20
-        cpu-1-pc      (%16 - cpu-0-pc n)
-        #__             #_(println "cpu-1-pc" (hex16 cpu-1-pc))
-        cpu-1         (pc cpu cpu-1-pc)                                         ;; 40
-        instruction-1 (instruction-at-pc cpu-1)]                                ;; 80
-    #_(println (hex16 cpu-0-pc) n instruction-1)
-    (%16 + cpu-1-pc (:size instruction-1))))
-
-(defn prev-addrs
-  ([cpu]
-   (let [pc-cpu    (pc cpu)
-         prev-addr (%16 -
-                        pc-cpu
-                        (or (first
-                              (filter #(= pc-cpu (next-address-of-prev cpu %))
-                                      (range 3 0 -1)))
-                            1))]
-     (lazy-seq
-       (cons prev-addr
-             (prev-addrs (pc cpu prev-addr)))))))
-
 (defn decode-from
-  ([cpu] (decode-from cpu (pc cpu) #_(nth (prev-addrs cpu) 3)))
+  ([cpu] (decode-from cpu (pc cpu)))
   ([{:keys [::s/memory] :as cpu} address]
    {:pre [(s/address? address) (s/valid? cpu)]}
    (lazy-seq
@@ -93,7 +121,10 @@
 
 (defmethod handle-debug-command :step-into
   [_]
-  [cpu-cycle (partial ->debug-view {})])
+  [(fn [cpu]
+     (let [instruction (instruction-at-pc cpu)]
+       (set-breakpoint cpu (pc (exec cpu instruction)) :once-breakpoint)))
+   (partial ->debug-view {})])
 
 (defmethod handle-debug-command :back-step
   [_]
@@ -102,12 +133,10 @@
 (defmethod handle-debug-command :step-over
   [_]
   [(fn [cpu]
-     (let [{[kind & _] :asm size :size} (instruction-at-pc cpu)
-           next-instr (+ (pc cpu) size)]
+     (let [{[kind & _] :asm size :size :as instruction} (instruction-at-pc cpu)]
        (if (= :call kind)
-         (-> (update cpu :x-once-breakpoints conj #(= (pc %) next-instr))
-             (stop-debugging))
-         (cpu-cycle cpu))))
+         (set-breakpoint cpu (%16 + (pc cpu) size) :once-breakpoint)
+         (set-breakpoint cpu (pc (exec cpu instruction)) :once-breakpoint))))
    (fn [{:keys [debugging?] :as cpu}]
      (if debugging?
        (->debug-view {} cpu)
@@ -145,4 +174,10 @@
         response (response-fn new-cpu)]
     (go (>! debug-chan-tx (->response command response)))
     new-cpu))
+
+(defn process-breakpoint [{:keys [debug-chan-tx debug-chan-rx] :as cpu}]
+  (>!! debug-chan-tx {:command :break})
+  (-> (process-debug-command cpu (<!! debug-chan-rx))
+      (after-break)
+      (assoc :break? nil)))
 
