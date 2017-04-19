@@ -72,12 +72,6 @@
 
 (def world-center {:x 11 :y 10})
 
-(defn move-ship-to-any-barrel! [entities]
-  (move! (or (find-barrel entities (constantly true)) world-center)))
-
-(defn find-a-target-and-fire! [entities]
-  (fire! (or (find-enemy entities) world-center)))
-
 (defn read-status []
   (let [my-ship-count (read)
         entity-count  (read)
@@ -89,12 +83,14 @@
 
 (defmulti execute-order (fn [[kind & _]] kind))
 
-(defmethod execute-order :move-all-my-ships [[_ target]]
+(defmethod execute-order :move [[_ target]]
   (move! target))
-
 
 (defmethod execute-order :wait [_]
   (wait!))
+
+(defmethod execute-order :fire [[_ target]]
+  (fire! target))
 
 (defn execute-one-order! [{[[kind & _ :as order] & others] :orders tick :tick :as state}]
   (debug (str "order " order))
@@ -103,7 +99,7 @@
         (-> (assoc state :orders others)
             (update-in [:doing] assoc kind {:order order :started-at tick})))
     (do
-      (execute-order (or (get-in state [:doing :move-all-my-ships :order]) [:wait]))
+      (execute-order (or (get-in state [:doing :move :order]) [:wait]))
       state)))
 
 (defn target-at-location? [{:keys [order]} entities]
@@ -112,22 +108,41 @@
         target (select-keys entity keys)]
     (find-entity entities #(= (select-keys % keys) target))))
 
-(defn remove-absent-target [{{:keys [move-all-my-ships] :as doing} :doing :as state} entities]
-  (if (not (target-at-location? move-all-my-ships entities))
-    (update-in state [:doing] dissoc :move-all-my-ships)
+(defn do-not-move-on-absent-barrel [{{:keys [move]} :doing :as state} entities]
+  (if (and move (not (target-at-location? move entities)))
+    (update-in state [:doing] dissoc :move)
+    state))
+
+(defn i-am-not-firing-when-canon-is-cool [{{:keys [fire]} :doing tick :tick :as state}]
+  (if (and fire (> tick (inc (:started-at fire))))
+    (update-in state [:doing] dissoc :fire)
     state))
 
 (defn clean-doing [state entities]
-  (-> (remove-absent-target state entities)))
+  (-> (do-not-move-on-absent-barrel state entities)
+      (i-am-not-firing-when-canon-is-cool)))
+
+(defn new-order [state order]
+  (update-in state [:orders] conj order))
+
+(defn ->move-order [entities]
+  [:move (or (find-barrel entities) world-center)])
 
 (defn new-orders [{:keys [doing] :as state} entities]
-  (if (not (:move-all-my-ships doing))
-    (update-in state [:orders] conj [:move-all-my-ships (find-barrel entities)])
+  (cond
+
+    (not (:move doing))
+    (new-order state (->move-order entities))
+
+    (not (:fire doing))
+    (new-order state [:fire (or (find-enemy entities) world-center)])
+
+    :default
     state))
 
 (defn -main [& args]
   (loop [[_ entities :as status] (read-status)
-         state {:orders [[:move-all-my-ships (or (find-barrel entities) world-center)]]
+         state {:orders [(->move-order entities)]
                 :doing  {}
                 :tick   0}]
     (debug (prn-str state))
