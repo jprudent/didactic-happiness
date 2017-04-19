@@ -39,9 +39,11 @@
 (defn find-enemies [entities]
   (filter #(and (not (:mine? %)) (= :SHIP (:type %))) entities))
 
-(defn find-barrel [entities pred]
-  (->> (find-barrels entities)
-       (some #(when (pred %) %))))
+(defn find-barrel
+  ([entities] (find-barrel entities (constantly true)))
+  ([entities pred]
+   (->> (find-barrels entities)
+        (some #(when (pred %) %)))))
 
 (defn find-enemy
   ([entities pred]
@@ -49,6 +51,10 @@
         (some #(when (pred %) %))))
   ([entities]
    (find-enemy entities (constantly true))))
+
+(defn find-entity
+  [entities pred]
+  (some #(when (pred %) %) entities))
 
 (defn move! [{:keys [x y]}]
   (debug (str "moving to " x y))
@@ -72,69 +78,63 @@
 (defn find-a-target-and-fire! [entities]
   (fire! (or (find-enemy entities) world-center)))
 
-(defmulti do-action (fn [type _ _] type))
+(defn read-status []
+  (let [my-ship-count (read)
+        entity-count  (read)
+        entities      (read-entities! entity-count)
+        _             (debug (str "Entities :" entities))
+        _             (debug (str "An enemy " (prn-str (find-enemy entities))))
+        _             (debug (str "A barrel : " (find-barrel entities (constantly true))))]
+    [my-ship-count entities]))
 
-(defmethod do-action :move-all-my-ships [_ my-ship-count entities]
-  (doseq [_ (range my-ship-count)]
-    (move-ship-to-any-barrel! entities)))
+(defmulti execute-order (fn [[kind & _]] kind))
 
-(defmethod do-action :fire-all-my-ships [_ my-ship-count entities]
-  (doseq [_ (range my-ship-count)]
-    (find-a-target-and-fire! entities)))
+(defmethod execute-order :move-all-my-ships [[_ target]]
+  (move! target))
 
-(defmethod do-action :mine-all-my-ships [_ my-ship-count _]
-  (doseq [_ (range my-ship-count)]
-    (mine!)))
 
-(defmethod do-action :wait-all-my-ships [_ my-ship-count _]
-  (doseq [_ (range my-ship-count)]
-    (wait!)))
+(defmethod execute-order :wait [_]
+  (wait!))
+
+(defn execute-one-order! [{[[kind & _ :as order] & others] :orders tick :tick :as state}]
+  (debug (str "order " order))
+  (if order
+    (do (execute-order order)
+        (-> (assoc state :orders others)
+            (update-in [:doing] assoc kind {:order order :started-at tick})))
+    (do
+      (execute-order (or (get-in state [:doing :move-all-my-ships :order]) [:wait]))
+      state)))
+
+(defn target-at-location? [{:keys [order]} entities]
+  (let [[_ entity] order
+        keys   [:x :y :type]
+        target (select-keys entity keys)]
+    (find-entity entities #(= (select-keys % keys) target))))
+
+(defn remove-absent-target [{{:keys [move-all-my-ships] :as doing} :doing :as state} entities]
+  (if (not (target-at-location? move-all-my-ships entities))
+    (update-in state [:doing] dissoc :move-all-my-ships)
+    state))
+
+(defn clean-doing [state entities]
+  (-> (remove-absent-target state entities)))
+
+(defn new-orders [{:keys [doing] :as state} entities]
+  (if (not (:move-all-my-ships doing))
+    (update-in state [:orders] conj [:move-all-my-ships (find-barrel entities)])
+    state))
 
 (defn -main [& args]
-  (doseq [action (cycle [:move-all-my-ships
-                         :fire-all-my-ships
-                         :move-all-my-ships
-                         :fire-all-my-ships
-                         :mine-all-my-ships])]
-    (let [my-ship-count (read)
-          entity-count  (read)
-          entities      (read-entities! entity-count)]
-      (do-action action my-ship-count entities))))
-
-; Auto-generated code below aims at helping you parse
-; the standard input according to the problem statement.
-
-#_(defn -main [& args]
-    (while true
-      (let [myShipCount (read)
-            entityCount (read)]
-        ; myShipCount: the number of remaining ships
-        ; entityCount: the number of entities (e.g. ships, mines or cannonballs)
-
-        (loop [i        entityCount
-               entities []]
-          (when (> i 0)
-            (let [entityId   (read)
-                  entityType (read)
-                  x          (read)
-                  y          (read)
-                  arg1       (read)
-                  arg2       (read)
-                  arg3       (read)
-                  arg4       (read)]
-              (recur (dec i)))))
-
-        (loop [i myShipCount]
-          (when (> i 0)
-
-            ; (binding [*out* *err*]
-            ;   (println "Debug messages..."))
-
-            ; Any valid action, such as "WAIT" or "MOVE x y"
-            (print "MOVE")
-            (print " ")
-            (print "11")
-            (print " ")
-            (print "10")
-            (println "")
-            (recur (dec i)))))))
+  (loop [[_ entities :as status] (read-status)
+         state {:orders [[:move-all-my-ships (or (find-barrel entities) world-center)]]
+                :doing  {}
+                :tick   0}]
+    (debug (prn-str state))
+    (let [state (-> (execute-one-order! state)
+                    (clean-doing entities)
+                    (new-orders entities)
+                    (update-in [:tick] inc))]
+      (recur
+        (read-status)
+        state))))
