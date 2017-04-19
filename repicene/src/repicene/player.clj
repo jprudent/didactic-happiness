@@ -36,29 +36,70 @@
 (defn find-barrels [entities]
   (filter #(= :BARREL (:type %)) entities))
 
+(defn find-enemies [entities]
+  (filter #(and (not (:mine? %)) (= :SHIP (:type %))) entities))
+
 (defn find-barrel [entities pred]
   (->> (find-barrels entities)
        (some #(when (pred %) %))))
 
-(defn move! [x y]
+(defn find-enemy
+  ([entities pred]
+   (->> (find-enemies entities)
+        (some #(when (pred %) %))))
+  ([entities]
+   (find-enemy entities (constantly true))))
+
+(defn move! [{:keys [x y]}]
   (debug (str "moving to " x y))
-  (println (str "MOVE " x " " y)))
+  (println "MOVE" x y))
+
+(defn fire! [{:keys [x y]}]
+  (debug (str "firing to " x y))
+  (println "FIRE" x y))
+
+(defn mine! []
+  (println "MINE"))
+
+(defn wait! []
+  (println "WAIT"))
+
+(def world-center {:x 11 :y 10})
 
 (defn move-ship-to-any-barrel! [entities]
-  (when-let [{:keys [x y]} (find-barrel entities (constantly true))]
-    (move! x y)))
+  (move! (or (find-barrel entities (constantly true)) world-center)))
+
+(defn find-a-target-and-fire! [entities]
+  (fire! (or (find-enemy entities) world-center)))
+
+(defmulti do-action (fn [type _ _] type))
+
+(defmethod do-action :move-all-my-ships [_ my-ship-count entities]
+  (doseq [_ (range my-ship-count)]
+    (move-ship-to-any-barrel! entities)))
+
+(defmethod do-action :fire-all-my-ships [_ my-ship-count entities]
+  (doseq [_ (range my-ship-count)]
+    (find-a-target-and-fire! entities)))
+
+(defmethod do-action :mine-all-my-ships [_ my-ship-count _]
+  (doseq [_ (range my-ship-count)]
+    (mine!)))
+
+(defmethod do-action :wait-all-my-ships [_ my-ship-count _]
+  (doseq [_ (range my-ship-count)]
+    (wait!)))
 
 (defn -main [& args]
-  (while true
+  (doseq [action (cycle [:move-all-my-ships
+                         :fire-all-my-ships
+                         :move-all-my-ships
+                         :fire-all-my-ships
+                         :mine-all-my-ships])]
     (let [my-ship-count (read)
           entity-count  (read)
-          entities      (read-entities! entity-count)
-          _             (debug (str "Entities :" entities))
-          _             (debug (str "Barrels " (prn-str (find-barrels entities))))
-          _             (debug (str "A barrel : " (find-barrel entities (constantly true))))]
-
-      (doseq [_ (range my-ship-count)]
-        (move-ship-to-any-barrel! entities)))))
+          entities      (read-entities! entity-count)]
+      (do-action action my-ship-count entities))))
 
 ; Auto-generated code below aims at helping you parse
 ; the standard input according to the problem statement.
