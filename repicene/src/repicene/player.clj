@@ -24,6 +24,33 @@
 (defn cube-distance [{x1 :x y1 :y z1 :z} {x2 :x y2 :y z2 :z}]
   (/ (+ (Math/abs (- x1 x2)) (Math/abs (- y1 y2)) (Math/abs (- z1 z2))) 2))
 
+(defn lerp [a b t]
+  {:pre [(<= 0 t 1.0)]}
+  (+ a (* (- b a) t)))
+
+(defn cube-lerp [{x1 :x y1 :y z1 :z} {x2 :x y2 :y z2 :z} t]
+  {:x (lerp x1 x2 t)
+   :y (lerp y1 y2 t)
+   :z (lerp z1 z2 t)})
+
+(defn cube-round [floating-cube]
+  (let [{rx :x ry :y rz :z :as whole-cube} (into {} (map (fn [[k v]] [k (int v)]) floating-cube))
+        {x-diff :x y-diff :y z-diff :z} (into {} (map (fn [[k v]] [k (Math/abs (- (get floating-cube k) v))]) whole-cube))]
+    (cond
+      (and (> x-diff y-diff) (> x-diff y-diff))
+      (assoc whole-cube :x (- (- ry) rz))
+      (> y-diff z-diff)
+      (assoc whole-cube :y (- (- rx) rz))
+      :else
+      (assoc whole-cube :z (- (- rx) ry)))))
+
+(defn cube-linedraw [a b]
+  (let [distance (cube-distance a b)
+        nb-samples    (/ 1.0 distance)]
+    (map
+      #(cube-round (cube-lerp a b (* nb-samples %)))
+      (range 0 (inc distance)))))
+
 (defn debug [msg]
   (binding [*out* *err*]
     (println (prn-str msg))))
@@ -165,8 +192,8 @@
   (update-in state [:orders] conj order))
 
 (defn ->move-order [entities]
-  (let [my-ship (first (find-my-ships entities))
-        a-not-too-close-barrel  (first (drop 1 (cycle (sort-by (partial distance my-ship) (find-barrels entities)))))]
+  (let [my-ship                (first (find-my-ships entities))
+        a-not-too-close-barrel (first (drop 1 (cycle (sort-by (partial distance my-ship) (find-barrels entities)))))]
     [:move (or a-not-too-close-barrel world-center)]))
 
 (defn new-orders [{:keys [doing] :as state} entities]
