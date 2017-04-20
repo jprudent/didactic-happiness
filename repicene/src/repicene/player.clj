@@ -24,6 +24,9 @@
 (defn cube-distance [{x1 :x y1 :y z1 :z} {x2 :x y2 :y z2 :z}]
   (/ (+ (Math/abs (- x1 x2)) (Math/abs (- y1 y2)) (Math/abs (- z1 z2))) 2))
 
+(defn hex-distance [a b]
+  (cube-distance (grid->cube a) (grid->cube b)))
+
 (defn lerp [a b t]
   {:pre [(<= 0 t 1.0)]}
   (+ a (* (- b a) t)))
@@ -34,7 +37,7 @@
    :z (lerp z1 z2 t)})
 
 (defn cube-round [floating-cube]
-  (let [{rx :x ry :y rz :z :as whole-cube} (into {} (map (fn [[k v]] [k (int v)]) floating-cube))
+  (let [{rx :x ry :y rz :z :as whole-cube} (into {} (map (fn [[k v]] [k (Math/round (double v))]) floating-cube))
         {x-diff :x y-diff :y z-diff :z} (into {} (map (fn [[k v]] [k (Math/abs (- (get floating-cube k) v))]) whole-cube))]
     (cond
       (and (> x-diff y-diff) (> x-diff y-diff))
@@ -88,11 +91,27 @@
             (update-in [:y] inc))
         5
         (update-in ship [:y] inc)))
-    
+
     (= 2 speed)
     (-> (predict-next-position (assoc ship :speed 1))
         (predict-next-position)
         (assoc :speed speed))))
+
+(defn predict-next-positions [target]
+  (lazy-seq (let [p (predict-next-position target)]
+              (cons p (predict-next-positions p)))))
+
+(defn when-bullet-will-hit? [my-ship target]
+  (Math/round (inc (/ (hex-distance my-ship target) 3.0))))
+
+(defn where-should-i-fire? [my-ship target]
+  (->> (map (fn [target round]
+              [target (Math/abs (- round (when-bullet-will-hit? my-ship target)))])
+            (predict-next-positions target)
+            (range 5))
+       (sort-by second)
+       (map first)
+       (first)))
 
 (defn debug [msg]
   (binding [*out* *err*]
@@ -239,17 +258,20 @@
         a-not-too-close-barrel (first (drop 1 (cycle (sort-by (partial distance my-ship) (find-barrels entities)))))]
     [:move (or a-not-too-close-barrel world-center)]))
 
-(defn new-orders [{:keys [doing] :as state} entities]
+(defn new-orders [{:keys [doing my-ship] :as state} entities]
   (cond
 
-    (not (:move doing))
+    (and (not (:move doing)) (not (empty? (find-enemies entities))))
     (new-order state (->move-order entities))
 
     (not (:fire doing))
-    (new-order state [:fire (or (find-enemy entities) world-center)])
+    (new-order state [:fire (where-should-i-fire?
+                              my-ship
+                              (find-enemy entities))])
 
     :default
     state))
+
 
 (defn -main [& args]
   (loop [[_ entities :as status] (read-status)
@@ -259,6 +281,7 @@
     (debug (prn-str state))
     (let [state (-> (execute-one-order! state)
                     (clean-doing entities)
+                    (assoc :my-ship (first (find-my-ships entities)))
                     (new-orders entities)
                     (update-in [:tick] inc))]
       (recur
