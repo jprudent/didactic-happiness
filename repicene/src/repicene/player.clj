@@ -1,6 +1,29 @@
 (ns Player
   (:gen-class))
 
+;; GEOMETRY
+
+;;# convert cube to odd-r offset
+;;col = x + (z - (z&1)) / 2
+;;row = z
+
+(defn cube->grid [{:keys [x z]}]
+  {:x (+ x (/ (- z (bit-and z 1)) 2))
+   :y z})
+
+;;# convert odd-r offset to cube
+;;x = col - (row - (row&1)) / 2
+;;z = row
+;;y = -x-z
+(defn grid->cube [{:keys [x y]}]
+  (let [cx (- x (/ (- y (bit-and y 1)) 2))]
+    {:x cx
+     :y (- (* -1 cx) y)
+     :z y}))
+
+(defn cube-distance [{x1 :x y1 :y z1 :z} {x2 :x y2 :y z2 :z}]
+  (/ (+ (Math/abs (- x1 x2)) (Math/abs (- y1 y2)) (Math/abs (- z1 z2))) 2))
+
 (defn debug [msg]
   (binding [*out* *err*]
     (println (prn-str msg))))
@@ -22,22 +45,38 @@
                         :x    x
                         :y    y
                         }
-            entity     (if (= (:type entity) :SHIP)
+            entity     (condp = (:type entity)
+
+                         :SHIP
                          (assoc entity :rotation arg1
                                        :speed arg2
                                        :stock arg3
                                        :mine? (= 1 arg4))
-                         (assoc entity :amount arg1))
+                         :BARREL
+                         (assoc entity :amount arg1)
+
+                         :CANNONBALL
+                         (assoc entity :entity-id arg1 :ticks-before-hit arg2)
+
+                         :MINE
+                         entity)
+            entity     (assoc entity :cube-coor (grid->cube entity))
             _          (debug entity)]
 
         (recur (dec i) (conj entities entity)))
       entities)))
+
+(defn distance [{coors1 :cube-coor} {coors2 :cube-coor}]
+  (cube-distance coors1 coors2))
 
 (defn find-barrels [entities]
   (filter #(= :BARREL (:type %)) entities))
 
 (defn find-enemies [entities]
   (filter #(and (not (:mine? %)) (= :SHIP (:type %))) entities))
+
+(defn find-my-ships [entities]
+  (filter #(and (:mine? %) (= :SHIP (:type %))) entities))
 
 (defn find-barrel
   ([entities] (find-barrel entities (constantly true)))
@@ -126,7 +165,9 @@
   (update-in state [:orders] conj order))
 
 (defn ->move-order [entities]
-  [:move (or (find-barrel entities) world-center)])
+  (let [my-ship (first (find-my-ships entities))
+        a-not-too-close-barrel  (first (drop 1 (cycle (sort-by (partial distance my-ship) (find-barrels entities)))))]
+    [:move (or a-not-too-close-barrel world-center)]))
 
 (defn new-orders [{:keys [doing] :as state} entities]
   (cond
