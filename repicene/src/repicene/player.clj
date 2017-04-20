@@ -87,11 +87,12 @@
         (-> (update-in ship [:x] dec)
             (update-in [:y] inc))
         5
-        (update-in ship [:y] inc))
-      )
+        (update-in ship [:y] inc)))
+    
     (= 2 speed)
     (-> (predict-next-position (assoc ship :speed 1))
-        (predict-next-position))))
+        (predict-next-position)
+        (assoc :speed speed))))
 
 (defn debug [msg]
   (binding [*out* *err*]
