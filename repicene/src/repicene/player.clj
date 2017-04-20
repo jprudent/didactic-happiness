@@ -45,11 +45,53 @@
       (assoc whole-cube :z (- (- rx) ry)))))
 
 (defn cube-linedraw [a b]
-  (let [distance (cube-distance a b)
-        nb-samples    (/ 1.0 distance)]
+  (let [distance   (cube-distance a b)
+        nb-samples (/ 1.0 distance)]
     (map
       #(cube-round (cube-lerp a b (* nb-samples %)))
       (range 0 (inc distance)))))
+
+(defn predict-next-position [{:keys [x y rotation speed] :as ship}]
+  (cond
+    (zero? speed)
+    ship
+
+    (= 1 speed)
+    (if (odd? y)
+      (condp = rotation
+        0
+        (update-in ship [:x] inc)
+        1
+        (-> (update-in ship [:x] inc)
+            (update-in [:y] dec))
+        2
+        (update-in ship [:y] dec)
+        3
+        (update-in ship [:x] dec)
+        4
+        (update-in ship [:y] inc)
+        5
+        (-> (update-in ship [:x] inc)
+            (update-in [:y] inc)))
+      (condp = rotation
+        0
+        (update-in ship [:x] inc)
+        1
+        (update-in ship [:y] dec)
+        2
+        (-> (update-in ship [:x] dec)
+            (update-in [:y] dec))
+        3
+        (update-in ship [:x] dec)
+        4
+        (-> (update-in ship [:x] dec)
+            (update-in [:y] inc))
+        5
+        (update-in ship [:y] inc))
+      )
+    (= 2 speed)
+    (-> (predict-next-position (assoc ship :speed 1))
+        (predict-next-position))))
 
 (defn debug [msg]
   (binding [*out* *err*]
