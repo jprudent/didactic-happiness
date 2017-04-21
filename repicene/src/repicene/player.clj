@@ -231,89 +231,91 @@
 (defmethod execute-order :fire [[_ target]]
   (fire! target))
 
-(defn execute-one-order! [{[[kind & _ :as order] & others] :orders tick :tick :as state}]
-  (debug (str "order " order))
-  (if order
-    (do (execute-order order)
-        (-> (assoc state :orders others)
-            (update-in [:doing] assoc kind {:order order :started-at tick})))
-    (do
-      (execute-order (or (get-in state [:doing :move :order]) [:wait]))
-      state)))
+(defn execute-one-order! [{:keys [doing tick] :as state}]
+  (cond
 
-(defn target-at-location? [{:keys [order]} entities]
+    (:fire-target doing)
+    (do (execute-order (get-in state [:doing :fire-target :order]))
+        (-> (update-in state [:doing] dissoc :fire-target)
+            (update-in [:doing] assoc :cooling-canon {:started-at tick})))
+
+    (:refuel doing)
+    (do (execute-order (get-in state [:doing :refuel :order]))
+        state)
+    :default
+    (do (execute-order [:wait])
+        state)))
+
+(defn barrel-at-location? [{:keys [order]} entities]
   (let [[_ entity] order
         keys   [:x :y :type]
         target (select-keys entity keys)]
     (find-entity entities #(= (select-keys % keys) target))))
 
-(defn do-not-move-on-absent-barrel [{{:keys [move]} :doing :as state} entities]
-  (if (and move (not (target-at-location? move entities)))
-    (update-in state [:doing] dissoc :move)
+(defn do-not-refuel-on-absent-barrel [{{:keys [refuel]} :doing :as state} entities]
+  (if (and refuel (not (barrel-at-location? refuel entities)))
+    (update-in state [:doing] dissoc :refuel)
     state))
 
-(defn i-am-not-firing-when-canon-is-cool [{{:keys [fire]} :doing tick :tick :as state}]
-  (if (and fire (> tick (inc (:started-at fire))))
-    (update-in state [:doing] dissoc :fire)
+(defn canon-is-cool [{{:keys [cooling-canon]} :doing tick :tick :as state}]
+  (if (and cooling-canon (> tick (inc (:started-at cooling-canon))))
+    (update-in state [:doing] dissoc :cooling-canon)
     state))
 
 (defn clean-doing [state entities]
-  (-> (do-not-move-on-absent-barrel state entities)
-      (i-am-not-firing-when-canon-is-cool)))
+  (-> (do-not-refuel-on-absent-barrel state entities)
+      (canon-is-cool)))
 
-(defn new-order [state order]
-  (update-in state [:orders] conj order))
-
-(defn ->move-order [entities]
+(defn ->refuel-order [entities]
   (let [my-ship                (first (find-my-ships entities))
         a-not-too-close-barrel (first (drop 1 (cycle (sort-by (partial distance my-ship) (find-barrels entities)))))]
     [:move (or a-not-too-close-barrel world-center)]))
 
-(defn new-orders [{:keys [doing my-ship] :as state} entities]
+(defn ->fire-target [my-ship entities]
+  [:fire (where-should-i-fire?
+           my-ship
+           (find-enemy entities))])
+
+(defn new-orders [{:keys [doing my-ship tick] :as state} entities]
   (debug my-ship)
-  (cond
+  (cond-> state
 
-    (and (not (:move doing)) (not (empty? (find-enemies entities))))
-    (new-order state (->move-order entities))
-
-    (not (:fire doing))
-    (new-order state [:fire (where-should-i-fire?
-                              my-ship
-                              (find-enemy entities))])
-
-    :default
-    state))
+          (not (:refuel doing))
+          (assoc-in [:doing :refuel] {:order      (->refuel-order entities)
+                                      :started-at tick})
+          (not (:cooling-canon doing))
+          (assoc-in [:doing :fire-target] {:order      (->fire-target my-ship entities)
+                                           :started-at tick})))
 
 
 (defn handle-one-ship [state entities]
   (debug (str "ship " (:id state) state))
   (-> (update-in state [:my-ship] #(find-ship-by-id entities (:id %)))
-      (execute-one-order!)
+      (update-in [:tick] inc)
       (clean-doing entities)
       (new-orders entities)
-      (update-in [:tick] inc)))
+      (execute-one-order!)))
 
-(defn -main [& args]
-  (loop [[nb-my-ships entities :as status] (read-status)
-         states (map (fn [my-ship] {:orders [(->move-order entities)]
-                             :doing  {}
-                              :my-ship my-ship
-                             :tick   0})
+(defn -main [& _]
+  (loop [[_ entities] (read-status)
+         states (map (fn [my-ship] {:doing   {}
+                                    :my-ship my-ship
+                                    :tick    0})
                      (find-my-ships entities))]
     #_(debug (prn-str states))
     (let [states (->> (filter #(my-ship-exist? (:my-ship %) entities) states)
                       (map #(handle-one-ship % entities)))]
       (doall states)
-      #_(debug (prn-str states))
+      (debug states)
       (recur
         (read-status)
         states))))
 
 #_(defn -main [& args]
-  (binding [*out* *err*]
-    (let [my-ship-count (read)
-          entity-count  (read)
-          _ (println my-ship-count)
-          _ (println entity-count)]
-      (doseq [i (range entity-count)]
-        (println (read) (read) (read) (read) (read) (read) (read) (read) )))))
+    (binding [*out* *err*]
+      (let [my-ship-count (read)
+            entity-count  (read)
+            _             (println my-ship-count)
+            _             (println entity-count)]
+        (doseq [i (range entity-count)]
+          (println (read) (read) (read) (read) (read) (read) (read) (read))))))
