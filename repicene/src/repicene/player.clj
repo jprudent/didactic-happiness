@@ -150,7 +150,7 @@
                          :MINE
                          entity)
             entity     (assoc entity :cube-coor (grid->cube entity))
-            _          (debug entity)]
+            #__          #_(debug entity)]
 
         (recur (dec i) (conj entities entity)))
       entities)))
@@ -161,11 +161,22 @@
 (defn find-barrels [entities]
   (filter #(= :BARREL (:type %)) entities))
 
-(defn find-enemies [entities]
-  (filter #(and (not (:mine? %)) (= :SHIP (:type %))) entities))
+(defn ship? [entity]
+  (= :SHIP (:type entity)))
 
-(defn find-my-ships [entities]
-  (filter #(and (:mine? %) (= :SHIP (:type %))) entities))
+(defn find-enemies [entities]
+  (filter #(and (not (:mine? %)) (ship? %)) entities))
+
+(defn find-my-ships
+  ([entities] (find-my-ships entities (constantly true)))
+  ([entities pred]
+   (filter #(and (:mine? %) (ship? %) (pred %)) entities)))
+
+(defn find-ship-by-id [entities id]
+  (first (filter #(and (= id (:id %)) (ship? %)) entities)))
+
+(defn my-ship-exist? [my-ship entities]
+  (not (nil? (find-ship-by-id entities (:id my-ship)))))
 
 (defn find-barrel
   ([entities] (find-barrel entities (constantly true)))
@@ -204,9 +215,9 @@
   (let [my-ship-count (read)
         entity-count  (read)
         entities      (read-entities! entity-count)
-        _             (debug (str "Entities :" entities))
-        _             (debug (str "An enemy " (prn-str (find-enemy entities))))
-        _             (debug (str "A barrel : " (find-barrel entities (constantly true))))]
+        #__             #_(debug (str "Entities :" entities))
+        #__             #_(debug (str "An enemy " (prn-str (find-enemy entities))))
+        #__             #_(debug (str "A barrel : " (find-barrel entities (constantly true))))]
     [my-ship-count entities]))
 
 (defmulti execute-order (fn [[kind & _]] kind))
@@ -259,6 +270,7 @@
     [:move (or a-not-too-close-barrel world-center)]))
 
 (defn new-orders [{:keys [doing my-ship] :as state} entities]
+  (debug my-ship)
   (cond
 
     (and (not (:move doing)) (not (empty? (find-enemies entities))))
@@ -273,17 +285,35 @@
     state))
 
 
+(defn handle-one-ship [state entities]
+  (debug (str "ship " (:id state) state))
+  (-> (update-in state [:my-ship] #(find-ship-by-id entities (:id %)))
+      (execute-one-order!)
+      (clean-doing entities)
+      (new-orders entities)
+      (update-in [:tick] inc)))
+
 (defn -main [& args]
-  (loop [[_ entities :as status] (read-status)
-         state {:orders [(->move-order entities)]
-                :doing  {}
-                :tick   0}]
-    (debug (prn-str state))
-    (let [state (-> (execute-one-order! state)
-                    (clean-doing entities)
-                    (assoc :my-ship (first (find-my-ships entities)))
-                    (new-orders entities)
-                    (update-in [:tick] inc))]
+  (loop [[nb-my-ships entities :as status] (read-status)
+         states (map (fn [my-ship] {:orders [(->move-order entities)]
+                             :doing  {}
+                              :my-ship my-ship
+                             :tick   0})
+                     (find-my-ships entities))]
+    #_(debug (prn-str states))
+    (let [states (->> (filter #(my-ship-exist? (:my-ship %) entities) states)
+                      (map #(handle-one-ship % entities)))]
+      (doall states)
+      #_(debug (prn-str states))
       (recur
         (read-status)
-        state))))
+        states))))
+
+#_(defn -main [& args]
+  (binding [*out* *err*]
+    (let [my-ship-count (read)
+          entity-count  (read)
+          _ (println my-ship-count)
+          _ (println entity-count)]
+      (doseq [i (range entity-count)]
+        (println (read) (read) (read) (read) (read) (read) (read) (read) )))))
