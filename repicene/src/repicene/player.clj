@@ -155,7 +155,7 @@
         (recur (dec i) (conj entities entity)))
       entities)))
 
-(defn distance [{coors1 :cube-coor} {coors2 :cube-coor}]
+(defn cube-distance-entities [{coors1 :cube-coor} {coors2 :cube-coor}]
   (cube-distance coors1 coors2))
 
 (defn find-barrels [entities]
@@ -166,6 +166,12 @@
 
 (defn find-enemies [entities]
   (filter #(and (not (:mine? %)) (ship? %)) entities))
+
+(defn find-closest-enemy [my-ship entities]
+  (->> (map (fn [enemy] [enemy (cube-distance-entities my-ship enemy)])
+           (find-enemies entities))
+      (sort-by second)
+      (ffirst)))
 
 (defn find-my-ships
   ([entities] (find-my-ships entities (constantly true)))
@@ -285,13 +291,13 @@
 
 (defn ->refuel-order [entities]
   (let [my-ship                (first (find-my-ships entities))
-        a-not-too-close-barrel (first (drop 1 (cycle (sort-by (partial distance my-ship) (find-barrels entities)))))]
+        a-not-too-close-barrel (first (drop 1 (cycle (sort-by (partial cube-distance-entities my-ship) (find-barrels entities)))))]
     [:move (or a-not-too-close-barrel world-center)]))
 
 (defn ->fire-target [my-ship entities]
   [:fire (where-should-i-fire?
            my-ship
-           (find-enemy entities))])                                             ;;TODO find-closest-enemy
+           (find-closest-enemy my-ship entities))])                             ;;TODO find-closest-enemy
 
 (def x-max+1 23)
 (def y-max+1 21)
@@ -348,8 +354,8 @@
         (doseq [i (range entity-count)]
           (println (read) (read) (read) (read) (read) (read) (read) (read))))))
 
-;; idees :
-;; - tirer sur l'ennemi le plus proche
+;; todo :
+;; - fuire les boulets de canon
 ;; - tirer sur une mine si elle est proche (2 cases si vitesse = 1, 4 cases si vitesse = 2)
 ;; - tirer que si la destination est à une distance de 10 au max
 ;; - si un ennemi est juste derrière, larguer une mine
@@ -357,3 +363,6 @@
 ;; - ne pas aller chercher le meme baril de rhum
 ;; - récupérer le rhum d'un navire coulé
 ;; - quand l'ennemi a une vitesse de 0, le calcul de prediction est complètement faux
+
+;; done
+;; - tirer sur l'ennemi le plus proche
