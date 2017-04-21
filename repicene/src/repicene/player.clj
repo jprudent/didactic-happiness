@@ -328,7 +328,7 @@
         (clean-doing entities)
         (new-orders entities)
         (execute-one-order!)
-        (update-in [:history] cons my-ship))))
+        (update-in [:history] #(cons my-ship %)))))
 
 (defn -main [& _]
   (loop [[_ entities] (read-status)
