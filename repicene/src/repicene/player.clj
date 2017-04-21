@@ -234,6 +234,10 @@
 (defn execute-one-order! [{:keys [doing tick] :as state}]
   (cond
 
+    (:unstuck doing)
+    (do (execute-order (get-in state [:doing :unstuck :order]))
+        state)
+
     (:fire-target doing)
     (do (execute-order (get-in state [:doing :fire-target :order]))
         (-> (update-in state [:doing] dissoc :fire-target)
@@ -262,9 +266,22 @@
     (update-in state [:doing] dissoc :cooling-canon)
     state))
 
+(defn stuck? [{:keys [my-ship doing history]}]
+  (and (:refuel doing)
+       (zero? (:speed my-ship))
+       (= #{0} (->> (take 2 history)
+                    (map :speed)
+                    (set)))))
+
+(defn do-not-unstuck-if-moving [state]
+  (if (not (stuck? state))
+    (update-in state [:doing] dissoc :unstuck)
+    state))
+
 (defn clean-doing [state entities]
   (-> (do-not-refuel-on-absent-barrel state entities)
-      (canon-is-cool)))
+      (canon-is-cool)
+      (do-not-unstuck-if-moving)))
 
 (defn ->refuel-order [entities]
   (let [my-ship                (first (find-my-ships entities))
@@ -274,12 +291,21 @@
 (defn ->fire-target [my-ship entities]
   [:fire (where-should-i-fire?
            my-ship
-           (find-enemy entities))])
+           (find-enemy entities))])                                             ;;TODO find-closest-enemy
+
+(def x-max+1 23)
+(def y-max+1 21)
+
+(defn ->unstuck-order []
+  [:move {:x (rand-int x-max+1) :y (rand-int y-max+1)}])
 
 (defn new-orders [{:keys [doing my-ship tick] :as state} entities]
   (debug my-ship)
   (cond-> state
 
+          (and (stuck? state) (not (:unstuck doing)))
+          (assoc-in [:doing :unstuck] {:order      (->unstuck-order)
+                                       :started-at tick})
           (not (:refuel doing))
           (assoc-in [:doing :refuel] {:order      (->refuel-order entities)
                                       :started-at tick})
@@ -290,11 +316,13 @@
 
 (defn handle-one-ship [state entities]
   (debug (str "ship " (:id state) state))
-  (-> (update-in state [:my-ship] #(find-ship-by-id entities (:id %)))
-      (update-in [:tick] inc)
-      (clean-doing entities)
-      (new-orders entities)
-      (execute-one-order!)))
+  (let [my-ship (find-ship-by-id entities (get-in state [:my-ship :id]))]
+    (-> (assoc-in state [:my-ship] my-ship)
+        (update-in [:tick] inc)
+        (clean-doing entities)
+        (new-orders entities)
+        (execute-one-order!)
+        (update-in [:history] cons my-ship))))
 
 (defn -main [& _]
   (loop [[_ entities] (read-status)
@@ -319,3 +347,13 @@
             _             (println entity-count)]
         (doseq [i (range entity-count)]
           (println (read) (read) (read) (read) (read) (read) (read) (read))))))
+
+;; idees :
+;; - tirer sur l'ennemi le plus proche
+;; - tirer sur une mine si elle est proche (2 cases si vitesse = 1, 4 cases si vitesse = 2)
+;; - tirer que si la destination est à une distance de 10 au max
+;; - si un ennemi est juste derrière, larguer une mine
+;; - ne pas faire tirer plusieurs bateaux sur la meme cible
+;; - ne pas aller chercher le meme baril de rhum
+;; - récupérer le rhum d'un navire coulé
+;; - quand l'ennemi a une vitesse de 0, le calcul de prediction est complètement faux
