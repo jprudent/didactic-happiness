@@ -1,6 +1,10 @@
 (ns Player
   (:gen-class))
 
+(defn debug [msg]
+  (binding [*out* *err*]
+    (println msg)))
+
 ;; GEOMETRY
 
 ;;# convert cube to odd-r offset
@@ -36,9 +40,12 @@
    :y (lerp y1 y2 t)
    :z (lerp z1 z2 t)})
 
+(defn abs-substract-coors [a b]
+  (into {} (map (fn [[k v]] [k (Math/abs (- (get a k) v))]) b)))
+
 (defn cube-round [floating-cube]
   (let [{rx :x ry :y rz :z :as whole-cube} (into {} (map (fn [[k v]] [k (Math/round (double v))]) floating-cube))
-        {x-diff :x y-diff :y z-diff :z} (into {} (map (fn [[k v]] [k (Math/abs (- (get floating-cube k) v))]) whole-cube))]
+        {x-diff :x y-diff :y z-diff :z} (abs-substract-coors floating-cube whole-cube)]
     (cond
       (and (> x-diff y-diff) (> x-diff y-diff))
       (assoc whole-cube :x (- (- ry) rz))
@@ -54,48 +61,75 @@
       #(cube-round (cube-lerp a b (* nb-samples %)))
       (range 0 (inc distance)))))
 
+(defn road-map [{coor1 :cube-coor} {coor2 :cube-coor}]
+  (map cube->grid (cube-linedraw coor1 coor2)))
+
+(def stir-map-odd
+  {0 [inc identity]
+   1 [inc dec]
+   2 [identity dec]
+   3 [dec identity]
+   4 [identity inc]
+   5 [inc inc]})
+
+(def stir-map-even
+  {0 [inc identity]
+   1 [identity dec]
+   2 [dec dec]
+   3 [dec identity]
+   4 [dec inc]
+   5 [identity inc]})
+
 (defn predict-next-position [{:keys [x y rotation speed] :as ship}]
   (cond
     (zero? speed)
-    ship
-
+    ship,
     (= 1 speed)
-    (if (odd? y)
-      (condp = rotation
-        0
-        (update-in ship [:x] inc)
-        1
-        (-> (update-in ship [:x] inc)
-            (update-in [:y] dec))
-        2
-        (update-in ship [:y] dec)
-        3
-        (update-in ship [:x] dec)
-        4
-        (update-in ship [:y] inc)
-        5
-        (-> (update-in ship [:x] inc)
-            (update-in [:y] inc)))
-      (condp = rotation
-        0
-        (update-in ship [:x] inc)
-        1
-        (update-in ship [:y] dec)
-        2
-        (-> (update-in ship [:x] dec)
-            (update-in [:y] dec))
-        3
-        (update-in ship [:x] dec)
-        4
-        (-> (update-in ship [:x] dec)
-            (update-in [:y] inc))
-        5
-        (update-in ship [:y] inc)))
-
+    (let [mapping (if (odd? y) stir-map-odd stir-map-even)
+          [fx fy] (get mapping rotation)]
+      (-> (update-in ship [:x] fx)
+          (update-in [:y] fy))),
     (= 2 speed)
     (-> (predict-next-position (assoc ship :speed 1))
         (predict-next-position)
         (assoc :speed speed))))
+
+(defn substract-coors [a b]
+  (debug (str "substr" a b))
+  (into {} (map (fn [[k v]] [k (- (get a k) v)]) b)))
+
+(def rotation-map-odd
+  {{:x 1 :y 0}  0
+   {:x 1 :y -1} 1
+   {:x 0 :y -1} 2
+   {:x -1 :y 0} 3
+   {:x 0 :y 1}  4
+   {:x 1 :y 1}  5})
+
+(def rotation-map-even
+  {{:x 1 :y 0}   0
+   {:x 0 :y -1}  1
+   {:x -1 :y -1} 2
+   {:x -1 :y 0}  3
+   {:x -1 :y 1}  4
+   {:x 0 :y 1}   5})
+
+(defn which-rotation? [{:keys [y] :as from} to-neighbor]
+  (get (if (odd? y) rotation-map-odd rotation-map-even)
+       (substract-coors (select-keys to-neighbor [:x :y])
+                        (select-keys from [:x :y]))))
+
+(defn right-or-left? [{:keys [rotation] :as from} to-neighbor]
+  (let [target-rotation (which-rotation? from to-neighbor)
+        zero-rel-target (mod (- target-rotation rotation) 6)]
+    (cond
+      (zero? zero-rel-target)
+      nil
+      (> zero-rel-target 3)
+      :right
+      :default
+      :left)))
+
 
 (defn predict-next-positions [target]
   (lazy-seq (let [p (predict-next-position target)]
@@ -113,16 +147,12 @@
        (map first)
        (first)))
 
-(defn debug [msg]
-  (binding [*out* *err*]
-    (println (prn-str msg))))
-
 (defn read-entities! [entity-count]
   (loop [i        entity-count
          entities []]
     (if (> i 0)
       (let [entityId   (read)
-            entityType (keyword (read))
+            entityType (read)
             x          (read)
             y          (read)
             arg1       (read)
@@ -130,7 +160,7 @@
             arg3       (read)
             arg4       (read)
             entity     {:id   entityId
-                        :type entityType
+                        :type (keyword entityType)
                         :x    x
                         :y    y
                         }
@@ -151,7 +181,7 @@
                          entity)
             entity     (assoc entity :cube-coor (grid->cube entity))
             #__          #_(debug entity)]
-
+        (debug (clojure.string/join " " [entityId entityType x y arg1 arg2 arg3 arg4]))
         (recur (dec i) (conj entities entity)))
       entities)))
 
@@ -169,9 +199,9 @@
 
 (defn find-closest-enemy [my-ship entities]
   (->> (map (fn [enemy] [enemy (cube-distance-entities my-ship enemy)])
-           (find-enemies entities))
-      (sort-by second)
-      (ffirst)))
+            (find-enemies entities))
+       (sort-by second)
+       (ffirst)))
 
 (defn find-my-ships
   ([entities] (find-my-ships entities (constantly true)))
@@ -215,45 +245,94 @@
 (defn wait! []
   (println "WAIT"))
 
+(defn faster! []
+  (println "FASTER"))
+
+(defn slower! []
+  (println "SLOWER"))
+
+(defn left! []
+  (println "PORT"))
+
+(defn right! []
+  (println "STARBOARD"))
+
+(def x-max+1 23)
+(def y-max+1 21)
+
+(defn random-location []
+  {:x (rand-int x-max+1) :y (rand-int y-max+1)})
+
+
 (def world-center {:x 11 :y 10})
 
 (defn read-status []
   (let [my-ship-count (read)
         entity-count  (read)
+        _             (debug (str my-ship-count " " entity-count))
         entities      (read-entities! entity-count)
         #__             #_(debug (str "Entities :" entities))
         #__             #_(debug (str "An enemy " (prn-str (find-enemy entities))))
         #__             #_(debug (str "A barrel : " (find-barrel entities (constantly true))))]
+
     [my-ship-count entities]))
 
-(defmulti execute-order (fn [[kind & _]] kind))
+(defmulti execute-order! (fn [[kind & _]] kind))
 
-(defmethod execute-order :move [[_ target]]
+(defmethod execute-order! :move [[_ target]]
   (move! target))
 
-(defmethod execute-order :wait [_]
+(defmethod execute-order! :wait [_]
   (wait!))
 
-(defmethod execute-order :fire [[_ target]]
+(defmethod execute-order! :fire [[_ target]]
   (fire! target))
 
-(defn execute-one-order! [{:keys [doing tick] :as state}]
+(defn execute-one-order! [{:keys [doing tick my-ship] :as state}]
   (cond
 
     (:unstuck doing)
-    (do (execute-order (get-in state [:doing :unstuck :order]))
+    (do (execute-order! (get-in state [:doing :unstuck :order]))
         state)
 
     (:fire-target doing)
-    (do (execute-order (get-in state [:doing :fire-target :order]))
+    (do (execute-order! (get-in state [:doing :fire-target :order]))
         (-> (update-in state [:doing] dissoc :fire-target)
             (update-in [:doing] assoc :cooling-canon {:started-at tick})))
 
     (:refuel doing)
-    (do (execute-order (get-in state [:doing :refuel :order]))
-        state)
+    (let [barrel        (get-in state [:doing :refuel :barrel])
+          [_ & [neighbor & remaining] :as rm] (road-map my-ship barrel)
+          almost-there? (<= (count remaining) 2)
+          there?        (nil? neighbor)]3 19 0 0 0
+                14 BARREL 18
+      (debug (str "almost threre? " almost-there?
+                  "going to " neighbor
+                  "from " my-ship))
+      (debug rm)
+      (cond
+
+        there?
+        (move! (random-location))
+
+        (zero? (:speed my-ship))
+        (faster!)
+
+        (and (not almost-there?) (< (:speed my-ship) 2))
+        (faster!)
+
+        (and almost-there? (= 2 (:speed my-ship)))
+        (slower!)
+
+        :default
+        (condp = (right-or-left? my-ship neighbor)
+          :right (right!)
+          :left (left!)
+          nil (wait!)))
+      state)
+
     :default
-    (do (execute-order [:wait])
+    (do (execute-order! [:wait])
         state)))
 
 (defn barrel-at-location? [{:keys [order]} entities]
@@ -289,31 +368,27 @@
       (canon-is-cool)
       (do-not-unstuck-if-moving)))
 
-(defn ->refuel-order [entities]
+(defn which-barrel? [entities]
   (let [my-ship                (first (find-my-ships entities))
         a-not-too-close-barrel (first (drop 1 (cycle (sort-by (partial cube-distance-entities my-ship) (find-barrels entities)))))]
-    [:move (or a-not-too-close-barrel world-center)]))
+    (or a-not-too-close-barrel world-center)))
 
 (defn ->fire-target [my-ship entities]
   [:fire (where-should-i-fire?
            my-ship
            (find-closest-enemy my-ship entities))])                             ;;TODO find-closest-enemy
 
-(def x-max+1 23)
-(def y-max+1 21)
-
 (defn ->unstuck-order []
-  [:move {:x (rand-int x-max+1) :y (rand-int y-max+1)}])
+  [:move (random-location)])
 
 (defn new-orders [{:keys [doing my-ship tick] :as state} entities]
   (debug my-ship)
   (cond-> state
-
           (and (stuck? state) (not (:unstuck doing)))
           (assoc-in [:doing :unstuck] {:order      (->unstuck-order)
                                        :started-at tick})
           (not (:refuel doing))
-          (assoc-in [:doing :refuel] {:order      (->refuel-order entities)
+          (assoc-in [:doing :refuel] {:barrel     (which-barrel? entities)
                                       :started-at tick})
           (not (:cooling-canon doing))
           (assoc-in [:doing :fire-target] {:order      (->fire-target my-ship entities)
@@ -355,7 +430,7 @@
           (println (read) (read) (read) (read) (read) (read) (read) (read))))))
 
 ;; todo :
-;; - fuire les boulets de canon
+;; - fuire les boulets de canon (besoin d'un controle manuel)
 ;; - tirer sur une mine si elle est proche (2 cases si vitesse = 1, 4 cases si vitesse = 2)
 ;; - tirer que si la destination est à une distance de 10 au max
 ;; - si un ennemi est juste derrière, larguer une mine
