@@ -77,7 +77,7 @@
         (map vector (range) memory)))
 
 (defn word-at
-  ([memory address]
+  ([memory ^long address]
    {:pre  [(dword? address) (s/memory? memory)]
     :post [(word? %)]}
    (let [[from _ backend] (lookup-backend memory address)]
