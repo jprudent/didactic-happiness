@@ -149,13 +149,16 @@
 (def sp (def-dword-register ::s/SP))
 (def af
   (let [normal-dword-register (def-dword-register ::s/AF)]
-    (fn
-      ([cpu] (normal-dword-register cpu))
-      ([cpu modifier]
-       (normal-dword-register cpu
-                              (if (fn? modifier)
-                                (comp (partial bit-and 0xFFF0) modifier)
-                                (bit-and 0xFFF0 modifier)))))))
+    (with-meta
+      (fn
+        ([cpu] (normal-dword-register cpu))
+        ([cpu modifier]
+         (normal-dword-register cpu
+                                (if (fn? modifier)
+                                  (comp (partial bit-and 0xFFF0) modifier)
+                                  (bit-and 0xFFF0 modifier)))))
+      {:type :operand
+       :operand 'af})))
 (def bc (def-dword-register ::s/BC))
 (def de (def-dword-register ::s/DE))
 (def hl (def-dword-register ::s/HL))
@@ -180,12 +183,18 @@
        cpu
        (f cpu (%8 bit-flip (f cpu) pos))))))
 
-(def z? (def-flag 7))
-(def n? (def-flag 6))
-(def h? (def-flag 5))
-(def c? (def-flag 4))
-(def nz? (complement z?))
-(def nc? (complement c?))
+(def z? (with-meta (def-flag 7) {:type    :operand
+                                 :operand 'z?}))
+(def n? (with-meta (def-flag 6) {:type    :operand
+                                 :operand 'n?}))
+(def h? (with-meta (def-flag 5) {:type    :operand
+                                 :operand 'h?}))
+(def c? (with-meta (def-flag 4) {:type    :operand
+                                 :operand 'c?}))
+(def nz? (with-meta (complement z?) {:type    :operand
+                                     :operand 'nz?}))
+(def nc? (with-meta (complement c?) {:type    :operand
+                                     :operand 'nc?}))
 
 
 (defn set-word-at [{:keys [::s/memory w-breakpoints] :as cpu} address val]
@@ -204,13 +213,17 @@
   (-> (set-word-at cpu address (low-word val))
       (set-word-at (inc address) (high-word val))))
 
-(defn dword
-  ([{:keys [::s/memory] :as cpu}]
-   {:pre [(not (nil? cpu)) (not (nil? memory))]}
-   (cat8 (word-at memory (+ 2 (pc cpu)))
-         (word-at memory (+ 1 (pc cpu)))))
-  ([cpu val]
-   (set-word-at cpu (dword cpu) val)))
+(def dword
+  (with-meta
+    (fn
+      ([{:keys [::s/memory] :as cpu}]
+       {:pre [(not (nil? cpu)) (not (nil? memory))]}
+       (cat8 (word-at memory (+ 2 (pc cpu)))
+             (word-at memory (+ 1 (pc cpu)))))
+      ([cpu val]
+       (set-word-at cpu (dword cpu) val)))
+    {:type    :operand
+     :operand 'dword}))
 ;; synonym to make the code more friendly
 (def address dword)
 
@@ -226,37 +239,53 @@
     {:type    :operand
      :operand 'sp+word}))
 
-(defn <FF00+n>
-  ([{:keys [::s/memory] :as cpu}]
-   (word-at memory (+ 0xFF00 (word cpu))))
-  ([cpu val]
-   (set-word-at cpu (+ 0xFF00 (word cpu)) val)))
+(def <FF00+n>
+  (with-meta
+    (fn
+      ([{:keys [::s/memory] :as cpu}]
+       (word-at memory (+ 0xFF00 (word cpu))))
+      ([cpu val]
+       (set-word-at cpu (+ 0xFF00 (word cpu)) val)))
+    {:type    :operand
+     :operand '<FF00+n>}))
 
-(defn <FF00+c>
-  ([{:keys [::s/memory] :as cpu}]
-   (word-at memory (+ 0xFF00 (c cpu))))
-  ([cpu val]
-   (set-word-at cpu (+ 0xFF00 (c cpu)) val)))
+(def <FF00+c>
+  (with-meta
+    (fn
+      ([{:keys [::s/memory] :as cpu}]
+       (word-at memory (+ 0xFF00 (c cpu))))
+      ([cpu val]
+       (set-word-at cpu (+ 0xFF00 (c cpu)) val)))
+    {:type    :operand
+     :operand '<FF00+c>}))
 
 (defn register-pointer [dword-register]
-  (fn
-    ([{:keys [::s/memory] :as cpu}]
-     (word-at memory (dword-register cpu)))
-    ([cpu val]
-     (set-word-at cpu (dword-register cpu) val))))
+  (with-meta
+    (fn
+      ([{:keys [::s/memory] :as cpu}]
+       (word-at memory (dword-register cpu)))
+      ([cpu val]
+       (set-word-at cpu (dword-register cpu) val)))
+    {:type    :operand
+     :operand (symbol (str "<" (:operand (meta dword-register)) ">"))}))
 
 (def <hl> (register-pointer hl))
 (def <bc> (register-pointer bc))
 (def <de> (register-pointer de))
 
-(defn <address>
-  ([{:keys [::s/memory] :as cpu}]
-   (word-at memory (dword cpu)))
-  ([cpu val]
-   (set-word-at cpu (dword cpu) val)))
+(def <address>
+  (with-meta
+    (fn
+      ([{:keys [::s/memory] :as cpu}]
+       (word-at memory (dword cpu)))
+      ([cpu val]
+       (set-word-at cpu (dword cpu) val)))
+    {:type    :operand
+     :operand '<address>}))
 
 
-(def always (constantly true))
+(def always (with-meta (constantly true) {:type    :operand
+                                          :operand 'always}))
 
 (def hex-dword (comp hex16 dword))
 (def hex-word (comp hex8 word))

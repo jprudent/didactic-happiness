@@ -180,5 +180,5 @@
 
 (deftest integration
   (testing "01-specials"
-    (test-rom "roms/cpu_instrs/individual/01-special.gb" 60)
-    #_(test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 60)))
+    #_(test-rom "roms/cpu_instrs/individual/01-special.gb" 60)
+    (test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 600)))
