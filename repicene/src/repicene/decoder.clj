@@ -85,7 +85,7 @@
        (nth backend backend-relative-address)))))
 
 (defn dword-at
-  ([{:keys [::s/memory]} address]
+  ([{:keys [::s/memory]} ^long address]
    {:pre  [(dword? address) (s/memory? memory)]
     :post [(dword? %)]}
    (cat8 (word-at memory (%16+ 1 address)) (word-at memory address))))          ;; dword are stored little endian
@@ -93,11 +93,11 @@
 (defn high-word
   "1 arg version : returns the high word composing the unsigned dword
   2 args version : set the high word of dword to val"
-  ([dword]
+  ([^long dword]
    {:pre  [(s/dword? dword)]
     :post [(s/word? %)]}
    (bit-shift-right dword 8))
-  ([dword val]
+  ([^long dword ^long val]
    {:pre  [(s/dword? dword) (s/word? val)]
     :post [(s/dword? %)]}
    (-> (bit-shift-left val 8)
@@ -106,11 +106,11 @@
 (defn low-word
   "1 arg version : returns the low word composing the unsigned dword
   2 args version : set the low word of dword to val"
-  ([dword]
+  ([^long dword]
    {:pre  [(s/dword? dword)]
     :post [(s/word? %)]}
    (bit-and dword 0xFF))
-  ([dword val]
+  ([^long dword ^long val]
    {:pre  [(s/dword? dword) (s/word? val)]
     :post [(s/dword? %)]}
    (bit-or (bit-and dword 0xFF00) val)))
