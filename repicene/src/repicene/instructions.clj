@@ -275,17 +275,17 @@
         (c? (bit-test value 7))
         (pc (partial %16+ size)))))
 
-(defmethod exec :srl [cpu {[_ source] :asm, size :size}]
-  {:pre  [(s/valid? cpu)]
-   :post [(s/valid? %)]}
-  (let [value  (source cpu)
-        result (bit-shift-right value 1)]
-    (-> (source cpu result)
-        (z? (zero? result))
-        (n? false)
-        (h? false)
-        (c? (bit-test value 0))
-        (pc (partial %16+ size)))))
+  (defmethod exec :srl [cpu {[_ source] :asm, size :size}]
+    {:pre  [(s/valid? cpu)]
+     :post [(s/valid? %)]}
+    (let [value  (source cpu)
+          result (bit-shift-right value 1)]
+      (-> (source cpu result)
+          (z? (zero? result))
+          (n? false)
+          (h? false)
+          (c? (bit-test value 0))
+          (pc (partial %16+ size)))))
 
 (defmethod exec :sra [cpu {[_ source] :asm, size :size}]
   {:pre  [(s/valid? cpu)]

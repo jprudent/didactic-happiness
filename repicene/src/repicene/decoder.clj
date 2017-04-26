@@ -25,7 +25,7 @@
   "Address arithmetic should be 0xFFFF modular arithmetic"
   [f & args]
   {:post [(s/dword? %)]}
-  (mod (apply f args) 0x10000))
+  (mod (apply f args) 0x10000))                                                 ;; todo bit-and au lieu de mod + éviter apply
 
 (def %16+
   "Add numbers and make it a valid address (mod 0xFFFF)"
@@ -157,7 +157,7 @@
                                 (if (fn? modifier)
                                   (comp (partial bit-and 0xFFF0) modifier)
                                   (bit-and 0xFFF0 modifier)))))
-      {:type :operand
+      {:type    :operand
        :operand 'af})))
 (def bc (def-dword-register ::s/BC))
 (def de (def-dword-register ::s/DE))
@@ -299,263 +299,224 @@
 (defrecord instruction [asm cycles size to-string])
 (def unknown (->instruction [:wtf] 0 1 (constantly "???")))
 
+(defprotocol Instr
+  (exec [this cpu] "execute this instruction against the cpu")
+  (print-assembly [this cpu] "print assembly"))
+
+(defn bool->int [b] (if b 1 0))
+
+(defn rotate-left [^long word]
+  {:pre  [(s/word? word)]
+   :post [(s/word? %)]}
+  (let [highest (bool->int (bit-test word 7))]
+    (-> (bit-shift-left word 1)
+        (bit-or highest))))
+
+(defn rotate-right [^long word]
+  {:pre  [(s/word? word)]
+   :post [(s/word? %)]}
+  (let [highest (-> (bit-and word 1)
+                    (bit-shift-left 7))]
+    (-> (bit-shift-right word 1)
+        (bit-or highest))))
+
+(defn rlc [cpu word-register size]
+  (let [x      (word-register cpu)
+        result (rotate-left x)]
+    (-> (word-register cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? false)
+        (c? (bit-test x 7))
+        (pc (partial %16+ size)))))
+
+(defrecord Rlc [word-register]
+  Instr
+  (exec [{:keys [word-register]} cpu]
+    (rlc cpu word-register 1))
+  (print-assembly [{:keys [word-register]} _]
+    (str "rlc " (:operand (meta word-register)))))
+
+(defn rrc [cpu word-register size]
+  (let [x      (word-register cpu)
+        result (rotate-right x)]
+    (-> (word-register cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? false)
+        (c? (bit-test x 0))
+        (pc (partial %16+ size)))))
+
+;; rotate right, Old bit 7 to Carry flag.
+(defrecord Rrc [word-register]
+  Instr
+  (exec [{:keys [word-register]} cpu]
+    (rrc cpu word-register 1))
+  (print-assembly [{:keys [word-register]}]
+    (str "rrc " (:operand (meta word-register)))))
+
+(defn rl [cpu source size]
+  (let [value  (source cpu)
+        result (bit-or (bit-shift-left value 1)
+                       (bool->int (c? cpu)))]
+    (-> (source cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? false)
+        (c? (bit-test value 7))
+        (pc (partial %16+ size)))))
+
+;; rotate left through carry flag
+(defrecord Rl [word-register]
+  Instr
+  (exec [{:keys [word-register]} cpu]
+    (rl cpu word-register 1))
+  (print-assembly [{:keys [word-register]}]
+    (str "rl" (:operand (meta word-register)))))
+
+(defn rr [cpu word-register size]
+  (let [value  (word-register cpu)
+        result (bit-or (bit-shift-right value 1)
+                       (bit-shift-left (bool->int (c? cpu)) 7))]
+    (-> (word-register cpu result)
+        (z? (zero? result))
+        (n? false)
+        (h? false)
+        (c? (bit-test value 0))
+        (pc (partial %16+ size)))))
+
+;; rotate right through carry flag
+(defrecord Rr [word-register]
+  Instr
+  (exec [{:keys [word-register]} cpu]
+    (rr cpu word-register 1))
+  (print-assembly [{:keys [word-register]} cpu]
+    (str "rr " (:operand (meta word-register)))))
+
+(defrecord Sra [word-register]
+  Instr
+  (exec [{:keys [word-register]} cpu]
+    {:pre  [(s/valid? cpu)]
+     :post [(s/valid? %)]}
+    (let [value   (word-register cpu)
+          highest (bit-and value 2r10000000)
+          result  (-> (bit-shift-right value 1)
+                      (bit-or highest))]                                        ;; MSB doesn't change !
+      (-> (word-register cpu result)
+          (z? (zero? result))
+          (n? false)
+          (h? false)
+          (c? (bit-test value 0))
+          (pc (partial %16+ 1))))))
+
+(defrecord Sla [word-register]
+  Instr
+  (exec [{:keys [word-register]} cpu]
+    {:pre  [(s/valid? cpu)]
+     :post [(s/valid? %)]}
+    (let [value  (word-register cpu)
+          result (bit-shift-left value 1)]
+      (-> (word-register cpu result)
+          (z? (zero? result))
+          (n? false)
+          (h? false)
+          (c? (bit-test value 7))
+          (pc (partial %16+ 1))))))
+
+(defn low-nibble [word]
+  {:pre  [(s/word? word)]
+   :post [(s/nibble? %)]}
+  (bit-and word 0xF))
+
+(defn high-nibble [word]
+  {:pre  [(s/word? word)]
+   :post [(s/nibble? %)]}
+  (bit-shift-right word 4))
+
+(defn swap [^long word]
+  {:pre  [(s/word? word)]
+   :post [(s/word? %)]}
+  (let [low  (low-nibble word)
+        high (high-nibble word)]
+    (bit-or (bit-shift-left low 4) high)))
+
+(defrecord Swap [word-register]
+  Instr
+  (exec [{:keys [word-register]} cpu]
+    (let [result (swap (word-register cpu))]
+      (-> (word-register cpu result)
+          (z? (zero? result))
+          (n? false)
+          (h? false)
+          (c? false)
+          (pc (partial %16+ 1))))))
+
+(defrecord Srl [word-register]
+  Instr
+  (exec [{:keys [word-register]} cpu]
+    (let [value  (word-register cpu)
+          result (bit-shift-right value 1)]
+      (-> (word-register cpu result)
+          (z? (zero? result))
+          (n? false)
+          (h? false)
+          (c? (bit-test value 0))
+          (pc (partial %16+ 1))))))
+
+(defrecord Bit [position word-register]
+  Instr
+  (exec [{:keys [position word-register]} cpu]
+    {:pre [(<= 0 position 7)]}
+    (-> (z? (bit-test (word-register cpu) position))
+        (n? false)
+        (h? true)
+        (pc (partial %16+ 1)))))
+
+(defrecord Res [position word-register]
+  Instr
+  (exec [{:keys [position word-register]} cpu]
+    (-> (word-register cpu #(bit-clear % position))
+        (pc (partial %16+ 1)))))
+
+(defrecord Set [position word-register]
+  Instr
+  (exec [{:keys [position word-register]} cpu]
+    (-> (word-register cpu #(bit-set % position))
+        (pc (partial %16+ 1)))))
+
 (def extra-decoder
-  {0x00 (->instruction [:rlc b] 4 0 (constantly "rlc b"))
-   0x01 (->instruction [:rlc c] 4 0 (constantly "rlc c"))
-   0x02 (->instruction [:rlc d] 4 0 (constantly "rlc d"))
-   0x03 (->instruction [:rlc e] 4 0 (constantly "rlc e"))
-   0x04 (->instruction [:rlc h] 4 0 (constantly "rlc h"))
-   0x05 (->instruction [:rlc l] 4 0 (constantly "rlc l"))
-   0x06 (->instruction [:rlc <hl>] 8 0 (constantly "rlc [hl]"))
-   0x07 (->instruction [:rlc a] 4 0 (constantly "rlc a"))
-   0x08 (->instruction [:rrc b] 4 0 (constantly "rrc b"))
-   0x09 (->instruction [:rrc c] 4 0 (constantly "rrc c"))
-   0x0A (->instruction [:rrc d] 4 0 (constantly "rrc d"))
-   0x0B (->instruction [:rrc e] 4 0 (constantly "rrc e"))
-   0x0C (->instruction [:rrc h] 4 0 (constantly "rrc h"))
-   0x0D (->instruction [:rrc l] 4 0 (constantly "rrc l"))
-   0x0E (->instruction [:rrc <hl>] 8 0 (constantly "rrc [hl]"))
-   0x0F (->instruction [:rrc a] 4 0 (constantly "rrc a"))
-   0x10 (->instruction [:rl b] 4 0 (constantly "rl b"))
-   0x11 (->instruction [:rl c] 4 0 (constantly "rl c"))
-   0x12 (->instruction [:rl d] 4 0 (constantly "rl d"))
-   0x13 (->instruction [:rl e] 4 0 (constantly "rl e"))
-   0x14 (->instruction [:rl h] 4 0 (constantly "rl h"))
-   0x15 (->instruction [:rl l] 4 0 (constantly "rl l"))
-   0x16 (->instruction [:rl <hl>] 8 0 (constantly "rl [hl]"))
-   0x17 (->instruction [:rl a] 4 0 (constantly "rl a"))
-   0x18 (->instruction [:rr b] 4 0 (constantly "rr b"))
-   0x19 (->instruction [:rr c] 4 0 (constantly "rr c"))
-   0x1A (->instruction [:rr d] 4 0 (constantly "rr d"))
-   0x1B (->instruction [:rr e] 4 0 (constantly "rr e"))
-   0x1C (->instruction [:rr h] 4 0 (constantly "rr h"))
-   0x1D (->instruction [:rr l] 4 0 (constantly "rr l"))
-   0x1E (->instruction [:rr <hl>] 8 0 (constantly "rr [hl]"))
-   0x1F (->instruction [:rr a] 4 0 (constantly "rr a"))
-   0x20 (->instruction [:sla b] 4 0 (constantly "sla b"))
-   0x21 (->instruction [:sla c] 4 0 (constantly "sla c"))
-   0x22 (->instruction [:sla d] 4 0 (constantly "sla d"))
-   0x23 (->instruction [:sla e] 4 0 (constantly "sla e"))
-   0x24 (->instruction [:sla h] 4 0 (constantly "sla h"))
-   0x25 (->instruction [:sla l] 4 0 (constantly "sla l"))
-   0x26 (->instruction [:sla <hl>] 8 0 (constantly "sla [hl]"))
-   0x27 (->instruction [:sla a] 4 0 (constantly "sla a"))
-   0x28 (->instruction [:sra b] 4 0 (constantly "sra b"))
-   0x29 (->instruction [:sra c] 4 0 (constantly "sra c"))
-   0x2A (->instruction [:sra d] 4 0 (constantly "sra d"))
-   0x2B (->instruction [:sra e] 4 0 (constantly "sra e"))
-   0x2C (->instruction [:sra h] 4 0 (constantly "sra h"))
-   0x2D (->instruction [:sra l] 4 0 (constantly "sra l"))
-   0x2E (->instruction [:sra <hl>] 8 0 (constantly "sra [hl]"))
-   0x2F (->instruction [:sra a] 4 0 (constantly "sra a"))
-   0x30 (->instruction [:swap b] 4 0 (constantly "swap b"))
-   0x31 (->instruction [:swap c] 4 0 (constantly "swap c"))
-   0x32 (->instruction [:swap d] 4 0 (constantly "swap d"))
-   0x33 (->instruction [:swap e] 4 0 (constantly "swap e"))
-   0x34 (->instruction [:swap h] 4 0 (constantly "swap h"))
-   0x35 (->instruction [:swap l] 4 0 (constantly "swap l"))
-   0x36 (->instruction [:swap <hl>] 8 0 (constantly "swap [hl]"))
-   0x37 (->instruction [:swap a] 4 0 (constantly "swap a"))
-   0x38 (->instruction [:srl b] 4 0 (constantly "srl b"))
-   0x39 (->instruction [:srl c] 4 0 (constantly "srl c"))
-   0x3A (->instruction [:srl d] 4 0 (constantly "srl d"))
-   0x3B (->instruction [:srl e] 4 0 (constantly "srl e"))
-   0x3C (->instruction [:srl h] 4 0 (constantly "srl h"))
-   0x3D (->instruction [:srl l] 4 0 (constantly "srl l"))
-   0x3E (->instruction [:srl <hl>] 8 0 (constantly "srl [hl]"))
-   0x3F (->instruction [:srl a] 4 0 (constantly "srl a"))
-   0x40 (->instruction [:bit 0 b] 4 0 (constantly "bit 0,b"))
-   0x41 (->instruction [:bit 0 c] 4 0 (constantly "bit 0,c"))
-   0x42 (->instruction [:bit 0 d] 4 0 (constantly "bit 0,d"))
-   0x43 (->instruction [:bit 0 e] 4 0 (constantly "bit 0,e"))
-   0x44 (->instruction [:bit 0 h] 4 0 (constantly "bit 0,h"))
-   0x45 (->instruction [:bit 0 l] 4 0 (constantly "bit 0,l"))
-   0x46 (->instruction [:bit 0 <hl>] 8 0 (constantly "bit 0,[hl]"))
-   0x47 (->instruction [:bit 0 a] 4 0 (constantly "bit 0,a"))
-   0x48 (->instruction [:bit 1 b] 4 0 (constantly "bit 1,b"))
-   0x49 (->instruction [:bit 1 c] 4 0 (constantly "bit 1,c"))
-   0x4A (->instruction [:bit 1 d] 4 0 (constantly "bit 1,d"))
-   0x4B (->instruction [:bit 1 e] 4 0 (constantly "bit 1,e"))
-   0x4C (->instruction [:bit 1 h] 4 0 (constantly "bit 1,h"))
-   0x4D (->instruction [:bit 1 l] 4 0 (constantly "bit 1,l"))
-   0x4E (->instruction [:bit 1 <hl>] 8 0 (constantly "bit 1,[hl]"))
-   0x4F (->instruction [:bit 1 a] 4 0 (constantly "bit 1,a"))
-   0x50 (->instruction [:bit 2 b] 4 0 (constantly "bit 2,b"))
-   0x51 (->instruction [:bit 2 c] 4 0 (constantly "bit 2,c"))
-   0x52 (->instruction [:bit 2 d] 4 0 (constantly "bit 2,d"))
-   0x53 (->instruction [:bit 2 e] 4 0 (constantly "bit 2,e"))
-   0x54 (->instruction [:bit 2 h] 4 0 (constantly "bit 2,h"))
-   0x55 (->instruction [:bit 2 l] 4 0 (constantly "bit 2,l"))
-   0x56 (->instruction [:bit 2 <hl>] 8 0 (constantly "bit 2,[hl]"))
-   0x57 (->instruction [:bit 2 a] 4 0 (constantly "bit 2,a"))
-   0x58 (->instruction [:bit 3 b] 4 0 (constantly "bit 3,b"))
-   0x59 (->instruction [:bit 3 c] 4 0 (constantly "bit 3,c"))
-   0x5A (->instruction [:bit 3 d] 4 0 (constantly "bit 3,d"))
-   0x5B (->instruction [:bit 3 e] 4 0 (constantly "bit 3,e"))
-   0x5C (->instruction [:bit 3 h] 4 0 (constantly "bit 3,h"))
-   0x5D (->instruction [:bit 3 l] 4 0 (constantly "bit 3,l"))
-   0x5E (->instruction [:bit 3 <hl>] 8 0 (constantly "bit 3,[hl]"))
-   0x5F (->instruction [:bit 3 a] 4 0 (constantly "bit 3,a"))
-   0x60 (->instruction [:bit 4 b] 4 0 (constantly "bit 4,b"))
-   0x61 (->instruction [:bit 4 c] 4 0 (constantly "bit 4,c"))
-   0x62 (->instruction [:bit 4 d] 4 0 (constantly "bit 4,d"))
-   0x63 (->instruction [:bit 4 e] 4 0 (constantly "bit 4,e"))
-   0x64 (->instruction [:bit 4 h] 4 0 (constantly "bit 4,h"))
-   0x65 (->instruction [:bit 4 l] 4 0 (constantly "bit 4,l"))
-   0x66 (->instruction [:bit 4 <hl>] 8 0 (constantly "bit 4,[hl]"))
-   0x67 (->instruction [:bit 4 a] 4 0 (constantly "bit 4,a"))
-   0x68 (->instruction [:bit 5 b] 4 0 (constantly "bit 5,b"))
-   0x69 (->instruction [:bit 5 c] 4 0 (constantly "bit 5,c"))
-   0x6A (->instruction [:bit 5 d] 4 0 (constantly "bit 5,d"))
-   0x6B (->instruction [:bit 5 e] 4 0 (constantly "bit 5,e"))
-   0x6C (->instruction [:bit 5 h] 4 0 (constantly "bit 5,h"))
-   0x6D (->instruction [:bit 5 l] 4 0 (constantly "bit 5,l"))
-   0x6E (->instruction [:bit 5 <hl>] 8 0 (constantly "bit 5,[hl]"))
-   0x6F (->instruction [:bit 5 a] 4 0 (constantly "bit 5,a"))
-   0x70 (->instruction [:bit 6 b] 4 0 (constantly "bit 6,b"))
-   0x71 (->instruction [:bit 6 c] 4 0 (constantly "bit 6,c"))
-   0x72 (->instruction [:bit 6 d] 4 0 (constantly "bit 6,d"))
-   0x73 (->instruction [:bit 6 e] 4 0 (constantly "bit 6,e"))
-   0x74 (->instruction [:bit 6 h] 4 0 (constantly "bit 6,h"))
-   0x75 (->instruction [:bit 6 l] 4 0 (constantly "bit 6,l"))
-   0x76 (->instruction [:bit 6 <hl>] 8 0 (constantly "bit 6,[hl]"))
-   0x77 (->instruction [:bit 6 a] 4 0 (constantly "bit 6,a"))
-   0x78 (->instruction [:bit 7 b] 4 0 (constantly "bit 7,b"))
-   0x79 (->instruction [:bit 7 c] 4 0 (constantly "bit 7,c"))
-   0x7A (->instruction [:bit 7 d] 4 0 (constantly "bit 7,d"))
-   0x7B (->instruction [:bit 7 e] 4 0 (constantly "bit 7,e"))
-   0x7C (->instruction [:bit 7 h] 4 0 (constantly "bit 7,h"))
-   0x7D (->instruction [:bit 7 l] 4 0 (constantly "bit 7,l"))
-   0x7E (->instruction [:bit 7 <hl>] 8 0 (constantly "bit 7,[hl]"))
-   0x7F (->instruction [:bit 7 a] 4 0 (constantly "bit 7,a"))
-   0x80 (->instruction [:res 0 b] 4 0 (constantly "res 0,b"))
-   0x81 (->instruction [:res 0 c] 4 0 (constantly "res 0,c"))
-   0x82 (->instruction [:res 0 d] 4 0 (constantly "res 0,d"))
-   0x83 (->instruction [:res 0 e] 4 0 (constantly "res 0,e"))
-   0x84 (->instruction [:res 0 h] 4 0 (constantly "res 0,h"))
-   0x85 (->instruction [:res 0 l] 4 0 (constantly "res 0,l"))
-   0x86 (->instruction [:res 0 <hl>] 8 0 (constantly "res 0,[hl]"))
-   0x87 (->instruction [:res 0 a] 4 0 (constantly "res 0,a"))
-   0x88 (->instruction [:res 1 b] 4 0 (constantly "res 1,b"))
-   0x89 (->instruction [:res 1 c] 4 0 (constantly "res 1,c"))
-   0x8A (->instruction [:res 1 d] 4 0 (constantly "res 1,d"))
-   0x8B (->instruction [:res 1 e] 4 0 (constantly "res 1,e"))
-   0x8C (->instruction [:res 1 h] 4 0 (constantly "res 1,h"))
-   0x8D (->instruction [:res 1 l] 4 0 (constantly "res 1,l"))
-   0x8E (->instruction [:res 1 <hl>] 8 0 (constantly "res 1,[hl]"))
-   0x8F (->instruction [:res 1 a] 4 0 (constantly "res 1,a"))
-   0x90 (->instruction [:res 2 b] 4 0 (constantly "res 2,b"))
-   0x91 (->instruction [:res 2 c] 4 0 (constantly "res 2,c"))
-   0x92 (->instruction [:res 2 d] 4 0 (constantly "res 2,d"))
-   0x93 (->instruction [:res 2 e] 4 0 (constantly "res 2,e"))
-   0x94 (->instruction [:res 2 h] 4 0 (constantly "res 2,h"))
-   0x95 (->instruction [:res 2 l] 4 0 (constantly "res 2,l"))
-   0x96 (->instruction [:res 2 <hl>] 8 0 (constantly "res 2,[hl]"))
-   0x97 (->instruction [:res 2 a] 4 0 (constantly "res 2,a"))
-   0x98 (->instruction [:res 3 b] 4 0 (constantly "res 3,b"))
-   0x99 (->instruction [:res 3 c] 4 0 (constantly "res 3,c"))
-   0x9A (->instruction [:res 3 d] 4 0 (constantly "res 3,d"))
-   0x9B (->instruction [:res 3 e] 4 0 (constantly "res 3,e"))
-   0x9C (->instruction [:res 3 h] 4 0 (constantly "res 3,h"))
-   0x9D (->instruction [:res 3 l] 4 0 (constantly "res 3,l"))
-   0x9E (->instruction [:res 3 <hl>] 8 0 (constantly "res 3,[hl]"))
-   0x9F (->instruction [:res 3 a] 4 0 (constantly "res 3,a"))
-   0xA0 (->instruction [:res 4 b] 4 0 (constantly "res 4,b"))
-   0xA1 (->instruction [:res 4 c] 4 0 (constantly "res 4,c"))
-   0xA2 (->instruction [:res 4 d] 4 0 (constantly "res 4,d"))
-   0xA3 (->instruction [:res 4 e] 4 0 (constantly "res 4,e"))
-   0xA4 (->instruction [:res 4 h] 4 0 (constantly "res 4,h"))
-   0xA5 (->instruction [:res 4 l] 4 0 (constantly "res 4,l"))
-   0xA6 (->instruction [:res 4 <hl>] 8 0 (constantly "res 4,[hl]"))
-   0xA7 (->instruction [:res 4 a] 4 0 (constantly "res 4,a"))
-   0xA8 (->instruction [:res 5 b] 4 0 (constantly "res 5,b"))
-   0xA9 (->instruction [:res 5 c] 4 0 (constantly "res 5,c"))
-   0xAA (->instruction [:res 5 d] 4 0 (constantly "res 5,d"))
-   0xAB (->instruction [:res 5 e] 4 0 (constantly "res 5,e"))
-   0xAC (->instruction [:res 5 h] 4 0 (constantly "res 5,h"))
-   0xAD (->instruction [:res 5 l] 4 0 (constantly "res 5,l"))
-   0xAE (->instruction [:res 5 <hl>] 8 0 (constantly "res 5,[hl]"))
-   0xAF (->instruction [:res 5 a] 4 0 (constantly "res 5,a"))
-   0xB0 (->instruction [:res 6 b] 4 0 (constantly "res 6,b"))
-   0xB1 (->instruction [:res 6 c] 4 0 (constantly "res 6,c"))
-   0xB2 (->instruction [:res 6 d] 4 0 (constantly "res 6,d"))
-   0xB3 (->instruction [:res 6 e] 4 0 (constantly "res 6,e"))
-   0xB4 (->instruction [:res 6 h] 4 0 (constantly "res 6,h"))
-   0xB5 (->instruction [:res 6 l] 4 0 (constantly "res 6,l"))
-   0xB6 (->instruction [:res 6 <hl>] 8 0 (constantly "res 6,[hl]"))
-   0xB7 (->instruction [:res 6 a] 4 0 (constantly "res 6,a"))
-   0xB8 (->instruction [:res 7 b] 4 0 (constantly "res 7,b"))
-   0xB9 (->instruction [:res 7 c] 4 0 (constantly "res 7,c"))
-   0xBA (->instruction [:res 7 d] 4 0 (constantly "res 7,d"))
-   0xBB (->instruction [:res 7 e] 4 0 (constantly "res 7,e"))
-   0xBC (->instruction [:res 7 h] 4 0 (constantly "res 7,h"))
-   0xBD (->instruction [:res 7 l] 4 0 (constantly "res 7,l"))
-   0xBE (->instruction [:res 7 <hl>] 8 0 (constantly "res 7,[hl]"))
-   0xBF (->instruction [:res 7 a] 4 0 (constantly "res 7,a"))
-   0xC0 (->instruction [:set 0 b] 4 0 (constantly "set 0,b"))
-   0xC1 (->instruction [:set 0 c] 4 0 (constantly "set 0,c"))
-   0xC2 (->instruction [:set 0 d] 4 0 (constantly "set 0,d"))
-   0xC3 (->instruction [:set 0 e] 4 0 (constantly "set 0,e"))
-   0xC4 (->instruction [:set 0 h] 4 0 (constantly "set 0,h"))
-   0xC5 (->instruction [:set 0 l] 4 0 (constantly "set 0,l"))
-   0xC6 (->instruction [:set 0 <hl>] 8 0 (constantly "set 0,[hl]"))
-   0xC7 (->instruction [:set 0 a] 4 0 (constantly "set 0,a"))
-   0xC8 (->instruction [:set 1 b] 4 0 (constantly "set 1,b"))
-   0xC9 (->instruction [:set 1 c] 4 0 (constantly "set 1,c"))
-   0xCA (->instruction [:set 1 d] 4 0 (constantly "set 1,d"))
-   0xCB (->instruction [:set 1 e] 4 0 (constantly "set 1,e"))
-   0xCC (->instruction [:set 1 h] 4 0 (constantly "set 1,h"))
-   0xCD (->instruction [:set 1 l] 4 0 (constantly "set 1,l"))
-   0xCE (->instruction [:set 1 <hl>] 8 0 (constantly "set 1,[hl]"))
-   0xCF (->instruction [:set 1 a] 4 0 (constantly "set 1,a"))
-   0xD0 (->instruction [:set 2 b] 4 0 (constantly "set 2,b"))
-   0xD1 (->instruction [:set 2 c] 4 0 (constantly "set 2,c"))
-   0xD2 (->instruction [:set 2 d] 4 0 (constantly "set 2,d"))
-   0xD3 (->instruction [:set 2 e] 4 0 (constantly "set 2,e"))
-   0xD4 (->instruction [:set 2 h] 4 0 (constantly "set 2,h"))
-   0xD5 (->instruction [:set 2 l] 4 0 (constantly "set 2,l"))
-   0xD6 (->instruction [:set 2 <hl>] 8 0 (constantly "set 2,[hl]"))
-   0xD7 (->instruction [:set 2 a] 4 0 (constantly "set 2,a"))
-   0xD8 (->instruction [:set 3 b] 4 0 (constantly "set 3,b"))
-   0xD9 (->instruction [:set 3 c] 4 0 (constantly "set 3,c"))
-   0xDA (->instruction [:set 3 d] 4 0 (constantly "set 3,d"))
-   0xDB (->instruction [:set 3 e] 4 0 (constantly "set 3,e"))
-   0xDC (->instruction [:set 3 h] 4 0 (constantly "set 3,h"))
-   0xDD (->instruction [:set 3 l] 4 0 (constantly "set 3,l"))
-   0xDE (->instruction [:set 3 <hl>] 8 0 (constantly "set 3,[hl]"))
-   0xDF (->instruction [:set 3 a] 4 0 (constantly "set 3,a"))
-   0xE0 (->instruction [:set 4 b] 4 0 (constantly "set 4,b"))
-   0xE1 (->instruction [:set 4 c] 4 0 (constantly "set 4,c"))
-   0xE2 (->instruction [:set 4 d] 4 0 (constantly "set 4,d"))
-   0xE3 (->instruction [:set 4 e] 4 0 (constantly "set 4,e"))
-   0xE4 (->instruction [:set 4 h] 4 0 (constantly "set 4,h"))
-   0xE5 (->instruction [:set 4 l] 4 0 (constantly "set 4,l"))
-   0xE6 (->instruction [:set 4 <hl>] 8 0 (constantly "set 4,[hl]"))
-   0xE7 (->instruction [:set 4 a] 4 0 (constantly "set 4,a"))
-   0xE8 (->instruction [:set 5 b] 4 0 (constantly "set 5,b"))
-   0xE9 (->instruction [:set 5 c] 4 0 (constantly "set 5,c"))
-   0xEA (->instruction [:set 5 d] 4 0 (constantly "set 5,d"))
-   0xEB (->instruction [:set 5 e] 4 0 (constantly "set 5,e"))
-   0xEC (->instruction [:set 5 h] 4 0 (constantly "set 5,h"))
-   0xED (->instruction [:set 5 l] 4 0 (constantly "set 5,l"))
-   0xEE (->instruction [:set 5 <hl>] 8 0 (constantly "set 5,[hl]"))
-   0xEF (->instruction [:set 5 a] 4 0 (constantly "set 5,a"))
-   0xF0 (->instruction [:set 6 b] 4 0 (constantly "set 6,b"))
-   0xF1 (->instruction [:set 6 c] 4 0 (constantly "set 6,c"))
-   0xF2 (->instruction [:set 6 d] 4 0 (constantly "set 6,d"))
-   0xF3 (->instruction [:set 6 e] 4 0 (constantly "set 6,e"))
-   0xF4 (->instruction [:set 6 h] 4 0 (constantly "set 6,h"))
-   0xF5 (->instruction [:set 6 l] 4 0 (constantly "set 6,l"))
-   0xF6 (->instruction [:set 6 <hl>] 8 0 (constantly "set 6,[hl]"))
-   0xF7 (->instruction [:set 6 a] 4 0 (constantly "set 6,a"))
-   0xF8 (->instruction [:set 7 b] 4 0 (constantly "set 7,b"))
-   0xF9 (->instruction [:set 7 c] 4 0 (constantly "set 7,c"))
-   0xFA (->instruction [:set 7 d] 4 0 (constantly "set 7,d"))
-   0xFB (->instruction [:set 7 e] 4 0 (constantly "set 7,e"))
-   0xFC (->instruction [:set 7 h] 4 0 (constantly "set 7,h"))
-   0xFD (->instruction [:set 7 l] 4 0 (constantly "set 7,l"))
-   0xFE (->instruction [:set 7 <hl>] 8 0 (constantly "set 7,[hl]"))
-   0xFF (->instruction [:set 7 a] 4 0 (constantly "set 7,a"))})
+  [(->Rlc b) (->Rlc c) (->Rlc d) (->Rlc e) (->Rlc h) (->Rlc l) (->Rlc <hl>) (->Rlc a)
+   (->Rrc b) (->Rrc c) (->Rrc d) (->Rrc e) (->Rrc h) (->Rrc l) (->Rrc <hl>) (->Rrc a)
+   (->Rl b) (->Rl c) (->Rl d) (->Rl e) (->Rl h) (->Rl l) (->Rl <hl>) (->Rl a)
+   (->Rr b) (->Rr c) (->Rr d) (->Rr e) (->Rr h) (->Rr l) (->Rr <hl>) (->Rr a)
+   (->Sla b) (->Sla c) (->Sla d) (->Sla e) (->Sla h) (->Sla l) (->Sla <hl>) (->Sla a)
+   (->Sra b) (->Sra c) (->Sra d) (->Sra e) (->Sra h) (->Sra l) (->Sra <hl>) (->Sra a)
+   (->Swap b) (->Swap c) (->Swap d) (->Swap e) (->Swap h) (->Swap l) (->Swap <hl>) (->Swap a)
+   (->Srl b) (->Srl c) (->Srl d) (->Srl e) (->Srl h) (->Srl l) (->Srl <hl>) (->Srl a)
+   (->Bit 0 b) (->Bit 0 c) (->Bit 0 d) (->Bit 0 e) (->Bit 0 h) (->Bit 0 l) (->Bit 0 <hl>) (->Bit 0 a)
+   (->Bit 1 b) (->Bit 1 c) (->Bit 1 d) (->Bit 1 e) (->Bit 1 h) (->Bit 1 l) (->Bit 1 <hl>) (->Bit 1 a)
+   (->Bit 2 b) (->Bit 2 c) (->Bit 2 d) (->Bit 2 e) (->Bit 2 h) (->Bit 2 l) (->Bit 2 <hl>) (->Bit 2 a)
+   (->Bit 3 b) (->Bit 3 c) (->Bit 3 d) (->Bit 3 e) (->Bit 3 h) (->Bit 3 l) (->Bit 3 <hl>) (->Bit 3 a)
+   (->Bit 4 b) (->Bit 4 c) (->Bit 4 d) (->Bit 4 e) (->Bit 4 h) (->Bit 4 l) (->Bit 4 <hl>) (->Bit 4 a)
+   (->Bit 5 b) (->Bit 5 c) (->Bit 5 d) (->Bit 5 e) (->Bit 5 h) (->Bit 5 l) (->Bit 5 <hl>) (->Bit 5 a)
+   (->Bit 6 b) (->Bit 6 c) (->Bit 6 d) (->Bit 6 e) (->Bit 6 h) (->Bit 6 l) (->Bit 6 <hl>) (->Bit 6 a)
+   (->Bit 7 b) (->Bit 7 c) (->Bit 7 d) (->Bit 7 e) (->Bit 7 h) (->Bit 7 l) (->Bit 7 <hl>) (->Bit 7 a)
+   (->Res 0 b) (->Res 0 c) (->Res 0 d) (->Res 0 e) (->Res 0 h) (->Res 0 l) (->Res 0 <hl>) (->Res 0 a)
+   (->Res 1 b) (->Res 1 c) (->Res 1 d) (->Res 1 e) (->Res 1 h) (->Res 1 l) (->Res 1 <hl>) (->Res 1 a)
+   (->Res 2 b) (->Res 2 c) (->Res 2 d) (->Res 2 e) (->Res 2 h) (->Res 2 l) (->Res 2 <hl>) (->Res 2 a)
+   (->Res 3 b) (->Res 3 c) (->Res 3 d) (->Res 3 e) (->Res 3 h) (->Res 3 l) (->Res 3 <hl>) (->Res 3 a)
+   (->Res 4 b) (->Res 4 c) (->Res 4 d) (->Res 4 e) (->Res 4 h) (->Res 4 l) (->Res 4 <hl>) (->Res 4 a)
+   (->Res 5 b) (->Res 5 c) (->Res 5 d) (->Res 5 e) (->Res 5 h) (->Res 5 l) (->Res 5 <hl>) (->Res 5 a)
+   (->Res 6 b) (->Res 6 c) (->Res 6 d) (->Res 6 e) (->Res 6 h) (->Res 6 l) (->Res 6 <hl>) (->Res 6 a)
+   (->Res 7 b) (->Res 7 c) (->Res 7 d) (->Res 7 e) (->Res 7 h) (->Res 7 l) (->Res 7 <hl>) (->Res 7 a)
+   (->Set 0 b) (->Set 0 c) (->Set 0 d) (->Set 0 e) (->Set 0 h) (->Set 0 l) (->Set 0 <hl>) (->Set 0 a)
+   (->Set 1 b) (->Set 1 c) (->Set 1 d) (->Set 1 e) (->Set 1 h) (->Set 1 l) (->Set 1 <hl>) (->Set 1 a)
+   (->Set 2 b) (->Set 2 c) (->Set 2 d) (->Set 2 e) (->Set 2 h) (->Set 2 l) (->Set 2 <hl>) (->Set 2 a)
+   (->Set 3 b) (->Set 3 c) (->Set 3 d) (->Set 3 e) (->Set 3 h) (->Set 3 l) (->Set 3 <hl>) (->Set 3 a)
+   (->Set 4 b) (->Set 4 c) (->Set 4 d) (->Set 4 e) (->Set 4 h) (->Set 4 l) (->Set 4 <hl>) (->Set 4 a)
+   (->Set 5 b) (->Set 5 c) (->Set 5 d) (->Set 5 e) (->Set 5 h) (->Set 5 l) (->Set 5 <hl>) (->Set 5 a)
+   (->Set 6 b) (->Set 6 c) (->Set 6 d) (->Set 6 e) (->Set 6 h) (->Set 6 l) (->Set 6 <hl>) (->Set 6 a)
+   (->Set 7 b) (->Set 7 c) (->Set 7 d) (->Set 7 e) (->Set 7 h) (->Set 7 l) (->Set 7 <hl>) (->Set 7 a)])
 
 (def decoder
   {0x00 (->instruction [:nop] 4 1 (constantly "nop"))
