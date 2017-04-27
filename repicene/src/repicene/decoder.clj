@@ -1,6 +1,8 @@
 (ns repicene.decoder
   (:require [repicene.schema :as s :refer [dword? word?]]
-            [repicene.bits :refer [two-complement]])
+            [repicene.bits :refer [two-complement]]
+            [clojure.test :refer [is]]
+            [repicene.dada :refer [daa]])
   (:import (java.io Writer)))
 
 (def hex8
@@ -538,7 +540,6 @@
 (defrecord Ld [source destination size cycles]
   Instr
   (exec [{:keys [destination source size]} cpu]
-    {:post [(is (= (source cpu) (destination (pc % (pc cpu)))))]}
     (-> (destination cpu (source cpu))
         (pc (partial %16+ size))))
   (print-assembly [{:keys [destination source]} cpu]
@@ -550,8 +551,6 @@
 (defrecord Inc16 [dword-register]
   Instr
   (exec [{:keys [dword-register]} cpu]
-    {:post [(= (%16+ 1 (dword-register cpu)) (dword-register %))
-            (= (pc %) (%16+ 1 (pc cpu)))]}
     (-> (dword-register cpu %16inc)
         (pc (partial %16+ 1))))
   (print-assembly [{:keys [dword-register]} _]
@@ -602,8 +601,6 @@
 (defrecord AddHl [source]
   Instr
   (exec [{:keys [source]} cpu]
-    {:pre  [(s/valid? cpu)]
-     :post [(s/valid? %)]}
     (let [x (hl cpu)
           y (source cpu)]
       (-> (hl cpu (%16+ x y))
@@ -624,23 +621,21 @@
 (defrecord Stop []
   Instr
   (exec [_ cpu]
-    {:post [(s/valid? %) (= ::s/stopped (::s/mode %))]}
     (-> (assoc cpu ::s/mode ::s/stopped)
         (pc (partial %16+ 1))))
   (print-assembly [_ _] "stop"))
 
 (defrecord Rla []
   Instr
-  (exec [cpu]
+  (exec [_ cpu]
     (-> (rl cpu a 1)
-        (z? false)))
+        (z? false)
+        (pc (partial %16+ 1))))
   (print-assembly [_ _] "rla"))
 
 (defrecord Jr [cond relative-address]
   Instr
   (exec [{:keys [cond relative-address]} cpu]
-    {:pre  [(s/valid? cpu) (s/word? (relative-address cpu))]
-     :post [(s/valid? %)]}
     (let [jump (if (cond cpu) (two-complement (relative-address cpu)) 0)]
       (pc cpu (partial %16+ 2 jump))))
   (print-assembly [{:keys [cond relative-address]} cpu]
@@ -656,8 +651,6 @@
 (defrecord Ldi [destination source]
   Instr
   (exec [{:keys [destination source]} cpu]
-    {:post [(= (%16inc (hl cpu)) (hl %))
-            (= (pc %) (%16+ 1 (pc cpu)))]}
     (-> (destination cpu (source cpu))
         (hl %16inc)
         (pc (partial %16+ 1)))))
@@ -681,10 +674,6 @@
 (defrecord Ldd [destination source]
   Instr
   (exec [{:keys [destination source]} cpu]
-    {:pre  [(s/valid? cpu)]
-     :post [(s/valid? %)
-            (= (%16dec (hl cpu)) (hl %))
-            (= (pc %) (%16+ 1 (pc cpu)))]}
     (-> (destination cpu (source cpu))
         (hl %16dec)
         (pc (partial %16+ 1))))
@@ -731,19 +720,15 @@
 (defrecord Add [source size]
   Instr
   (exec [{:keys [source size]} cpu]
-    {:pre  [(s/valid? cpu)]
-     :post [(s/valid? %)]}
     (add cpu (source cpu) size))
-  (print-assembly [{:keys [source]}]
+  (print-assembly [{:keys [source]} _]
     (str "add " (:operand (meta source)))))
 
-(defrecord Adc [source]
+(defrecord Adc [source size]
   Instr
-  (exec [{:keys [source]} cpu]
-    {:pre  [(s/valid? cpu)]
-     :post [(s/valid? %)]}
-    (add cpu (%8 + (bool->int (c? cpu)) (source cpu)) 1))
-  (print-assembly [{:keys [source]}]
+  (exec [{:keys [source size]} cpu]
+    (add cpu (%8 + (bool->int (c? cpu)) (source cpu)) size))
+  (print-assembly [{:keys [source]} _]
     (str "adc " (:operand (meta source)))))
 
 (defn sub-a [cpu source]
@@ -756,40 +741,36 @@
         (h? (< (low-nibble x) (low-nibble y)))
         (n? true))))
 
-(defrecord Sub [source]
+(defrecord Sub [source size]
   Instr
-  (exec [{:keys [source]} cpu]
-    {:pre  [(s/valid? cpu)]
-     :post [(s/valid? %)]}
+  (exec [{:keys [source size]} cpu]
     (-> (sub-a cpu source)
-        (pc (partial %16+ 1))))
-  (print-assembly [{:keys [source]}]
+        (pc (partial %16+ size))))
+  (print-assembly [{:keys [source]} _]
     (str "sub " (:operand (meta source)))))
 
-(defrecord Sbc [source]
+(defrecord Sbc [source size]
   Instr
-  (exec [{:keys [source]} cpu]
-    {:pre  [(s/valid? cpu)]
-     :post [(s/valid? %)]}
+  (exec [{:keys [source size]} cpu]
     (-> (sub-a cpu #(%8 + (source cpu) (bool->int (c? cpu))))
-        (pc (partial %16+ 1))))
-  (print-assembly [{:keys [source]}]
+        (pc (partial %16+ size))))
+  (print-assembly [{:keys [source]} _]
     (str "sbc " (:operand (meta source)))))
 
-(defrecord And [source]
+(defrecord And [source size]
   Instr
-  (exec [{:keys [source]} cpu]
+  (exec [{:keys [source size]} cpu]
     (let [result (bit-and (source cpu) (a cpu))]
       (-> (a cpu result)
           (z? (= 0 result))
           (n? false)
           (h? true)
           (c? false)
-          (pc (partial %16+ 1)))))
-  (print-assembly [{:keys [source]}]
+          (pc (partial %16+ size)))))
+  (print-assembly [{:keys [source]} _]
     (str "and " (:operand (meta source)))))
 
-(defrecord Xor [source]
+(defrecord Xor [source size]
   Instr
   (exec [{:keys [source]} cpu]
     (let [result (bit-xor (source cpu) (a cpu))]
@@ -798,11 +779,11 @@
           (n? false)
           (h? false)
           (c? false)
-          (pc (partial %16+ 1)))))
-  (print-assembly [{:keys [source]}]
+          (pc (partial %16+ size)))))
+  (print-assembly [{:keys [source]} _]
     (str "xor " (:operand (meta source)))))
 
-(defrecord Or [source]
+(defrecord Or [source size]
   Instr
   (exec [{:keys [source]} cpu]
     (let [value (bit-or (a cpu) (source cpu))]
@@ -811,17 +792,17 @@
           (n? false)
           (h? false)
           (c? false)
-          (pc (partial %16+ 1)))))
-  (print-assembly [{:keys [source]}]
+          (pc (partial %16+ size)))))
+  (print-assembly [{:keys [source]} _]
     (str "or " (:operand (meta source)))))
 
-(defrecord Cp [source]
+(defrecord Cp [source size]
   Instr
-  (exec [{:keys [source]} cpu]
+  (exec [{:keys [source size]} cpu]
     (-> (sub-a cpu source)
         (a (a cpu))                                                             ;;restore a register (throw away the result)
-        (pc (partial %16+ 1))))
-  (print-assembly [{:keys [source]}]
+        (pc (partial %16+ size))))
+  (print-assembly [{:keys [source]} _]
     (str "cp " (:operand (meta source)))))
 
 (defn inc-sp [cpu] (sp cpu (partial %16+ 2)))
@@ -840,18 +821,20 @@
   (print-assembly [{:keys [cond]} cpu]
     (str "ret " (:operand (meta cond)))))
 
+(defrecord Reti []
+  Instr
+  (exec [_ cpu]
+    (let [[return-address cpu] (pop-sp cpu)]
+      (pc cpu return-address)))
+  (print-assembly [_ _] "reti"))
+
 (defrecord Pop [dword-register]
   Instr
   (exec [{:keys [dword-register]} cpu]
-    {:pre  [(s/valid? cpu)]
-     :post [(s/valid? %)
-            (= (sp cpu) (%16+ -2 (sp %)))
-            #_(= (dword-at cpu (sp cpu)) (dword-register %))                    ;;not true for pop af
-            (= (pc %) (%16+ 1 (pc cpu)))]}
     (let [[dword cpu] (pop-sp cpu)]
       (-> (dword-register cpu dword)
           (pc (partial %16+ 1)))))
-  (print-assembly [{:keys [dword-register]}]
+  (print-assembly [{:keys [dword-register]} _]
     (str "pop " (:operand (meta dword-register)))))
 
 (defn dec-sp [cpu] (sp cpu (partial %16+ -2)))
@@ -864,15 +847,10 @@
 (defrecord Push [dword-register]
   Instr
   (exec [{:keys [dword-register]} cpu]
-    {:pre  [(s/valid? cpu)]
-     :post [(s/valid? %)
-            (= (sp cpu) (%16+ 2 (sp %)))
-            (= (dword-at % (sp %)) (dword-register %))
-            (= (pc %) (%16+ 1 (pc cpu)))]}
     (-> (push-sp cpu (dword-register cpu))
         (pc (partial %16+ 1))))
-  (print-assembly [{:keys [dword-register]}]
-      (str "push " (:operand (meta dword-register)))))
+  (print-assembly [{:keys [dword-register]} _]
+    (str "push " (:operand (meta dword-register)))))
 
 (defrecord Jp [cond address size]
   Instr
@@ -891,17 +869,76 @@
 
 (defrecord Call [cond address]
   Instr
-  (exec [{:keys [cond address]} cpu]
-    (call cpu cond (address cpu) 3)))
+  (exec [{:keys [address]} cpu]
+    (call cpu cond (address cpu) 3))
+  (print-assembly [{:keys [cond address]} cpu]
+    (str "call " (:operand (meta cond)) " " (address cpu))))
 
 (defrecord Rst [address]
   Instr
-  (exec  [ {:keys [address]} cpu]
-    {:pre  [(s/valid? cpu) (s/word? address)]
-     :post [(s/valid? %)
-            (= address (pc %))
-            (= (%16+ 1 (pc cpu)) (dword-at % (sp %)))]}
-    (call cpu (constantly true) address 1)))
+  (exec [{:keys [address]} cpu]
+    (call cpu (constantly true) address 1))
+  (print-assembly [_ _] (str "rst " address)))
+
+(defrecord Extra []
+  Instr
+  (exec [_ cpu]
+    (-> (exec (extra-decoder (word cpu)) cpu)                                   ;; we don't care if pc is not set correctly because extra only needs registers (except pc!) and memory pointer
+        (pc (partial %16+ 1))))
+  (print-assembly [_ cpu]
+    (print-assembly (extra-decoder (word cpu)) cpu)))
+
+(defrecord Breakpoint []
+  Instr
+  (exec [_ {:keys [::s/x-breakpoints] :as cpu}]
+    (let [current-pc (pc cpu)
+          [original _] (get x-breakpoints current-pc)]
+      (println "processing breakpoint" current-pc original)
+      (-> (set-dword-at cpu current-pc original)
+          (assoc :break? :permanent-breakpoint))))
+  (print-assembly [_ _] "bp"))
+
+(defrecord OnceBreakpoint []
+  Instr
+  (exec [_ {:keys [::s/x-breakpoints] :as cpu}]
+    (let [current-pc (pc cpu)
+          [original _] (get x-breakpoints current-pc)]
+      (println "processing breakpoint" current-pc original)
+      (-> (set-dword-at cpu current-pc original)
+          (assoc :break? :once-breakpoint))))
+  (print-assembly [_ _] "once bp"))
+
+(defrecord SkullOfDeath []
+  Instr
+  (exec [_ _] (throw (Exception. "invalid opcode")))
+  (print-assembly [_ _] "invalid"))
+
+(defrecord AddSp []
+  Instr
+  (exec [_ cpu]
+    (let [x (sp cpu)
+          y (word cpu)]
+      (-> (sp cpu (%16+ x y))
+          (z? false)
+          (n? false)
+          (h? (> (+ (low-nibble y) (low-nibble x)) 0xF))
+          (c? (> (+ (low-word x) y) 0xFF))
+          (pc (partial %16+ 2)))))
+  (print-assembly [_ cpu] (str "add sp " (word cpu))))
+
+(defrecord Di []
+  Instr
+  (exec [_ cpu]
+    (-> (assoc cpu :interrupt-enabled? false)
+        (pc inc)))
+  (print-assembly [_ _] "di"))
+
+(defrecord Ei []
+  Instr
+  (exec [_ cpu]
+    (-> (assoc cpu :interrupt-enabled? true)
+        (pc inc)))
+  (print-assembly [_ _] "ei"))
 
 (def decoder
   [(->Nop)
@@ -1040,62 +1077,62 @@
    (->Add l 1)
    (->Add <hl> 1)
    (->Add a 1)
-   (->Adc b)
-   (->Adc c)
-   (->Adc d)
-   (->Adc e)
-   (->Adc h)
-   (->Adc l)
-   (->Adc <hl>)
-   (->Adc a)
-   (->Sub b)
-   (->Sub c)
-   (->Sub d)
-   (->Sub e)
-   (->Sub h)
-   (->Sub l)
-   (->Sub <hl>)
-   (->Sub a)
-   (->Sbc b)
-   (->Sbc c)
-   (->Sbc d)
-   (->Sbc e)
-   (->Sbc h)
-   (->Sbc l)
-   (->Sbc <hl>)
-   (->Sbc a)
-   (->And b)
-   (->And c)
-   (->And d)
-   (->And e)
-   (->And h)
-   (->And l)
-   (->And <hl>)
-   (->And a)
-   (->Xor b)
-   (->Xor c)
-   (->Xor d)
-   (->Xor e)
-   (->Xor h)
-   (->Xor l)
-   (->Xor <hl>)
-   (->Xor a)
-   (->Or b)
-   (->Or c)
-   (->Or d)
-   (->Or e)
-   (->Or h)
-   (->Or l)
-   (->Or <hl>)
-   (->Or a)
-   (->Cp b)
-   (->Cp c)
-   (->Cp d)
-   (->Cp e)
-   (->Cp h)
-   (->Cp l)
-   (->Cp <hl>)
-   (->Cp a)
+   (->Adc b 1)
+   (->Adc c 1)
+   (->Adc d 1)
+   (->Adc e 1)
+   (->Adc h 1)
+   (->Adc l 1)
+   (->Adc <hl> 1)
+   (->Adc a 1)
+   (->Sub b 1)
+   (->Sub c 1)
+   (->Sub d 1)
+   (->Sub e 1)
+   (->Sub h 1)
+   (->Sub l 1)
+   (->Sub <hl> 1)
+   (->Sub a 1)
+   (->Sbc b 1)
+   (->Sbc c 1)
+   (->Sbc d 1)
+   (->Sbc e 1)
+   (->Sbc h 1)
+   (->Sbc l 1)
+   (->Sbc <hl> 1)
+   (->Sbc a 1)
+   (->And b 1)
+   (->And c 1)
+   (->And d 1)
+   (->And e 1)
+   (->And h 1)
+   (->And l 1)
+   (->And <hl> 1)
+   (->And a 1)
+   (->Xor b 1)
+   (->Xor c 1)
+   (->Xor d 1)
+   (->Xor e 1)
+   (->Xor h 1)
+   (->Xor l 1)
+   (->Xor <hl> 1)
+   (->Xor a 1)
+   (->Or b 1)
+   (->Or c 1)
+   (->Or d 1)
+   (->Or e 1)
+   (->Or h 1)
+   (->Or l 1)
+   (->Or <hl> 1)
+   (->Or a 1)
+   (->Cp b 1)
+   (->Cp c 1)
+   (->Cp d 1)
+   (->Cp e 1)
+   (->Cp h 1)
+   (->Cp l 1)
+   (->Cp <hl> 1)
+   (->Cp a 1)
    (->Ret nz?)
    (->Pop bc)
    (->Jp nz? address 3)
@@ -1107,60 +1144,59 @@
    (->Ret z?)
    (->Ret always)
    (->Jp z? address 3)
-   0xCB (->instruction [:extra word] 4 2 (fn [cpu]
-                                           ((:to-string (extra-decoder (word cpu))) cpu))) ;; Size is 1 because extra instructions have size 1 too
-   0xCC (->instruction [:call z? address] 24 3 #(str "call z " (hex-dword %)))
-   0xCD (->instruction [:call always address] 24 3 #(str "call " (hex-dword %)))
-   0xCE (->instruction [:adc word] 8 2 #(str "adc " (hex-word %)))
-   0xCF (->instruction [:rst 0x08] 16 1 (constantly "rst 08"))
-   0xD0 (->instruction [:ret nc?] [20 8] 1 (constantly "ret nc"))
-   0xD1 (->instruction [:pop de] 12 1 (constantly "pop de"))
-   0xD2 (->instruction [:jp nc? address] [16 12] 3 #(str "jp nc " (hex-dword %)))
-   0xD3 (->instruction [:breakpoint] 0 1 (constantly "bp"))
-   0xD4 (->instruction [:call nc? address] 24 3 #(str "call nc " (hex-dword %)))
-   0xD5 (->instruction [:push de] 16 1 (constantly "push de"))
-   0xD6 (->instruction [:sub word] 8 2 #(str "sub " (hex-word %)))
-   0xD7 (->instruction [:rst 0x10] 16 1 (constantly "rst 10"))
-   0xD8 (->instruction [:ret c?] [20 8] 1 (constantly "ret c"))
-   0xD9 (->instruction [:ret] 16 1 (constantly "reti"))
-   0xDA (->instruction [:jp c? address] [16 12] 3 #(str "jp c " (hex-dword %)))
-   0xDB (->instruction [:invalid] 0 1 (constantly "invalid"))
-   0xDC (->instruction [:call c? address] 24 3 #(str "call " (hex-dword %)))
-   0xDD (->instruction [:invalid] 0 1 (constantly "invalid"))
-   0xDE (->instruction [:sbc word] 8 2 #(str "sbc " (hex-word %)))
-   0xDF (->instruction [:rst 0x18] 16 1 (constantly "rst 18"))
-   0xE0 (->instruction [:ld <FF00+n> a] 12 2 #(str "ldh [FF00+" (hex-word %) "],a"))
-   0xE1 (->instruction [:pop hl] 12 1 (constantly "pop hl"))
-   0xE2 (->instruction [:ld <FF00+c> a] 8 2 (constantly "ld [c],a"))
-   0xE3 (->instruction [:once-breakpoint] 0 1 (constantly "once bp"))
-   0xE4 (->instruction [:invalid] 0 1 (constantly "invalid"))
-   0xE5 (->instruction [:push hl] 16 1 (constantly "push hl"))
-   0xE6 (->instruction [:and word] 4 2 #(str "and " (hex-word %)))
-   0xE7 (->instruction [:rst 0x20] 16 1 (constantly "rst 20"))
-   0xE8 (->instruction [:add-sp word] 16 2 #(str "add sp," (hex-word %)))
-   0xE9 (->instruction [:jp always hl] 4 1 (constantly "jp hl"))
-   0xEA (->instruction [:ld <address> a] 16 3 #(str "ld [" (hex-dword %) "],a"))
-   0xEB (->instruction [:invalid] 0 1 (constantly "invalid"))
-   0xEC (->instruction [:invalid] 0 1 (constantly "invalid"))
-   0xED (->instruction [:invalid] 0 1 (constantly "invalid"))
-   0xEE (->instruction [:xor word] 8 2 #(str "xor " (hex-word %)))
-   0xEF (->instruction [:rst 0x28] 16 1 (constantly "rst 28"))
-   0xF0 (->instruction [:ld a <FF00+n>] 12 2 #(str "ldh a,[FF00+" (hex-word %) "]"))
-   0xF1 (->instruction [:pop af] 12 1 (constantly "pop af"))
-   0xF2 (->instruction [:ld a, <FF00+c>] 8 2 (constantly "ld a,[c]"))
-   0xF3 (->instruction [:di] 4 1 (constantly "di"))
-   0xF4 (->instruction [:invalid] 0 1 (constantly "invalid"))
-   0xF5 (->instruction [:push af] 16 1 (constantly "push af"))
-   0xF6 (->instruction [:or word] 8 2 #(str "or " (hex-word %)))
-   0xF7 (->instruction [:rst 0x30] 16 1 (constantly "rst 30"))
-   0xF8 (->instruction [:ld hl sp+n] 12 2 #(str "ld hl,sp+" (hex-word %)))
-   0xF9 (->instruction [:ld sp hl] 8 1 (constantly "ld sp,hl"))
-   0xFA (->instruction [:ld a <address>] 12 3 #(str "ldh a,[" (hex-dword %) "]"))
-   0xFB (->instruction [:ei] 4 1 (constantly "ei"))
-   0xFC (->instruction [:invalid] 0 1 (constantly "invalid"))
-   0xFD (->instruction [:invalid] 0 1 (constantly "invalid"))
-   0xFE (->instruction [:cp word] 8 2 #(str "cp " (hex-word %)))
-   0xFF (->instruction [:rst 0x38] 16 1 (constantly "rst 38"))])
+   (->Extra)
+   (->Call z? address)
+   (->Call always address)
+   (->Adc word 2)
+   (->Rst 0x08)
+   (->Ret nc?)
+   (->Pop de)
+   (->Jp nc? address 3)
+   (->Breakpoint)
+   (->Call nc? address)
+   (->Push de)
+   (->Sub word 2)
+   (->Rst 0x10)
+   (->Ret c?)
+   (->Reti)
+   (->Jp c? address 3)
+   (->SkullOfDeath)
+   (->Call c? address)
+   (->SkullOfDeath)
+   (->Sbc word 2)
+   (->Rst 0x18)
+   (->Ld <FF00+n> a 2 12)
+   (->Pop hl)
+   (->Ld <FF00+c> a 2 8)
+   (->OnceBreakpoint)
+   (->SkullOfDeath)
+   (->Push hl)
+   (->And word 2)
+   (->Rst 0x20)
+   (->AddSp)
+   (->Jp always hl 1)
+   (->Ld <address> a 3 16)
+   (->SkullOfDeath)
+   (->SkullOfDeath)
+   (->SkullOfDeath)
+   (->Xor word 2)
+   (->Rst 0x28)
+   (->Ld a <FF00+n> 2 12)
+   (->Pop af)
+   (->Ld a <FF00+c> 2 8)
+   (->Di)
+   (->SkullOfDeath)
+   (->Push af)
+   (->Or word 2)
+   (->Rst 0x30)
+   (->Ld hl sp+n 2 12)
+   (->Ld sp hl 1 8)
+   (->Ld a <address> 3 12)
+   (->Ei)
+   (->SkullOfDeath)
+   (->SkullOfDeath)
+   (->Cp word 2)
+   (->Rst 0x38)])
 
 (defn instruction-at-pc [cpu]
   {:pre  [(s/valid? cpu)]
