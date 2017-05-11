@@ -537,7 +537,7 @@
   (print-assembly [_ _]
     "nop"))
 
-(defrecord Ld [source destination size cycles]
+(defrecord Ld [destination source size cycles]
   Instr
   (exec [{:keys [destination source size]} cpu]
     (-> (destination cpu (source cpu))
@@ -635,9 +635,9 @@
 
 (defrecord Jr [cond relative-address]
   Instr
-  (exec [{:keys [cond relative-address]} cpu]
+  (exec [_ cpu]
     (let [jump (if (cond cpu) (two-complement (relative-address cpu)) 0)]
-      (pc cpu (partial %16+ 2 jump))))
+      (pc cpu #(partial %16+ 2 jump))))
   (print-assembly [{:keys [cond relative-address]} cpu]
     (str "jr " (:operand (meta cond)) " " (relative-address cpu))))
 
@@ -957,6 +957,8 @@
    (->Dec c)
    (->Ld c word 2 8)
    (->Rrca)
+
+   ;; 0x10
    (->Stop)
    (->Ld de dword 3 12)
    (->Ld <de> a 1 8)
@@ -973,6 +975,8 @@
    (->Dec e)
    (->Ld e word 2 8)
    (->Rra)
+
+   ;; 0x20
    (->Jr nz? word)
    (->Ld hl dword 3 12)
    (->Ldi <hl> a)
@@ -989,6 +993,8 @@
    (->Dec l)
    (->Ld l word 2 8)
    (->Cpl)
+
+   ;; 0x30
    (->Jr nc? word)
    (->Ld sp dword 3 12)
    (->Ldd <hl> a)
@@ -1005,54 +1011,20 @@
    (->Dec a)
    (->Ld a word 2 8)
    (->Ccf)
-   (->Ld b b 1 4)
-   (->Ld b c 1 4)
-   (->Ld b d 1 4)
-   (->Ld b e 1 4)
-   (->Ld b h 1 4)
-   (->Ld b l 1 4)
-   (->Ld b <hl> 1 4)
-   (->Ld b a 1 4)
-   (->Ld c b 1 4)
-   (->Ld c c 1 4)
-   (->Ld c d 1 4)
-   (->Ld c e 1 4)
-   (->Ld c h 1 4)
-   (->Ld c l 1 4)
-   (->Ld c <hl> 1 4)
-   (->Ld c a 1 4)
-   (->Ld d b 1 4)
-   (->Ld d c 1 4)
-   (->Ld d d 1 4)
-   (->Ld d e 1 4)
-   (->Ld d h 1 4)
-   (->Ld d l 1 4)
-   (->Ld d <hl> 1 4)
-   (->Ld d a 1 4)
-   (->Ld e b 1 4)
-   (->Ld e c 1 4)
-   (->Ld e d 1 4)
-   (->Ld e e 1 4)
-   (->Ld e h 1 4)
-   (->Ld e l 1 4)
-   (->Ld e <hl> 1 4)
-   (->Ld e a 1 4)
-   (->Ld h b 1 4)
-   (->Ld h c 1 4)
-   (->Ld h d 1 4)
-   (->Ld h e 1 4)
-   (->Ld h h 1 4)
-   (->Ld h l 1 4)
-   (->Ld h <hl> 1 4)
-   (->Ld h a 1 4)
-   (->Ld l b 1 4)
-   (->Ld l c 1 4)
-   (->Ld l d 1 4)
-   (->Ld l e 1 4)
-   (->Ld l h 1 4)
-   (->Ld l l 1 4)
-   (->Ld l <hl> 1 4)
-   (->Ld l a 1 4)
+
+   ;; 0x40
+   (->Ld b b 1 4) (->Ld b c 1 4) (->Ld b d 1 4) (->Ld b e 1 4) (->Ld b h 1 4) (->Ld b l 1 4) (->Ld b <hl> 1 4) (->Ld b a 1 4)
+   (->Ld c b 1 4) (->Ld c c 1 4) (->Ld c d 1 4) (->Ld c e 1 4) (->Ld c h 1 4) (->Ld c l 1 4) (->Ld c <hl> 1 4) (->Ld c a 1 4)
+
+   ;; 0x50
+   (->Ld d b 1 4) (->Ld d c 1 4) (->Ld d d 1 4) (->Ld d e 1 4) (->Ld d h 1 4) (->Ld d l 1 4) (->Ld d <hl> 1 4) (->Ld d a 1 4)
+   (->Ld e b 1 4) (->Ld e c 1 4) (->Ld e d 1 4) (->Ld e e 1 4) (->Ld e h 1 4) (->Ld e l 1 4) (->Ld e <hl> 1 4) (->Ld e a 1 4)
+
+   ;; 0x60
+   (->Ld h b 1 4) (->Ld h c 1 4) (->Ld h d 1 4) (->Ld h e 1 4) (->Ld h h 1 4) (->Ld h l 1 4) (->Ld h <hl> 1 4) (->Ld h a 1 4)
+   (->Ld l b 1 4) (->Ld l c 1 4) (->Ld l d 1 4) (->Ld l e 1 4) (->Ld l h 1 4) (->Ld l l 1 4) (->Ld l <hl> 1 4) (->Ld l a 1 4)
+
+   ;; 0x70
    (->Ld <hl> b 1 4)
    (->Ld <hl> c 1 4)
    (->Ld <hl> d 1 4)
@@ -1061,78 +1033,25 @@
    (->Ld <hl> l 1 4)
    (->Halt)
    (->Ld <hl> a 1 4)
-   (->Ld a b 1 4)
-   (->Ld a c 1 4)
-   (->Ld a d 1 4)
-   (->Ld a e 1 4)
-   (->Ld a h 1 4)
-   (->Ld a l 1 4)
-   (->Ld a <hl> 1 4)
-   (->Ld a a 1 4)
-   (->Add b 1)
-   (->Add c 1)
-   (->Add d 1)
-   (->Add e 1)
-   (->Add h 1)
-   (->Add l 1)
-   (->Add <hl> 1)
-   (->Add a 1)
-   (->Adc b 1)
-   (->Adc c 1)
-   (->Adc d 1)
-   (->Adc e 1)
-   (->Adc h 1)
-   (->Adc l 1)
-   (->Adc <hl> 1)
-   (->Adc a 1)
-   (->Sub b 1)
-   (->Sub c 1)
-   (->Sub d 1)
-   (->Sub e 1)
-   (->Sub h 1)
-   (->Sub l 1)
-   (->Sub <hl> 1)
-   (->Sub a 1)
-   (->Sbc b 1)
-   (->Sbc c 1)
-   (->Sbc d 1)
-   (->Sbc e 1)
-   (->Sbc h 1)
-   (->Sbc l 1)
-   (->Sbc <hl> 1)
-   (->Sbc a 1)
-   (->And b 1)
-   (->And c 1)
-   (->And d 1)
-   (->And e 1)
-   (->And h 1)
-   (->And l 1)
-   (->And <hl> 1)
-   (->And a 1)
-   (->Xor b 1)
-   (->Xor c 1)
-   (->Xor d 1)
-   (->Xor e 1)
-   (->Xor h 1)
-   (->Xor l 1)
-   (->Xor <hl> 1)
-   (->Xor a 1)
-   (->Or b 1)
-   (->Or c 1)
-   (->Or d 1)
-   (->Or e 1)
-   (->Or h 1)
-   (->Or l 1)
-   (->Or <hl> 1)
-   (->Or a 1)
-   (->Cp b 1)
-   (->Cp c 1)
-   (->Cp d 1)
-   (->Cp e 1)
-   (->Cp h 1)
-   (->Cp l 1)
-   (->Cp <hl> 1)
-   (->Cp a 1)
+   (->Ld a b 1 4) (->Ld a c 1 4) (->Ld a d 1 4) (->Ld a e 1 4) (->Ld a h 1 4) (->Ld a l 1 4) (->Ld a <hl> 1 4) (->Ld a a 1 4)
+
+   ;; 0x80
+   (->Add b 1) (->Add c 1) (->Add d 1) (->Add e 1) (->Add h 1) (->Add l 1) (->Add <hl> 1) (->Add a 1)
+   (->Adc b 1) (->Adc c 1) (->Adc d 1) (->Adc e 1) (->Adc h 1) (->Adc l 1) (->Adc <hl> 1) (->Adc a 1)
+
+   ;; 0x90
+   (->Sub b 1) (->Sub c 1) (->Sub d 1) (->Sub e 1) (->Sub h 1) (->Sub l 1) (->Sub <hl> 1) (->Sub a 1)
+   (->Sbc b 1) (->Sbc c 1) (->Sbc d 1) (->Sbc e 1) (->Sbc h 1) (->Sbc l 1) (->Sbc <hl> 1) (->Sbc a 1)
+
+   ;; 0xA0
+   (->And b 1) (->And c 1) (->And d 1) (->And e 1) (->And h 1) (->And l 1) (->And <hl> 1) (->And a 1)
+   (->Xor b 1) (->Xor c 1) (->Xor d 1) (->Xor e 1) (->Xor h 1) (->Xor l 1) (->Xor <hl> 1) (->Xor a 1)
+
+   ;; 0xB0
+   (->Or b 1) (->Or c 1) (->Or d 1) (->Or e 1) (->Or h 1) (->Or l 1) (->Or <hl> 1) (->Or a 1)
+   (->Cp b 1) (->Cp c 1) (->Cp d 1) (->Cp e 1) (->Cp h 1) (->Cp l 1) (->Cp <hl> 1) (->Cp a 1)
+
+   ;; 0xC0
    (->Ret nz?)
    (->Pop bc)
    (->Jp nz? address 3)
@@ -1149,6 +1068,8 @@
    (->Call always address)
    (->Adc word 2)
    (->Rst 0x08)
+
+   ;; 0xD0
    (->Ret nc?)
    (->Pop de)
    (->Jp nc? address 3)
@@ -1165,6 +1086,8 @@
    (->SkullOfDeath)
    (->Sbc word 2)
    (->Rst 0x18)
+
+   ;; 0xE0
    (->Ld <FF00+n> a 2 12)
    (->Pop hl)
    (->Ld <FF00+c> a 2 8)
@@ -1181,6 +1104,8 @@
    (->SkullOfDeath)
    (->Xor word 2)
    (->Rst 0x28)
+
+   ;; 0xF0
    (->Ld a <FF00+n> 2 12)
    (->Pop af)
    (->Ld a <FF00+c> 2 8)
@@ -1201,16 +1126,4 @@
 (defn instruction-at-pc [cpu]
   {:pre  [(s/valid? cpu)]
    :post [(not (nil? %))]}
-  (get decoder (fetch cpu)))
-
-#_(defn mkop [op start]
-    (map
-      (fn [i reg]
-        (str (hex8 i) " (->instruction [:" op " " reg "] 4 1 (constantly \"" op " " reg "\"))"))
-      (range start (+ start 8)) ["b" "c" "d" "e" "h" "l" "<hl>" "a"]))
-
-#_(defn mkop2 [op n start]
-    (map
-      (fn [i reg]
-        (str (hex8 i) " (->instruction [:" op " " n " " reg "] " (if (= reg "<hl>") 8 4) " 1 (constantly \"" op " " n "," (if (= reg "<hl>") "[hl]" reg) "\"))"))
-      (range start (+ start 8)) ["b" "c" "d" "e" "h" "l" "<hl>" "a"]))
+  (nth decoder (fetch cpu)))

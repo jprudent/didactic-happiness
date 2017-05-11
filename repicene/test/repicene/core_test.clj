@@ -32,84 +32,85 @@
   (take 0x8000 (concat bytes (repeat 0))))
 
 (defn compile [program]
-  (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0))))
+  (vec (take 0x8000 (concat (mapcat to-bytecode program) (repeat 0)))))
+
 
 (deftest instructions
-  (testing "ld a,l"
-    (let [cpu (-> (compile ["ld a,l"])
-                  (new-cpu)
-                  (hl 0x0B8F))]
-      (is (= 0x8F (a (cpu-cycle cpu))))))
-  (testing "ld a,h"
-    (let [cpu (-> (compile ["ld a,h"])
-                  (new-cpu)
-                  (hl 0x0B8F))]
-      (is (= 0x0B (a (cpu-cycle cpu))))))
+    (testing "ld a,l"
+      (let [cpu (-> (compile ["ld a,l"])
+                    (new-cpu)
+                    (hl 0x0B8F))]
+        (is (= 0x8F (a (cpu-cycle cpu))))))
+    (testing "ld a,h"
+      (let [cpu (-> (compile ["ld a,h"])
+                    (new-cpu)
+                    (hl 0x0B8F))]
+        (is (= 0x0B (a (cpu-cycle cpu))))))
 
-  (testing "ldh [FF00+n],a"
-    (let [cpu (-> (compile [["ldh [FF00+n],a", 0x42]])
-                  (new-cpu)
-                  (set-word-at 0xFF42 0xAA)
-                  (a 0xBB))]
-      (is (= 0xAA (word-at (::s/memory cpu) 0xFF42)))
-      (is (= 0xAA (repicene.decoder/<FF00+n> cpu)))
-      (is (= 0xBB (word-at (::s/memory (cpu-cycle cpu)) 0xFF42)))))
-  (testing "ld a,0x77"
-    (let [cpu (-> (compile [["ld a,0x77", 0x77]])
-                  (new-cpu)
-                  (a 0xBB))]
-      (is (= 0xBB (a cpu)))
-      (is (= 0x77 (a (cpu-cycle cpu))))))
-  (testing "jr r8 (positive)"
-    (let [cpu (-> (compile [["jr 0x04", 0x04]])
-                  (new-cpu))]
-      (is (= 0x06 (pc (cpu-cycle cpu))))))
-  (testing "jr r8 (negative)"
-    (let [cpu (-> (compile [["jr 0xFE", 0xFE]])
-                  (new-cpu))]
-      (is (= 0x00 (pc (cpu-cycle cpu))))))
-  (testing "call ret"
-    (let [cpu (-> (compile ["call 0x0004"
-                            "nop"
-                            "ret"])
-                  (new-cpu))]
-      (is (= 0x00 (pc cpu)))
-      (is (= 0x04 (pc (cpu-cycle cpu)))
-          "call 0x0004 jumps to ret instruction")
-      (is (= 0x03 (pc (cpu-cycle (cpu-cycle cpu))))
-          "ret jumps back to the nop right after call")))
-  (testing "push hl"
-    (let [cpu (-> (compile ["push hl"])
-                  (new-cpu)
-                  (hl 0xABCD)
-                  (sp 0xE000))]
-      (is (= 0xABCD (hl cpu)))
-      (is (= 0xE000 (sp cpu)))
-      (let [cpu-afer-push (cpu-cycle cpu)]
-        (is (= 0xDFFE (sp cpu-afer-push)))
-        (is (= 0xABCD (dword-at cpu-afer-push 0xDFFE))))))
-  (testing "cp 0x90"
-    (let [cpu (-> (compile ["cp 0x90"])
-                  (new-cpu)
-                  (a 0xAA))]
-      (is (= 0xAA (a cpu)))
-      (let [cpu-afer-cp (cpu-cycle cpu)]
-        (is (= 0xAA (a cpu-afer-cp))))))
-  (testing "ld l,[hl]"
-    (let [cpu (-> (compile ["ld l,[hl]"])
-                  (new-cpu)
-                  (hl 0x8000)
-                  (set-word-at 0x8000 0xEE))]
-      (is (= 0x8000 (hl cpu)))
-      (is (= 0xEE (word-at (::s/memory cpu) 0x8000)))
-      (let [cpu-after-ld (cpu-cycle cpu)]
-        (is (= 0xEE (l cpu-after-ld))))))
-  (testing "sub a,0x05"
-    (let [cpu (-> (compile ["sub a,0x05"])
-                  (new-cpu)
-                  (a 0x03))]
-      (is (= 0x03 (a cpu)))
-      (is (= 0xFE (a (cpu-cycle cpu)))))))
+    (testing "ldh [FF00+n],a"
+      (let [cpu (-> (compile [["ldh [FF00+n],a", 0x42]])
+                    (new-cpu)
+                    (set-word-at 0xFF42 0xAA)
+                    (a 0xBB))]
+        (is (= 0xAA (word-at (::s/memory cpu) 0xFF42)))
+        (is (= 0xAA (repicene.decoder/<FF00+n> cpu)))
+        (is (= 0xBB (word-at (::s/memory (cpu-cycle cpu)) 0xFF42)))))
+    (testing "ld a,0x77"
+      (let [cpu (-> (compile [["ld a,0x77", 0x77]])
+                    (new-cpu)
+                    (a 0xBB))]
+        (is (= 0xBB (a cpu)))
+        (is (= 0x77 (a (cpu-cycle cpu))))))
+    (testing "jr r8 (positive)"
+      (let [cpu (-> (compile [["jr 0x04", 0x04]])
+                    (new-cpu))]
+        (is (= 0x06 (pc (cpu-cycle cpu))))))
+    (testing "jr r8 (negative)"
+      (let [cpu (-> (compile [["jr 0xFE", 0xFE]])
+                    (new-cpu))]
+        (is (= 0x00 (pc (cpu-cycle cpu))))))
+    (testing "call ret"
+      (let [cpu (-> (compile ["call 0x0004"
+                              "nop"
+                              "ret"])
+                    (new-cpu))]
+        (is (= 0x00 (pc cpu)))
+        (is (= 0x04 (pc (cpu-cycle cpu)))
+            "call 0x0004 jumps to ret instruction")
+        (is (= 0x03 (pc (cpu-cycle (cpu-cycle cpu))))
+            "ret jumps back to the nop right after call")))
+    (testing "push hl"
+      (let [cpu (-> (compile ["push hl"])
+                    (new-cpu)
+                    (hl 0xABCD)
+                    (sp 0xE000))]
+        (is (= 0xABCD (hl cpu)))
+        (is (= 0xE000 (sp cpu)))
+        (let [cpu-afer-push (cpu-cycle cpu)]
+          (is (= 0xDFFE (sp cpu-afer-push)))
+          (is (= 0xABCD (dword-at cpu-afer-push 0xDFFE))))))
+    (testing "cp 0x90"
+      (let [cpu (-> (compile ["cp 0x90"])
+                    (new-cpu)
+                    (a 0xAA))]
+        (is (= 0xAA (a cpu)))
+        (let [cpu-afer-cp (cpu-cycle cpu)]
+          (is (= 0xAA (a cpu-afer-cp))))))
+    (testing "ld l,[hl]"
+      (let [cpu (-> (compile ["ld l,[hl]"])
+                    (new-cpu)
+                    (hl 0x8000)
+                    (set-word-at 0x8000 0xEE))]
+        (is (= 0x8000 (hl cpu)))
+        (is (= 0xEE (word-at (::s/memory cpu) 0x8000)))
+        (let [cpu-after-ld (cpu-cycle cpu)]
+          (is (= 0xEE (l cpu-after-ld))))))
+    (testing "sub a,0x05"
+      (let [cpu (-> (compile ["sub a,0x05"])
+                    (new-cpu)
+                    (a 0x03))]
+        (is (= 0x03 (a cpu)))
+        (is (= 0xFE (a (cpu-cycle cpu)))))))
 
 (deftest memory
   (testing "memory is persistant"
@@ -179,6 +180,6 @@
       (go (offer! (:debug-chan-rx cpu) :kill)))))
 
 (deftest integration
-  (testing "01-specials"
-    #_(test-rom "roms/cpu_instrs/individual/01-special.gb" 60)
-    (test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 600)))
+    (testing "01-specials"
+      (test-rom "roms/cpu_instrs/individual/01-special.gb" 60)
+      #_(test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 600)))

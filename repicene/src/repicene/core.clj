@@ -1,8 +1,7 @@
 (ns repicene.core
   (:require [repicene.file-loader :refer [load-rom]]
             [repicene.debug :refer [process-debug-command process-breakpoint set-breakpoint]]
-            [repicene.decoder :refer [pc fetch decoder hex16]]
-            [repicene.instructions :refer [exec]]
+            [repicene.decoder :refer [exec pc fetch decoder hex16]]
             [clojure.core.async :refer [sliding-buffer go >! chan poll! <!! thread]]
             [repicene.schema :as s]
             [repicene.cpu :refer [cpu-cycle]]))
