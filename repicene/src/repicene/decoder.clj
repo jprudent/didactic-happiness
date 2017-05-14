@@ -637,7 +637,7 @@
   Instr
   (exec [_ cpu]
     (let [jump (if (cond cpu) (two-complement (relative-address cpu)) 0)]
-      (pc cpu #(partial %16+ 2 jump))))
+      (pc cpu (partial %16+ 2 jump))))
   (print-assembly [{:keys [cond relative-address]} cpu]
     (str "jr " (:operand (meta cond)) " " (relative-address cpu))))
 
