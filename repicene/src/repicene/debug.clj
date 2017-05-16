@@ -1,10 +1,8 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!! >!! poll!]]
-            [repicene.decoder :refer [decoder set-word-at word-at pc sp unknown hex16 dword-at %16 instruction-at-pc]]
+            [repicene.decoder :refer [exec decoder set-word-at word-at pc sp unknown hex16 dword-at %16 instruction-at-pc]]
             [repicene.schema :as s]
-    #_[repicene.cpu :refer [cpu-cycle instruction-at-pc stop-debugging]]
-            [repicene.history :as history]
-            [repicene.instructions :refer [exec]]))
+            [repicene.history :as history]))
 
 (defn set-w-breakpoint
   [cpu address hook]

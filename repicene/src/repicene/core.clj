@@ -42,14 +42,20 @@
      :w-breakpoints         {}
      :debugging?            nil}))
 
+(def dtime (atom (System/nanoTime)))
+
 (defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
   {:pre [(s/valid? cpu)]}
-  (let [command    (poll! debug-chan-rx)]
-    (recur
-      (cond-> cpu
-              command (process-debug-command command)
-              (:break? cpu) (process-breakpoint)
-              :always (cpu-cycle)))))
+  (let [nb-instr 1000000]
+    (loop [cpu cpu
+           i   0]
+      (when (zero? (mod i nb-instr))
+        (let [value (System/nanoTime)]
+          (println (/ (- value @dtime) 1000000.0) "ms for" nb-instr "instructions")
+          (reset! dtime value)))
+      (recur
+        (cpu-cycle cpu)
+        (inc i)))))
 
 (defn demo-gameboy
   ([]
