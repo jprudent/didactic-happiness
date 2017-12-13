@@ -1,7 +1,6 @@
 (ns repicene.cpu
   (:require [repicene.history :as history]
-            [repicene.decoder :refer [pc hex16 fetch decoder instruction-at-pc]]
-            [repicene.instructions :refer [exec]]
+            [repicene.decoder :refer [exec pc hex16 fetch decoder instruction-at-pc]]
             [repicene.schema :as s]))
 
 (defn cpu-cycle [cpu]
@@ -9,7 +8,7 @@
    :post [(s/valid? cpu)]}
   (try
     (history/save! cpu)
-    (exec cpu (instruction-at-pc cpu))
+    (exec (instruction-at-pc cpu) cpu)
     (catch Exception e
       (let [filename (str "coredump" (System/nanoTime))]
         (spit filename (prn-str (dissoc cpu :history-chan :debug-chan-rx :debug-chan-tx)))
