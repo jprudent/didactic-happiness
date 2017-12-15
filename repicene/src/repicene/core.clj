@@ -63,20 +63,3 @@
    (let [gameboy (-> (demo-gameboy)
                      (merge (read-string (slurp coredump))))]
      (set-breakpoint gameboy (pc gameboy) :permanent-breakpoint))))
-
-#_(def cpu
-    (->
-      (load-rom "roms/cpu_instrs/cpu_instrs.gb")
-      (new-cpu)
-      (assoc-in [::s/registers :PC] 0x100)))
-
-;; POC BREAKPOINT
-#_(do
-    (def cpu
-      (->
-        (load-rom "roms/cpu_instrs/cpu_instrs.gb")
-        (new-cpu)
-        (assoc-in [::s/registers :PC] 0x100)
-        (update-in [::s/x-breakpoints] conj 0x637)))
-    (thread (cpu-loop cpu))
-    (async/>!! (debug-chan-tx cpu) "yolo"))

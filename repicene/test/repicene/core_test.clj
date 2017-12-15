@@ -119,7 +119,7 @@
 
 (deftest history
   (testing "back in history"
-    (let [cpu0 (-> (load-rom "roms/cpu_instrs/cpu_instrs.gb")
+    (let [cpu0 (-> (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb"))
                    (new-cpu)
                    (pc 0x100))
           cpu1 (cpu-cycle cpu0)
@@ -137,7 +137,7 @@
       (is (not (nil? (extra-decoder i))) (str "instruction " (hex8 i) " is decoded")))))
 
 (defn random-program [size]
-  (-> (spec/coll-of ::s/word :distinct true :count size)
+  (-> (spec/coll-of ::s/word :count size)
       spec/gen
       gen/sample
       first
@@ -146,40 +146,9 @@
 ;;todo this is sloooow
 (deftest decompiler
   (testing "it can decompile any bytes"
-    (let [cpu (-> (random-program 100)
+    (let [cpu (-> (random-program 0x8000)
                   (new-cpu))]
       (doseq [decoded (take 50 (decode-from cpu))]
         (is (spec/valid? ::s/disassembled decoded)
             (spec/explain-str ::s/disassembled decoded))))))
 
-(defn kill-when-break!
-  [cpu]
-  (go
-    (println "received " (<! (:debug-chan-tx cpu)))
-    (>! (:debug-chan-rx cpu) :kill)))
-
-(defn test-rom [path seconds]
-  (let [cpu (-> (vec (take 0x8000 (load-rom path)))
-                (new-cpu)
-                (pc 0x100)
-                (set-w-breakpoint 0xFF01
-                                  (fn [cpu val]
-                                    (println "SERIAL: " (char val))
-                                    cpu))
-                (set-breakpoint 0xC7D2 :permanent-breakpoint))]
-    (is (s/valid? cpu) (spec/explain ::s/cpu cpu))
-    (kill-when-break! cpu)
-    (let [response-chan (chan)]
-      (go
-        (time
-          (try
-            (cpu-loop cpu)
-            (catch Exception _
-              (>! response-chan true)))))
-      (is (first (alts!! [response-chan (timeout (* 1000 seconds))])) path)
-      (go (offer! (:debug-chan-rx cpu) :kill)))))
-
-(deftest integration
-    #_(testing "01-specials"
-      (test-rom "roms/cpu_instrs/individual/01-special.gb" 60)
-      #_(test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 600)))

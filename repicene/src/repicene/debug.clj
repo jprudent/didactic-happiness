@@ -1,6 +1,6 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!! >!! poll!]]
-            [repicene.decoder :refer [exec decoder set-word-at word-at pc sp unknown hex16 dword-at %16 instruction-at-pc]]
+            [repicene.decoder :refer [exec isize print-assembly decoder set-word-at word-at pc sp hex16 dword-at %16 instruction-at-pc]]
             [repicene.schema :as s]
             [repicene.history :as history]))
 
@@ -68,8 +68,9 @@
       command)))
 
 (defn decode [{:keys [::s/memory] :as cpu} address]
-  (let [{:keys [to-string size]} (or (decoder (word-at memory address)) unknown)]
-    [(to-string cpu) size]))
+  (let [instruction (decoder (word-at memory address))]
+    (println instruction)
+    [(print-assembly instruction cpu) (isize instruction)]))
 
 (defn decode-from
   ([cpu] (decode-from cpu (pc cpu)))
