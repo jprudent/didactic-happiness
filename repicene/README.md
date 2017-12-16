@@ -18,6 +18,17 @@ The repl is not a substitute for unit testing (but sometimes feels like it does,
 
 Overloaded functions get an overhead !!!
 
+## Performance
+
+b16b392321c0f6883f4a0a4695aa1e8edf60d8ae
+Evaluation count : 60 in 60 samples of 1 calls.
+             Execution time mean : 2.537500 sec
+    Execution time std-deviation : 61.409875 ms
+   Execution time lower quantile : 2.408440 sec ( 2.5%)
+   Execution time upper quantile : 2.630590 sec (97.5%)
+                   Overhead used : 1.968864 ns
+
+
 ## TODO 
 
 - Performance task force :
