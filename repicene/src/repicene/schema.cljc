@@ -23,7 +23,7 @@
     (fn [[start end mem]] (= (count mem) (inc (- end start))))))
 (s/def ::memory (s/and vector? (s/coll-of ::memory-backend :kind vector?)))
 
-(s/def ::mode #{::running ::stopped})
+(s/def ::mode #{::running ::stopped ::halted})
 (s/def ::x-breakpoint (s/tuple ::address #{:once-breakpoint :permanent-breakpoint}))
 (s/def ::x-breakpoints (s/map-of ::address ::x-breakpoint))
 (s/def ::cpu (s/keys :req [::registers

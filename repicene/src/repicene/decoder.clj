@@ -296,7 +296,7 @@
 (defn fetch [{:keys [::s/memory] :as cpu}]
   {:pre  [(s/valid? cpu)]
    :post [(not (nil? %))]}
-  (println "fetch " (hex8 (word-at memory (pc cpu))))
+  (println "fetch " (hex8 (word-at memory (pc cpu))) "at" (hex16 (pc cpu)))
   (word-at memory (pc cpu)))
 
 (defprotocol Instr
@@ -721,8 +721,7 @@
 
 (defrecord Halt []
   Instr
-  (exec [_ _]
-    (throw (Exception. "unimplemented")))
+  (exec [_ cpu] (assoc cpu ::s/mode ::s/halted))
   (isize [_] 1)
   (print-assembly [_ _] "halt"))
 

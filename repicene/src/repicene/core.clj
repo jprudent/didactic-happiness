@@ -42,14 +42,17 @@
      :w-breakpoints         {}
      :debugging?            nil}))
 
+(defn halted? [{:keys [::s/mode]}] (= ::s/halted mode))
 (defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
   {:pre [(s/valid? cpu)]}
   (let [command    (poll! debug-chan-rx)]
-    (recur
-      (cond-> cpu
-              command (process-debug-command command)
-              (:break? cpu) (process-breakpoint)
-              :always (cpu-cycle)))))
+    (if (halted? cpu)
+      cpu
+      (recur
+        (cond-> cpu
+                command (process-debug-command command)
+                (:break? cpu) (process-breakpoint)
+                :always (cpu-cycle))))))
 
 (defn demo-gameboy
   ([]

@@ -5,6 +5,7 @@
             [repicene.decoder :as decoder]
             [repicene.core :as repicene]
             [repicene.debug :as debug]
+            [repicene.cpu :as cpu]
             [repicene.address-alias :as at]
             [clojure.spec :as spec]
             [clojure.core.async :refer [go <! >! chan alts!! timeout offer!]]))
@@ -42,6 +43,11 @@
               (>! response-chan true)))))
       (is (first (alts!! [response-chan (timeout (* 1000 seconds))])) path)
       (go (offer! (:debug-chan-rx cpu) :kill)))))
+
+(def blank (-> (vec (take 0x8000 (repeat 0)))
+               (repicene/new-cpu)
+               (decoder/set-word-at 0xF 0x76)))
+(defn run [] (repicene/cpu-loop blank))
 
 (deftest integration
   (testing "01-specials"
