@@ -296,7 +296,7 @@
 (defn fetch [{:keys [::s/memory] :as cpu}]
   {:pre  [(s/valid? cpu)]
    :post [(not (nil? %))]}
-  (println "fetch " (hex8 (word-at memory (pc cpu))) "at" (hex16 (pc cpu)))
+  #_(println "fetch " (hex8 (word-at memory (pc cpu))) "at" (hex16 (pc cpu)))
   (word-at memory (pc cpu)))
 
 (defprotocol Instr

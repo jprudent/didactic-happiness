@@ -20,25 +20,48 @@ Overloaded functions get an overhead !!!
 
 ## Performance
 
-b16b392321c0f6883f4a0a4695aa1e8edf60d8ae
-Evaluation count : 60 in 60 samples of 1 calls.
-             Execution time mean : 2.537500 sec
-    Execution time std-deviation : 61.409875 ms
-   Execution time lower quantile : 2.408440 sec ( 2.5%)
-   Execution time upper quantile : 2.630590 sec (97.5%)
-                   Overhead used : 1.968864 ns
+In dev mode, assertions are activated. A lot 
+of functions have pre/post conditions.
 
+Difference between assertion activated or not 
+are 3 levels of magnitude 
+
+with `*assert*` true :
+
+    Evaluation count : 60 in 60 samples of 1 calls.
+                 Execution time mean : 2.537500 sec
+        Execution time std-deviation : 61.409875 ms
+       Execution time lower quantile : 2.408440 sec ( 2.5%)
+       Execution time upper quantile : 2.630590 sec (97.5%)
+                       Overhead used : 1.968864 ns
+
+with `*assert*` false 
+
+    Evaluation count : 1068120 in 60 samples of 17802 calls.
+                 Execution time mean : 49.949607 µs
+        Execution time std-deviation : 5.216644 µs
+       Execution time lower quantile : 41.826417 µs ( 2.5%)
+       Execution time upper quantile : 57.192068 µs (97.5%)
+                       Overhead used : 3.121585 ns
+                   
+So, in dev mode, if you need performance :
+
+```clojure
+(require '[clojure.tools.namespace.repl :refer [refresh refresh-all]])
+(set! *assert* false)
+(refresh-all)
+```
 
 ## TODO 
 
 - Performance task force :
-    - inline registers in cpu map
-        - they can ultimately be stored in a single 64bits integer
+    - inline registers in cpu map.
+      They can ultimately be stored in a single 64bits integer
+    - use mutable and sequential structure for memory
         
 
 - all address arithmetic should be done modulo 0xFFFF
 - double check instruction size
-- don't neeed to destructure record field
 
 
 

@@ -7,7 +7,8 @@
                  [org.clojure/core.async "0.3.442"]
                  [http-kit "2.2.0"]]
   :profiles {:dev         {:dependencies [[org.clojure/test.check "0.9.0"]
-                                          [criterium "0.4.4"]]
+                                          [criterium "0.4.4"]
+                                          [org.clojure/tools.namespace "0.2.11"]]
                            :global-vars  {*warn-on-reflection* true}}
              :with-assert {:global-vars {*assert* false}}}
   :global-vars {*assert*         false
