@@ -219,7 +219,8 @@
   (with-meta
     (fn
       ([{:keys [::s/memory] :as cpu}]
-       {:pre [(not (nil? cpu)) (not (nil? memory))]}
+       {:pre  [(s/valid? cpu)]
+        :post [(dword? %)]}
        (cat8 (word-at memory (+ 2 (pc cpu)))
              (word-at memory (+ 1 (pc cpu)))))
       ([cpu val]
@@ -662,9 +663,9 @@
   (isize [_] 1)
   (print-assembly [_ cpu]
     (str "ldi "
-             (or (:operand (meta destination)) (destination cpu))
-             " "
-             (or (:operand (meta source)) (source cpu)) " ")))
+         (or (:operand (meta destination)) (destination cpu))
+         " "
+         (or (:operand (meta source)) (source cpu)) " ")))
 
 (defrecord Daa []
   Instr
@@ -691,7 +692,7 @@
         (hl %16dec)
         (pc (partial %16+ (isize this)))))
   (isize [_] 1)
-  (print-assembly [{:keys [destination source]} cpu]
+  (print-assembly [_ cpu]
     (str "ldd "
          (or (:operand (meta destination)) (destination cpu))
          " "
@@ -699,26 +700,30 @@
 
 (defrecord Scf []
   Instr
-  (exec [_ cpu]
-    (-> (n? false)
+  (exec [this cpu]
+    (-> cpu
+        (n? false)
         (h? false)
         (c? true)
-        (pc (partial %16+ 1))))
+        (pc (partial %16+ (isize this)))))
+  (isize [_] 1)
   (print-assembly [_ _] "scf"))
 
 (defrecord Ccf []
   Instr
-  (exec [_ cpu]
+  (exec [this cpu]
     (-> (n? cpu false)
         (h? false)
         (c? (not (c? cpu)))
-        (pc (partial %16+ 1))))
+        (pc (partial %16+ (isize this)))))
+  (isize [_] 1)
   (print-assembly [_ _] "ccf"))
 
 (defrecord Halt []
   Instr
-  (exec [_ cpu]
+  (exec [_ _]
     (throw (Exception. "unimplemented")))
+  (isize [_] 1)
   (print-assembly [_ _] "halt"))
 
 (defn add [cpu x size]
@@ -733,22 +738,20 @@
 
 (defrecord Add [source size]
   Instr
-  (exec [{:keys [source size]} cpu]
-    (add cpu (source cpu) size))
-  (print-assembly [{:keys [source]} _]
-    (str "add " (:operand (meta source)))))
+  (exec [this cpu] (add cpu (source cpu) (isize this)))
+  (isize [_] size)
+  (print-assembly [_ _] (str "add " (:operand (meta source)))))
 
 (defrecord Adc [source size]
   Instr
-  (exec [{:keys [source size]} cpu]
-    (add cpu (%8 + (bool->int (c? cpu)) (source cpu)) size))
-  (print-assembly [{:keys [source]} _]
-    (str "adc " (:operand (meta source)))))
+  (exec [this cpu]
+    (add cpu (%8 + (bool->int (c? cpu)) (source cpu)) (isize this)))
+  (isize [_] size)
+  (print-assembly [_ _] (str "adc " (:operand (meta source)))))
 
 (defn sub-a [cpu source]
   (let [y (source cpu)
         x (a cpu)]
-    #_(println "sub" x y (%8- x y) "c" (< x y))
     (-> (a cpu (%8- x y))
         (z? (= y x))
         (c? (< x y))
@@ -757,67 +760,67 @@
 
 (defrecord Sub [source size]
   Instr
-  (exec [{:keys [source size]} cpu]
+  (exec [this cpu]
     (-> (sub-a cpu source)
-        (pc (partial %16+ size))))
-  (print-assembly [{:keys [source]} _]
-    (str "sub " (:operand (meta source)))))
+        (pc (partial %16+ (isize this)))))
+  (isize [_] size)
+  (print-assembly [_ _] (str "sub " (:operand (meta source)))))
 
 (defrecord Sbc [source size]
   Instr
-  (exec [{:keys [source size]} cpu]
+  (exec [this cpu]
     (-> (sub-a cpu #(%8 + (source cpu) (bool->int (c? cpu))))
-        (pc (partial %16+ size))))
-  (print-assembly [{:keys [source]} _]
-    (str "sbc " (:operand (meta source)))))
+        (pc (partial %16+ (isize this)))))
+  (isize [_] size)
+  (print-assembly [_ _] (str "sbc " (:operand (meta source)))))
 
 (defrecord And [source size]
   Instr
-  (exec [{:keys [source size]} cpu]
+  (exec [this cpu]
     (let [result (bit-and (source cpu) (a cpu))]
       (-> (a cpu result)
           (z? (= 0 result))
           (n? false)
           (h? true)
           (c? false)
-          (pc (partial %16+ size)))))
-  (print-assembly [{:keys [source]} _]
-    (str "and " (:operand (meta source)))))
+          (pc (partial %16+ (isize this))))))
+  (isize [_] size)
+  (print-assembly [_ _] (str "and " (:operand (meta source)))))
 
 (defrecord Xor [source size]
   Instr
-  (exec [{:keys [source]} cpu]
+  (exec [this cpu]
     (let [result (bit-xor (source cpu) (a cpu))]
       (-> (a cpu result)
           (z? (= 0 result))
           (n? false)
           (h? false)
           (c? false)
-          (pc (partial %16+ size)))))
-  (print-assembly [{:keys [source]} _]
-    (str "xor " (:operand (meta source)))))
+          (pc (partial %16+ (isize this))))))
+  (isize [_] size)
+  (print-assembly [_ _] (str "xor " (:operand (meta source)))))
 
 (defrecord Or [source size]
   Instr
-  (exec [{:keys [source]} cpu]
+  (exec [this cpu]
     (let [value (bit-or (a cpu) (source cpu))]
       (-> (a cpu value)
           (z? (zero? value))
           (n? false)
           (h? false)
           (c? false)
-          (pc (partial %16+ size)))))
-  (print-assembly [{:keys [source]} _]
-    (str "or " (:operand (meta source)))))
+          (pc (partial %16+ (isize this))))))
+  (isize [_] size)
+  (print-assembly [_ _] (str "or " (:operand (meta source)))))
 
 (defrecord Cp [source size]
   Instr
-  (exec [{:keys [source size]} cpu]
+  (exec [this cpu]
     (-> (sub-a cpu source)
         (a (a cpu))                                                             ;;restore a register (throw away the result)
-        (pc (partial %16+ size))))
-  (print-assembly [{:keys [source]} _]
-    (str "cp " (:operand (meta source)))))
+        (pc (partial %16+ (isize this)))))
+  (isize [_] size)
+  (print-assembly [_ _] (str "cp " (:operand (meta source)))))
 
 (defn inc-sp [cpu] (sp cpu (partial %16+ 2)))
 (defn pop-sp [cpu]
@@ -827,28 +830,30 @@
 
 (defrecord Ret [cond]
   Instr
-  (exec [{:keys [cond]} cpu]
+  (exec [this cpu]
     (if (cond cpu)
       (let [[return-address cpu] (pop-sp cpu)]
         (pc cpu return-address))
-      (pc cpu (partial %16+ 1))))
-  (print-assembly [{:keys [cond]} cpu]
-    (str "ret " (:operand (meta cond)))))
+      (pc cpu (partial %16+ (isize this)))))
+  (isize [_] 1)
+  (print-assembly [_ _] (str "ret " (:operand (meta cond)))))
 
 (defrecord Reti []
   Instr
   (exec [_ cpu]
     (let [[return-address cpu] (pop-sp cpu)]
       (pc cpu return-address)))
+  (isize [_] 1)
   (print-assembly [_ _] "reti"))
 
 (defrecord Pop [dword-register]
   Instr
-  (exec [{:keys [dword-register]} cpu]
+  (exec [this cpu]
     (let [[dword cpu] (pop-sp cpu)]
       (-> (dword-register cpu dword)
-          (pc (partial %16+ 1)))))
-  (print-assembly [{:keys [dword-register]} _]
+          (pc (partial %16+ (isize this))))))
+  (isize [_] 1)
+  (print-assembly [_ _]
     (str "pop " (:operand (meta dword-register)))))
 
 (defn dec-sp [cpu] (sp cpu (partial %16+ -2)))
@@ -860,18 +865,20 @@
 
 (defrecord Push [dword-register]
   Instr
-  (exec [{:keys [dword-register]} cpu]
+  (exec [this cpu]
     (-> (push-sp cpu (dword-register cpu))
-        (pc (partial %16+ 1))))
-  (print-assembly [{:keys [dword-register]} _]
-    (str "push " (:operand (meta dword-register)))))
+        (pc (partial %16+ (isize this)))))
+  (isize [_] 1)
+  (print-assembly [_ _] (str "push " (:operand (meta dword-register)))))
 
 (defrecord Jp [cond address size]
   Instr
-  (exec [{:keys [cond address]} cpu]
+  (exec [_ cpu]
     (if (cond cpu)
       (pc cpu (address cpu))
-      (pc cpu (partial + size)))))
+      (pc cpu (partial + size))))
+  (isize [_] size)
+  (print-assembly [_ cpu] (str "jp " (hex16 (address cpu)))))
 
 (defn- call [cpu cond address size]
   (let [next-pc (+ size (pc cpu))]
@@ -883,22 +890,25 @@
 
 (defrecord Call [cond address]
   Instr
-  (exec [{:keys [address]} cpu]
-    (call cpu cond (address cpu) 3))
-  (print-assembly [{:keys [cond address]} cpu]
+  (exec [this cpu]
+    (call cpu cond (address cpu) (isize this)))
+  (isize [_] 3)
+  (print-assembly [_ cpu]
     (str "call " (:operand (meta cond)) " " (address cpu))))
 
 (defrecord Rst [address]
   Instr
-  (exec [{:keys [address]} cpu]
-    (call cpu (constantly true) address 1))
+  (exec [this cpu]
+    (call cpu (constantly true) address (isize this)))
+  (isize [_] 1)
   (print-assembly [_ _] (str "rst " address)))
 
 (defrecord Extra []
   Instr
-  (exec [_ cpu]
+  (exec [this cpu]
     (-> (exec (extra-decoder (word cpu)) cpu)                                   ;; we don't care if pc is not set correctly because extra only needs registers (except pc!) and memory pointer
-        (pc (partial %16+ 1))))
+        (pc (partial %16+ (isize this)))))
+  (isize [_] 1)
   (print-assembly [_ cpu]
     (print-assembly (extra-decoder (word cpu)) cpu)))
 
@@ -910,6 +920,7 @@
       (println "processing breakpoint" current-pc original)
       (-> (set-dword-at cpu current-pc original)
           (assoc :break? :permanent-breakpoint))))
+  (isize [_] 1)
   (print-assembly [_ _] "bp"))
 
 (defrecord OnceBreakpoint []
@@ -920,16 +931,18 @@
       (println "processing breakpoint" current-pc original)
       (-> (set-dword-at cpu current-pc original)
           (assoc :break? :once-breakpoint))))
+  (isize [_] 1)
   (print-assembly [_ _] "once bp"))
 
 (defrecord SkullOfDeath []
   Instr
   (exec [_ _] (throw (Exception. "invalid opcode")))
+  (isize [_] 1)
   (print-assembly [_ _] "invalid"))
 
 (defrecord AddSp []
   Instr
-  (exec [_ cpu]
+  (exec [this cpu]
     (let [x (sp cpu)
           y (word cpu)]
       (-> (sp cpu (%16+ x y))
@@ -937,21 +950,24 @@
           (n? false)
           (h? (> (+ (low-nibble y) (low-nibble x)) 0xF))
           (c? (> (+ (low-word x) y) 0xFF))
-          (pc (partial %16+ 2)))))
+          (pc (partial %16+ (isize this))))))
+  (isize [_] 2)
   (print-assembly [_ cpu] (str "add sp " (word cpu))))
 
 (defrecord Di []
   Instr
-  (exec [_ cpu]
+  (exec [this cpu]
     (-> (assoc cpu :interrupt-enabled? false)
-        (pc inc)))
+        (pc (partial %16+ (isize this)))))
+  (isize [_] 1)
   (print-assembly [_ _] "di"))
 
 (defrecord Ei []
   Instr
-  (exec [_ cpu]
+  (exec [this cpu]
     (-> (assoc cpu :interrupt-enabled? true)
-        (pc inc)))
+        (pc (partial %16+ (isize this)))))
+  (isize [_] 1)
   (print-assembly [_ _] "ei"))
 
 (def decoder
