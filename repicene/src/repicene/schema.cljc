@@ -3,6 +3,7 @@
             [clojure.spec :as s]
             [clojure.spec :as s]
             [clojure.spec :as s]
+            [clojure.spec :as s]
             [clojure.spec :as s]))
 
 (s/def ::dword (s/and integer? #(<= 0 % 0xFFFF)))
@@ -21,7 +22,7 @@
     (s/tuple ::address ::address (s/and vector? (s/coll-of ::word)))
     (fn [[start end _]] (< start end))
     (fn [[start end mem]] (= (count mem) (inc (- end start))))))
-(s/def ::memory (s/and vector? (s/coll-of ::memory-backend :kind vector?)))
+(s/def ::memory (s/coll-of ::word :count 0x10000 :kind vector?) )
 
 (s/def ::mode #{::running ::stopped ::halted})
 (s/def ::x-breakpoint (s/tuple ::address #{:once-breakpoint :permanent-breakpoint}))

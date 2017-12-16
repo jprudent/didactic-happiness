@@ -66,25 +66,11 @@
   "Decrement parameter and make it a valid address (mod 0xFFFF)"
   (partial %16 dec))
 
-(defn lookup-backend [memory address]                                           ;; could be memeoized
-  (some (fn [backend]
-          (when (in? backend address)
-            backend))
-        memory))
-
-(defn lookup-backend-index [memory address]                                     ;; could be memoized
-  (some (fn [[_ backend :as index-backend]]
-          (when (in? backend address)
-            index-backend))
-        (map vector (range) memory)))
-
 (defn word-at
   ([memory ^long address]
-   {:pre  [(dword? address) (s/memory? memory)]
+   {:pre  [(dword? address)]
     :post [(word? %)]}
-   (let [[from _ backend] (lookup-backend memory address)]
-     (let [backend-relative-address (- address from)]
-       (nth backend backend-relative-address)))))
+   (nth memory address)))
 
 (defn dword-at
   ([{:keys [::s/memory]} ^long address]
@@ -199,12 +185,10 @@
                                      :operand 'nc?}))
 
 
-(defn set-word-at [{:keys [::s/memory w-breakpoints] :as cpu} address val]
+(defn set-word-at [{:keys [w-breakpoints] :as cpu} address val]
   {:pre [(dword? address) (word? val)]}
 
-  (let [[index [from & _]] (lookup-backend-index memory address)
-        backend-relative-address (- address from)
-        cpu                      (update-in cpu [::s/memory index 2] assoc backend-relative-address val)]
+  (let [cpu (update cpu ::s/memory assoc address val)]
     (if-let [hook (and (not (:break? cpu)) (w-breakpoints address))]
       (-> (assoc cpu :break? true)
           (hook val)
