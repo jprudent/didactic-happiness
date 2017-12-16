@@ -21,12 +21,10 @@
 
 (defn w-memory-hook [address kind]
   (fn [cpu val]
-    (println "writing " val "at" address)
     (let [cpu (-> (update-in cpu [:w-breakpoints] dissoc address)               ;; remove write memory hook because ...
                   (set-word-at address (breakpoint-opcodes kind))               ;; we write at this exact same place
                   (add-breakpoint address [val kind])                           ;; overwrite the breakpoint with the new original value
                   (set-w-breakpoint address (w-memory-hook address kind)))]     ;; and set back the original write memory hook
-      (println "breakpoints " (::s/x-breakpoints cpu))
       cpu)))
 
 (defn set-breakpoint
@@ -69,7 +67,6 @@
 
 (defn decode [{:keys [::s/memory] :as cpu} address]
   (let [instruction (decoder (word-at memory address))]
-    (println instruction)
     [(print-assembly instruction cpu) (isize instruction)]))
 
 (defn decode-from
@@ -108,7 +105,9 @@
 
 (defmethod handle-debug-command :kill
   [_]
-  (throw (Exception. "Harakiri")))
+  (throw (ex-info "killing the machine"
+                  {:command _
+                   :signal :kill})))
 
 (defmethod handle-debug-command :reset
   [_]

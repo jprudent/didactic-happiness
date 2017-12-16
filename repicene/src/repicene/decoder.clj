@@ -205,8 +205,10 @@
   (let [[index [from & _]] (lookup-backend-index memory address)
         backend-relative-address (- address from)
         cpu                      (update-in cpu [::s/memory index 2] assoc backend-relative-address val)]
-    (if-let [hook (w-breakpoints address)]
-      (hook cpu val)
+    (if-let [hook (and (not (:break? cpu)) (w-breakpoints address))]
+      (-> (assoc cpu :break? true)
+          (hook val)
+          (assoc :break? false))
       cpu)))
 
 
@@ -546,7 +548,7 @@
     (str "ld "
          (or (:operand (meta destination)) (destination cpu))
          " "
-         (or (:operand (meta source)) (source cpu)) " ")))
+         (or (:operand (meta source)) (source cpu)))))
 
 (defrecord Inc16 [dword-register]
   Instr
