@@ -524,9 +524,9 @@
 
 (defrecord Ld [destination source size cycles]
   Instr
-  (exec [_ cpu]
+  (exec [this cpu]
     (-> (destination cpu (source cpu))
-        (pc (partial %16+ size))))
+        (pc (partial %16+ (isize this)))))
   (isize [_] size)
   (print-assembly [_ cpu]
     (str "ld "
@@ -754,7 +754,7 @@
 (defrecord Sbc [source size]
   Instr
   (exec [this cpu]
-    (-> (sub-a cpu #(%8 + (source cpu) (bool->int (c? cpu))))
+    (-> (sub-a cpu (fn [cpu] (%8 + (source cpu) (bool->int (c? cpu)))))
         (pc (partial %16+ (isize this)))))
   (isize [_] size)
   (print-assembly [_ _] (str "sbc " (:operand (meta source)))))
