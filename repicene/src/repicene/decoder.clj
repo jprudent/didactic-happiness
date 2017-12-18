@@ -626,7 +626,9 @@
 (defrecord Jr [cond relative-address]
   Instr
   (exec [this cpu]
-    (let [jump (if (cond cpu) (two-complement (relative-address cpu)) 0)]
+    (let [jump (if (cond cpu)
+                 (two-complement (relative-address cpu))
+                 0)]
       (pc cpu (partial %16+ (isize this) jump))))
   (isize [_] 2)
   (print-assembly [_ cpu]

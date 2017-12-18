@@ -174,8 +174,8 @@
     new-cpu))
 
 (defn process-breakpoint [{:keys [debug-chan-tx debug-chan-rx] :as cpu}]
+  ;; say to client "Hey! This is your breakpoint !"
   (>!! debug-chan-tx {:command :break})
+  ;; wait the response of the client
   (-> (process-debug-command cpu (<!! debug-chan-rx))
-      (after-break)
-      (assoc :break? nil)))
-
+      (after-break)))

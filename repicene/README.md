@@ -10,14 +10,6 @@ Printing the CPU generates a lot of output. This will limit the output to 10 ele
 
     (set! *print-length* 10)
 
-## Clojure pitfalls
-
-Use `nth` rather than `get` for getting a value in a vector. The day your collection won't be a vector, `get` won't work.
-
-The repl is not a substitute for unit testing (but sometimes feels like it does, I'm lost)
-
-Overloaded functions get an overhead !!!
-
 ## Performance
 
 In dev mode, assertions are activated. A lot 
@@ -51,6 +43,28 @@ So, in dev mode, if you need performance :
 (set! *assert* false)
 (refresh-all)
 ```
+
+### Breakpoints implementation
+
+Breakpoints are implemented as instructions. When a breakpoint
+ is set, a breakpoint instruction is written at memory location
+  and old opcode is backuped. 
+When breakpoint instruction is executed, 
+it restores the original instruction, then
+it passes the state of the CPU
+to debug mode and debug commands can be received.
+
+
+## Clojure pitfalls
+
+Use `nth` rather than `get` for getting a value in a vector. The day your collection won't be a vector, `get` won't work.
+
+The repl is not a substitute for unit testing (but sometimes feels like it does, I'm lost)
+
+Hey I'm Jerome 6 months in the future! I little bastard didn't write enough tests.
+
+Overloaded functions get an overhead !!!
+
 
 ## TODO 
 

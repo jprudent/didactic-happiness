@@ -127,7 +127,7 @@
      (window-title (str "Dump [" (hex-dword start) "-" (hex-dword end) "]"))
      [:div.debugger-memoryDumpContent (map address-dump dump)]]))
 
-(defn breakpoint [address]
+(defn breakpoint [[address [original kind]]]
   ^{:key address} [:div.window-line
                    [:div.debugger-address__breakpoint (hex-dword address)]
                    [:div.debugger-close-button.action {:on-click #(cmd/remove-breakpoint address)} "✘"]])
