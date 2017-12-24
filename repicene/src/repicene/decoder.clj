@@ -15,10 +15,10 @@
 
 (defn cat8
   "concatenate two words to make a dword"
-  [x y]
-  {:pre  [(s/word? x) (s/word? y)]
+  [high low]
+  {:pre  [(s/word? high) (s/word? low)]
    :post [(s/dword? %)]}
-  (bit-or (bit-shift-left x 8) y))
+  (bit-or (bit-shift-left high 8) low))
 
 (defn in? [[from to _] address]
   (<= from address to))
@@ -49,14 +49,6 @@
 (def %8-
   "Sub numbers and make it a valid word (mod 0xFF)"
   (partial %8 -))
-
-(def %8inc
-  "Increment parameter and make it a valid word (mod 0xFF)"
-  (partial %8 inc))
-
-(def %8dec
-  "Decrement parameter and make it a valid word (mod 0xFF)"
-  (partial %8 dec))
 
 (def %16inc
   "Increment parameter and make it a valid address (mod 0xFFFF)"
@@ -161,15 +153,16 @@
 (def h (def-word-register high-word hl 'h))
 (def l (def-word-register low-word hl 'l))
 
-(defn def-flag [pos]
+(defn def-flag
+  [f-bit-pos]
   (fn
-    ([cpu] (bit-test (f cpu) pos))
+    ([cpu] (bit-test (f cpu) f-bit-pos))
     ([cpu set?]
      {:pre  [(s/valid? cpu) (boolean? set?)]
       :post [(s/valid? %)]}
-     (if (= (bit-test (f cpu) pos) set?)
+     (if (= (bit-test (f cpu) f-bit-pos) set?)
        cpu
-       (f cpu (%8 bit-flip (f cpu) pos))))))
+       (f cpu (%8 bit-flip (f cpu) f-bit-pos))))))
 
 (def z? (with-meta (def-flag 7) {:type    :operand
                                  :operand 'z?}))
@@ -185,16 +178,9 @@
                                      :operand 'nc?}))
 
 
-(defn set-word-at [{:keys [w-breakpoints] :as cpu} address val]
+(defn set-word-at [cpu address val]
   {:pre [(dword? address) (word? val)]}
-
-  (let [cpu (update cpu ::s/memory assoc address val)]
-    (if-let [hook (and (not (:break? cpu)) (w-breakpoints address))]
-      (-> (assoc cpu :break? true)
-          (hook val)
-          (assoc :break? false))
-      cpu)))
-
+  (update cpu ::s/memory assoc address val))
 
 (defn set-dword-at [cpu address val]
   {:pre [(dword? address) (dword? val)]}
@@ -207,8 +193,9 @@
       ([{:keys [::s/memory] :as cpu}]
        {:pre  [(s/valid? cpu)]
         :post [(dword? %)]}
-       (cat8 (word-at memory (+ 2 (pc cpu)))
-             (word-at memory (+ 1 (pc cpu)))))
+       (cat8 (word-at memory (%16+ 2 (pc cpu)))
+             (word-at memory (%16+ 1 (pc cpu)))))
+      ;; todo this arity is never used (remove)
       ([cpu val]
        (set-word-at cpu (dword cpu) val)))
     {:type    :operand
@@ -276,13 +263,9 @@
 (def always (with-meta (constantly true) {:type    :operand
                                           :operand 'always}))
 
-(def hex-dword (comp hex16 dword))
-(def hex-word (comp hex8 word))
-
 (defn fetch [{:keys [::s/memory] :as cpu}]
   {:pre  [(s/valid? cpu)]
    :post [(not (nil? %))]}
-  #_(println "fetch " (hex8 (word-at memory (pc cpu))) "at" (hex16 (pc cpu)))
   (word-at memory (pc cpu)))
 
 (defprotocol Instr
@@ -454,10 +437,11 @@
   Instr
   (exec [this cpu]
     {:pre [(<= 0 position 7)]}
-    (-> (z? (bit-test (word-register cpu) position))
-        (n? false)
-        (h? true)
-        (pc (partial %16+ (isize this)))))
+    (let [result (bit-test (word-register cpu) position)]
+      (-> (z? cpu result)
+          (n? false)
+          (h? true)
+          (pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _]
     (str "bit " position " " (:operand (meta word-register)))))
@@ -893,9 +877,9 @@
 (defrecord Extra []
   Instr
   (exec [this cpu]
-    (-> (exec (extra-decoder (word cpu)) cpu)                                   ;; we don't care if pc is not set correctly because extra only needs registers (except pc!) and memory pointer
+    (-> (exec (extra-decoder (word cpu)) cpu)                                   ;; we don't care if pc is not set correctly when calling exec because extra only needs registers (except pc!) and memory pointer
         (pc (partial %16+ (isize this)))))
-  (isize [_] 1)
+  (isize [_] 1)                                                                 ;; given that all extra instructions have a size of 1
   (print-assembly [_ cpu]
     (print-assembly (extra-decoder (word cpu)) cpu)))
 
@@ -905,21 +889,10 @@
     (let [current-pc (pc cpu)
           [original _] (get x-breakpoints current-pc)]
       (println "processing breakpoint" current-pc original)
-      (-> (set-dword-at cpu current-pc original)
-          (assoc :break? :permanent-breakpoint))))
+      (-> (set-word-at cpu current-pc original)
+          (assoc ::s/mode ::s/break))))
   (isize [_] 1)
   (print-assembly [_ _] "bp"))
-
-(defrecord OnceBreakpoint []
-  Instr
-  (exec [_ {:keys [::s/x-breakpoints] :as cpu}]
-    (let [current-pc (pc cpu)
-          [original _] (get x-breakpoints current-pc)]
-      (println "processing breakpoint" current-pc original)
-      (-> (set-dword-at cpu current-pc original)
-          (assoc :break? :once-breakpoint))))
-  (isize [_] 1)
-  (print-assembly [_ _] "once bp"))
 
 (defrecord SkullOfDeath []
   Instr
@@ -1108,7 +1081,7 @@
    (->Ld <FF00+n> a 2 12)
    (->Pop hl)
    (->Ld <FF00+c> a 2 8)
-   (->OnceBreakpoint)
+   (->Breakpoint)
    (->SkullOfDeath)
    (->Push hl)
    (->And word 2)

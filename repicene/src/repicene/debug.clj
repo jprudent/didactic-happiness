@@ -1,31 +1,23 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!! >!! poll!]]
-            [repicene.decoder :refer [exec isize print-assembly decoder set-word-at word-at pc sp hex16 dword-at %16 instruction-at-pc]]
+            [repicene.decoder :refer [exec isize print-assembly decoder set-word-at word-at pc sp hex16 dword-at %16 %16+ instruction-at-pc]]
             [repicene.schema :as s]
+            [repicene.cpu :as cpu]
             [repicene.history :as history]))
 
-(defn set-w-breakpoint
-  [cpu address hook]
-  (update-in cpu [:w-breakpoints] assoc address hook))
+
 
 (def breakpoint-opcodes
   {:permanent-breakpoint 0xD3
    :once-breakpoint      0xE3})
 
-(defn add-breakpoint [cpu address breakpoint]
+(defn add-x-breakpoint [cpu address breakpoint]
   {:pre  [(s/valid? cpu)
           (s/address? address)
           (s/x-breakpoint? breakpoint)]
    :post [(s/valid? %)]}
-  (update-in cpu [::s/x-breakpoints] assoc address breakpoint))
-
-(defn w-memory-hook [address kind]
-  (fn [cpu val]
-    (let [cpu (-> (update-in cpu [:w-breakpoints] dissoc address)               ;; remove write memory hook because ...
-                  (set-word-at address (breakpoint-opcodes kind))               ;; we write at this exact same place
-                  (add-breakpoint address [val kind])                           ;; overwrite the breakpoint with the new original value
-                  (set-w-breakpoint address (w-memory-hook address kind)))]     ;; and set back the original write memory hook
-      cpu)))
+  (println "Set x-breakpoint at " address)
+  (update cpu ::s/x-breakpoints assoc address breakpoint))
 
 (defn set-breakpoint
   [{:keys [::s/memory] :as cpu} address kind]
@@ -33,28 +25,23 @@
    :post [(s/valid? cpu)]}
   (let [original (word-at memory address)]
     (-> (set-word-at cpu address (breakpoint-opcodes kind))
-        (add-breakpoint address [original kind])
-        (set-w-breakpoint address (w-memory-hook address kind)))))              ;; if memory region is written we override it, todo if we try to read it, we are screwed
+        (add-x-breakpoint address [original kind]))))                           ;; if memory region is written we override it, todo if we try to read it, we are screwed
 
-(defn remove-breakpoint [{:keys [::s/x-breakpoints] :as cpu} address]
-  {:pre  [(s/valid? cpu) (s/address? address)]
+(defn remove-breakpoint [{:keys [::s/x-breakpoints] :as cpu}]
+  {:pre  [(s/valid? cpu) (get x-breakpoints (pc cpu))]
    :post [(s/valid? cpu)]}
-  (let [[original _] (get x-breakpoints (pc cpu))]
-    (set-word-at cpu (pc cpu) original)
-    (update-in [::s/x-breakpoints] dissoc address)))
-
-(defn after-break [{:keys [::s/x-breakpoints] :as cpu}]
-  (let [[_ kind] (get x-breakpoints (pc cpu))]
-    (if (= :once-breakpoint kind)
-      (remove-breakpoint cpu (pc cpu))
-      (set-breakpoint cpu (pc cpu) kind))))
+  (let [address (pc cpu)
+        [original _] (get x-breakpoints address)]
+    (-> (set-word-at cpu address original)
+        (update ::s/x-breakpoints dissoc address))))
 
 (defn stop-debugging [cpu]
-  (assoc cpu :break? nil))
+  (assoc cpu ::s/mode ::s/running))
 
 (defn- ->response [command response]
   {:command command :response response})
 
+;; todo maybe that could be a map
 (defmulti
   handle-debug-command
   "Handle a debug command. Returns a vector of 2 functions that takes a
@@ -93,52 +80,53 @@
 (defn dump-region [cpu [start end]]
   [start end (memory-dump cpu start end)])
 
-(defn ->debug-view [options cpu]
-  (into (debug-view cpu)
-        {:instructions (take 10 (decode-from cpu))
-         :regions      (when-let [regions (:regions options)]
-                         (map (partial dump-region cpu) regions))}))
+(defn ->debug-view [{:keys [regions]} cpu]
+  (merge (debug-view cpu)
+         {:instructions (take 10 (decode-from cpu))}
+         (when regions {:regions (map (partial dump-region cpu) regions)})))
 
-(defmethod handle-debug-command :inspect
-  [[_ options]]
-  [identity (partial ->debug-view options)])
+(defmethod handle-debug-command ::s/inspect
+  [arg]
+  (let [options (or (when (sequential? arg) (second arg)) {})]
+    [identity (partial ->debug-view options)]))
 
-(defmethod handle-debug-command :kill
+(defmethod handle-debug-command ::s/kill
   [_]
   (throw (ex-info "killing the machine"
                   {:command _
-                   :signal :kill})))
+                   :signal  :kill})))
 
-(defmethod handle-debug-command :reset
+(defmethod handle-debug-command ::s/resume
   [_]
-  [#(pc % 0x100) (constantly :ok)])
+  [stop-debugging
+   (constantly :running)])
 
-(defmethod handle-debug-command :resume
+(defmethod handle-debug-command ::s/step-into
   [_]
-  [stop-debugging (constantly :running)])
-
-(defmethod handle-debug-command :step-into
-  [_]
-  [(fn [cpu]
-     (let [instruction (instruction-at-pc cpu)]
-       (set-breakpoint cpu (pc (exec cpu instruction)) :once-breakpoint)))
+  [cpu/cpu-cycle
    (partial ->debug-view {})])
 
 (defmethod handle-debug-command :back-step
   [_]
   [history/restore! (partial ->debug-view {})])
 
-(defmethod handle-debug-command :step-over
+(defn call? [instr] (= "Call" (.getSimpleName (class instr))))
+
+(defn run-at [cpu target-pc]
+  (if (= target-pc (pc cpu))
+    cpu
+    (recur (cpu/cpu-cycle cpu) target-pc)))
+
+(defmethod handle-debug-command ::s/step-over
   [_]
   [(fn [cpu]
-     (let [{[kind & _] :asm size :size :as instruction} (instruction-at-pc cpu)]
-       (if (= :call kind)
-         (set-breakpoint cpu (%16 + (pc cpu) size) :once-breakpoint)
-         (set-breakpoint cpu (pc (exec cpu instruction)) :once-breakpoint))))
-   (fn [{:keys [debugging?] :as cpu}]
-     (if debugging?
-       (->debug-view {} cpu)
-       :running))])
+     (let [instruction (instruction-at-pc cpu)
+           next-pc     (if (call? instruction)
+                         (%16+ (pc cpu) (isize instruction))
+                         (pc (exec instruction cpu)))]
+       (println "Running at" next-pc)
+       (run-at cpu next-pc)))
+   (partial ->debug-view {})])
 
 (defmethod handle-debug-command :add-breakpoint
   [[_ address]]
@@ -150,15 +138,13 @@
   [#(update % ::s/x-breakpoints disj address)
    (partial ->debug-view {})])
 
-
-(defmethod handle-debug-command :return
+(defmethod handle-debug-command ::s/return
   [_]
   [(fn [cpu]
      (let [ret (dword-at cpu (sp cpu))]
        (println "ret addr" ret)
-       (-> (update cpu :x-once-breakpoints conj #(= (pc %) ret))
-           (stop-debugging))))
-   (constantly :running)])
+       (run-at cpu ret)))
+   (partial ->debug-view {})])
 
 (defmethod handle-debug-command :default
   [command]
@@ -167,15 +153,34 @@
 
 (defn process-debug-command
   [{:keys [debug-chan-tx] :as cpu} command]
+  {:pre [(s/command? command) (s/valid? cpu)]}
+  (println "processing dbg comman" command)
   (let [[modify-cpu-fn response-fn] (handle-debug-command command)
         new-cpu  (modify-cpu-fn cpu)
         response (response-fn new-cpu)]
-    (go (>! debug-chan-tx (->response command response)))
+    (println "sending response")
+    (>!! debug-chan-tx (->response command response))
+    (println "response sent")
     new-cpu))
 
-(defn process-breakpoint [{:keys [debug-chan-tx debug-chan-rx] :as cpu}]
-  ;; say to client "Hey! This is your breakpoint !"
-  (>!! debug-chan-tx {:command :break})
-  ;; wait the response of the client
-  (-> (process-debug-command cpu (<!! debug-chan-rx))
-      (after-break)))
+(defn send-break [ch]
+  (println "sending :break")
+  (>!! ch {:command :break})
+  (println "sent :break"))
+
+(defn debugging-loop [{:keys [debug-chan-rx ::s/mode] :as cpu}]
+  (prn "debugging loop")
+  (if (= ::s/debugging mode)
+    (->> (<!! debug-chan-rx)
+         (process-debug-command cpu)
+         (recur))
+    cpu))
+
+(defn wait-ack [{:keys [debug-chan-tx debug-chan-rx]}]
+  (send-break debug-chan-tx)
+  (while (not= ::s/ack-break (<!! debug-chan-rx))
+    (send-break debug-chan-tx)))
+
+(defn process-breakpoint [cpu]
+  (wait-ack cpu)
+  (debugging-loop (assoc cpu ::s/mode ::s/debugging)))

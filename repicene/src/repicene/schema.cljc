@@ -1,11 +1,7 @@
 (ns repicene.schema
-  (:require [clojure.spec :as s]
-            [clojure.spec :as s]
-            [clojure.spec :as s]
-            [clojure.spec :as s]
-            [clojure.spec :as s]
-            [clojure.spec :as s]))
+  (:require [clojure.spec :as s]))
 
+(declare valid?)
 (s/def ::dword (s/and integer? #(<= 0 % 0xFFFF)))
 (s/def ::address ::dword)
 (s/def ::word (s/and integer? #(<= 0 % 0xFF)))
@@ -22,9 +18,9 @@
     (s/tuple ::address ::address (s/and vector? (s/coll-of ::word)))
     (fn [[start end _]] (< start end))
     (fn [[start end mem]] (= (count mem) (inc (- end start))))))
-(s/def ::memory (s/coll-of ::word :count 0x10000 :kind vector?) )
+(s/def ::memory (s/coll-of ::word :count 0x10000 :kind vector?))
 
-(s/def ::mode #{::running ::stopped ::halted})
+(s/def ::mode #{::running ::stopped ::halted ::break ::debugging})
 (s/def ::x-breakpoint (s/tuple ::address #{:once-breakpoint :permanent-breakpoint}))
 (s/def ::x-breakpoints (s/map-of ::address ::x-breakpoint))
 (s/def ::cpu (s/keys :req [::registers
@@ -35,8 +31,11 @@
 
 (s/def ::nibble (s/and integer? #(<= 0 % 0xF)))
 
-(defn validate [kw]
-  (partial s/valid? kw))
+(defn validate [spec]
+  (fn [v]
+    (if (s/valid? spec v)
+      v
+      (do (s/explain spec v) false))))
 
 (def valid? (validate ::cpu))
 (def dword? (validate ::dword))
@@ -45,5 +44,11 @@
 (def memory? (validate ::memory))
 (def nibble? (validate ::nibble))
 (def x-breakpoint? (validate ::x-breakpoint))
+(def command? (validate ::command))
 
-(s/def ::disassembled (s/tuple ::address (s/and (s/coll-of ::word) #(<= 1 (count %) 3)) string?))
+(s/def ::disassembled (s/tuple ::address (s/and (s/coll-of ::word :min-count 1 :max-count 3)) string?))
+
+(s/def ::command-type #{::inspect ::ack-break ::kill ::step-over ::step-into ::return ::resume})
+(s/def ::command-arg some?)
+(s/def ::command (s/or :simple ::command-type
+                       :parametrized (s/cat :type ::command-type :arg ::command-arg)))

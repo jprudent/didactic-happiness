@@ -30,21 +30,20 @@
    :debug-chan-rx         (chan)
    :debug-chan-tx         (chan)
    :history-chan          (chan (sliding-buffer 100))
-   ::s/x-breakpoints      {}
-   :w-breakpoints         {}
-   :debugging?            nil})
+   ::s/x-breakpoints      {}})
 
 (defn halted? [{:keys [::s/mode]}] (= ::s/halted mode))
+(defn break? [{:keys [::s/mode]}] (= ::s/break mode))
+(defn running? [{:keys [::s/mode]}] (= ::s/running mode))
+
+
 (defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
   {:pre [(s/valid? cpu)]}
   (let [command (poll! debug-chan-rx)]
-    (if (halted? cpu)
-      cpu
-      (recur
-        (cond-> cpu
-                command (process-debug-command command)
-                (:break? cpu) (process-breakpoint)
-                :always (cpu-cycle))))))
+    (cond command (do (println "cmd") (recur (process-debug-command cpu command)))
+          (running? cpu) (do (println "cycle") (recur (cpu-cycle cpu)))
+          (halted? cpu) cpu
+          (break? cpu) (do (println "brk") (recur (process-breakpoint cpu))))))
 
 (defn demo-gameboy
   ([]

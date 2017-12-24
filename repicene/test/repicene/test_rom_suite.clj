@@ -36,8 +36,8 @@
         cpu           (-> (vec (take 0x8000 (file-loader/load-rom path)))
                           (repicene/new-cpu)
                           (decoder/pc 0x100)
-                          (debug/set-w-breakpoint 0xC7D2 halt-at-0xC7D2)
-                          (debug/set-w-breakpoint at/serial-transfer-data
+                          #_(debug/add-w-breakpoint 0xC7D2 halt-at-0xC7D2)
+                          #_(debug/add-w-breakpoint at/serial-transfer-data
                                                   (record-serial serial-buffer)))
         looping-cpu   (thread (try (repicene/cpu-loop cpu) (catch Exception e e)))
         cpu-or-nil    (first (alts!! [looping-cpu (timeout (* 1000 seconds))]))]
