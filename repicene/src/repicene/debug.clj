@@ -1,6 +1,6 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!! >!! poll!]]
-            [repicene.decoder :refer [exec isize print-assembly decoder set-word-at word-at pc sp hex16 dword-at %16 %16+ instruction-at-pc]]
+            [repicene.decoder :refer [exec isize print-assembly decoder set-word-at word-at pc sp hex16 dword-at %16+ instruction-at-pc]]
             [repicene.schema :as s]
             [repicene.cpu :as cpu]
             [repicene.history :as history]))

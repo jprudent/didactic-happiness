@@ -25,15 +25,12 @@
 (defn in? [[from to _] address]
   (<= from address to))
 
-(defn %16
-  "Address arithmetic should be 0xFFFF modular arithmetic"
-  [f & args]
-  {:post [(s/dword? %)]}
-  (mod (apply f args) 0x10000))                                                 ;; todo bit-and au lieu de mod + éviter apply
-
-(def %16+
+(defn %16+
   "Add numbers and make it a valid address (mod 0xFFFF)"
-  (partial %16 +))
+  [v1 v2]
+  (let [v1 (short v1)
+        v2 (short v2)]
+    (bit-and (+ v1 v2) 0xFFFF)))
 
 (defn %8
   "Word arithmetic should be 0xFF modular arithmetic"
@@ -54,11 +51,11 @@
 
 (def %16inc
   "Increment parameter and make it a valid address (mod 0xFFFF)"
-  (partial %16 inc))
+  (partial %16+ 1))
 
 (def %16dec
   "Decrement parameter and make it a valid address (mod 0xFFFF)"
-  (partial %16 dec))
+  (partial %16+ -1))
 
 (defn word-at
   ([memory ^long address]
@@ -217,7 +214,7 @@
 
 (def word
   (with-meta
-    (fn [{:keys [::s/memory] :as cpu}] (word-at memory (%16 inc (pc cpu))))
+    (fn [{:keys [::s/memory] :as cpu}] (word-at memory (%16inc (pc cpu))))
     {:type    :operand
      :operand 'word}))
 
@@ -541,7 +538,7 @@
 (defrecord Dec16 [dword-register]
   Instr
   (exec [this cpu]
-    (-> (dword-register cpu (%16 dec (dword-register cpu)))
+    (-> (dword-register cpu (%16dec (dword-register cpu)))
         (pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _]
@@ -624,8 +621,9 @@
   (exec [this cpu]
     (let [jump (if (cond cpu)
                  (two-complement (relative-address cpu))
-                 0)]
-      (pc cpu (partial %16+ (isize this) jump))))
+                 0)
+          relative-offset (%16+ (isize this) jump)]
+      (pc cpu (partial %16+ relative-offset))))
   (isize [_] 2)
   (print-assembly [_ cpu]
     (str "jr " (:operand (meta cond)) " " (relative-address cpu))))
