@@ -28,9 +28,10 @@
 (defn %16+
   "Add numbers and make it a valid address (mod 0xFFFF)"
   [v1 v2]
-  (let [v1 (short v1)
-        v2 (short v2)]
-    (bit-and (+ v1 v2) 0xFFFF)))
+  (let [v1 (int v1)
+        v2 (int v2)
+        mask (int 0xFFFF)]
+    (bit-and (+ v1 v2) mask)))
 
 (defn %8
   "Word arithmetic should be 0xFF modular arithmetic"
@@ -72,27 +73,33 @@
 (defn high-word
   "1 arg version : returns the high word composing the unsigned dword
   2 args version : set the high word of dword to val"
-  ([^long dword]
+  ([dword]
    {:pre  [(s/dword? dword)]
     :post [(s/word? %)]}
-   (bit-shift-right dword 8))
-  ([^long dword ^long val]
+   (let [dword (int dword)]
+     (bit-shift-right dword 8)))
+  ([dword val]
    {:pre  [(s/dword? dword) (s/word? val)]
     :post [(s/dword? %)]}
-   (-> (bit-shift-left val 8)
-       (bit-or (bit-and dword 0xFF)))))
+   (let [dword (int dword)
+         val   (int val)]
+     (-> (bit-shift-left val 8)
+         (bit-or (bit-and dword 0xFF))))))
 
 (defn low-word
   "1 arg version : returns the low word composing the unsigned dword
   2 args version : set the low word of dword to val"
-  ([^long dword]
+  ([dword]
    {:pre  [(s/dword? dword)]
     :post [(s/word? %)]}
-   (bit-and dword 0xFF))
-  ([^long dword ^long val]
+   (let [dword (int dword)]
+     (bit-and dword 0xFF)))
+  ([dword val]
    {:pre  [(s/dword? dword) (s/word? val)]
     :post [(s/dword? %)]}
-   (bit-or (bit-and dword 0xFF00) val)))
+   (let [dword (int dword)
+         val   (int val)]
+     (bit-or (bit-and dword 0xFF00) val))))
 
 (defn def-dword-register [register]
   (with-meta
@@ -110,13 +117,13 @@
     {:type    :operand
      :operand (symbol (name register))}))
 
-(defn def-word-register [high-or-low dword-register register-name]
+(defn def-word-register [select-word dword-register register-name]
   (with-meta
     (fn
       ([cpu]
-       (high-or-low (dword-register cpu)))
+       (select-word (dword-register cpu)))
       ([cpu val]
-       (dword-register cpu (high-or-low (dword-register cpu) val))))
+       (dword-register cpu (select-word (dword-register cpu) val))))
     {:type    :operand
      :operand register-name}))
 
