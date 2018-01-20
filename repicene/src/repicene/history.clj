@@ -1,15 +1,15 @@
 (ns repicene.history
   (:require [repicene.schema :as s]
-            [clojure.core.async :refer [go chan sliding-buffer <!! >!! >! go-loop alts!! timeout]]))
+            [clojure.core.async :as async]))
 
 (defn save!
   [{:keys [history-chan] :as cpu}]
   {:pre  [(s/cpu? cpu)]
    :post [(s/cpu? cpu)]}
-  (>!! history-chan cpu))
+  (async/put! history-chan cpu))
 
 (defn read-chan [chan]
-  (first (alts!! [chan (timeout 10)])))
+  (first (async/alts!! [chan (async/timeout 10)])))
 
 (defn restore!
   [{:keys [history-chan] :as cpu}]
@@ -23,6 +23,6 @@
       (let [[most-recent & elderly] backup]
         (loop [[recent & others] elderly]
           (when recent
-            (>!! history-chan recent)
+            (async/>!! history-chan recent)
             (recur others)))
         (or most-recent cpu)))))
