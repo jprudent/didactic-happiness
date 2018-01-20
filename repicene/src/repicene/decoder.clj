@@ -523,7 +523,7 @@
 (defrecord Nop []
   Instr
   (exec [_ cpu]
-    (pc cpu inc))
+    (pc cpu %16inc))
   (isize [_] 1)
   (print-assembly [_ _]
     "nop"))
