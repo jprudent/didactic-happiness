@@ -65,13 +65,20 @@ Hey I'm Jerome 6 months in the future! I little bastard didn't write enough test
 
 Overloaded functions get an overhead !!!
 
+get-in is slower than ->
+
+native arrays are faster than transient vectors
+
+
+
+
 
 ## TODO 
 
 - Performance task force :
     - inline registers in cpu map.
       They can ultimately be stored in a single 64bits integer
-    - use mutable and sequential structure for memory
+    - do records are faster than maps?
         
 
 - all address arithmetic should be done modulo 0xFFFF
