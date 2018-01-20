@@ -108,12 +108,15 @@
        {:pre  [(s/cpu? cpu)]
         :post [(s/dword? %)]}
        (-> cpu ::s/registers register))
-      ([cpu modifier]
+      ([{:keys [::s/registers] :as cpu} modifier]
        {:pre  [(s/cpu? cpu) (or (fn? modifier) (s/dword? modifier))]
         :post [(s/cpu? %)]}
-       (if (fn? modifier)
-         (update-in cpu [::s/registers register] modifier)
-         (assoc-in cpu [::s/registers register] modifier))))
+       (assoc cpu ::s/registers
+                  (persistent! (assoc! (transient registers)
+                                       register
+                                       (if (fn? modifier)
+                                         (modifier (register registers))
+                                         modifier))))))
     {:type    :operand
      :operand (symbol (name register))}))
 
