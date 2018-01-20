@@ -22,9 +22,6 @@
    :post [(s/dword? %)]}
   (bit-or (bit-shift-left high 8) low))
 
-(defn in? [[from to _] address]
-  (<= from address to))
-
 (defn %16+
   "Add numbers and make it a valid address (mod 0xFFFF)"
   [v1 v2]
@@ -37,14 +34,19 @@
   "Word arithmetic should be 0xFF modular arithmetic"
   [f & args]
   {:post [(s/word? %)]}
-  (let [r (apply f args)]
+  (let [r ^short (apply f args)]
     (if (pos? r)
-      (mod r 0x100)
+      (bit-and r 0xFF)
       (-> (* -1 r)
           (bit-not)
           (bit-and 0xFF)
           (inc)
-          (mod 0x100)))))
+          (bit-and 0xFF)))))
+
+(defn %8+ [x y]
+  (let [x (short x)
+        y (short y)]
+    (bit-and (+ x y) 0xFF)))
 
 (def %8-
   "Sub numbers and make it a valid word (mod 0xFF)"
@@ -171,7 +173,7 @@
       :post [(s/cpu? %)]}
      (if (= (bit-test (f cpu) f-bit-pos) set?)
        cpu
-       (f cpu (%8 bit-flip (f cpu) f-bit-pos))))))
+       (f cpu (bit-flip (f cpu) f-bit-pos))))))
 
 (def z? (with-meta (def-flag 7) {:type    :operand
                                  :operand 'z?}))
@@ -191,8 +193,7 @@
   {:post [(s/cpu? %)]}
   (case address
     0xFF01
-    (do (println "Sending" val)
-        (async/put! serial-sent-chan val)
+    (do (async/put! serial-sent-chan val)
         cpu)
     cpu))
 
@@ -411,12 +412,14 @@
 (defn low-nibble [word]
   {:pre  [(s/word? word)]
    :post [(s/nibble? %)]}
-  (bit-and word 0xF))
+  (let [word (short word)]
+    (bit-and word 0xF)))
 
 (defn high-nibble [word]
   {:pre  [(s/word? word)]
    :post [(s/nibble? %)]}
-  (bit-shift-right word 4))
+  (let [word (short word)]
+    (bit-shift-right word 4)))
 
 (defn swap [^long word]
   {:pre  [(s/word? word)]
@@ -558,7 +561,7 @@
   Instr
   (exec [this cpu]
     (let [value  (word-register cpu)
-          result (%8 inc value)]
+          result (%8+ 1 value)]
       (-> (word-register cpu result)
           (z? (zero? result))
           (n? false)
@@ -719,7 +722,7 @@
 
 (defn add [cpu x size]
   (let [y      (a cpu)
-        result (%8 + x y)]
+        result (%8+ x y)]
     (-> (a cpu result)
         (z? (zero? result))
         (n? false)
@@ -736,7 +739,7 @@
 (defrecord Adc [source size]
   Instr
   (exec [this cpu]
-    (add cpu (%8 + (bool->int (c? cpu)) (source cpu)) (isize this)))
+    (add cpu (%8+ (bool->int (c? cpu)) (source cpu)) (isize this)))
   (isize [_] size)
   (print-assembly [_ _] (str "adc " (:operand (meta source)))))
 
@@ -760,7 +763,7 @@
 (defrecord Sbc [source size]
   Instr
   (exec [this cpu]
-    (-> (sub-a cpu (fn [cpu] (%8 + (source cpu) (bool->int (c? cpu)))))
+    (-> (sub-a cpu (fn [cpu] (%8+ (source cpu) (bool->int (c? cpu)))))
         (pc (partial %16+ (isize this)))))
   (isize [_] size)
   (print-assembly [_ _] (str "sbc " (:operand (meta source)))))
@@ -897,7 +900,7 @@
 (defrecord Extra []
   Instr
   (exec [this cpu]
-    (-> (exec (nth extra-decoder (word cpu)) cpu)                                   ;; we don't care if pc is not set correctly when calling exec because extra only needs registers (except pc!) and memory pointer
+    (-> (exec (nth extra-decoder (word cpu)) cpu)                               ;; we don't care if pc is not set correctly when calling exec because extra only needs registers (except pc!) and memory pointer
         (pc (partial %16+ (isize this)))))
   (isize [_] 1)                                                                 ;; given that all extra instructions have a size of 1
   (print-assembly [_ cpu]

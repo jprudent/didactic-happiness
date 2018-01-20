@@ -13,12 +13,3 @@
     (is (= ::s/break (::s/mode cpu-breaked)))
     (is (= 0xD3 (sut/word-at (::s/memory cpu) 0)))
     (is (= 0xDD (sut/word-at (::s/memory cpu-breaked) 0)))))
-
-(deftest word-register-test
-  (loop [i   (long 0)
-         cpu (core/new-cpu (repeat 0x8000 0xDD))]
-    (if (< i 100000)
-      (let [current (sut/a cpu)
-            new-v   (sut/%8 + 3 current)]
-        (recur (inc i) (sut/a cpu new-v)))
-      "end")))
