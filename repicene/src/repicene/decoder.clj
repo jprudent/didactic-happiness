@@ -107,7 +107,7 @@
       ([cpu]
        {:pre  [(s/cpu? cpu)]
         :post [(s/dword? %)]}
-       (get-in cpu [::s/registers register]))
+       (-> cpu ::s/registers register))
       ([cpu modifier]
        {:pre  [(s/cpu? cpu) (or (fn? modifier) (s/dword? modifier))]
         :post [(s/cpu? %)]}
