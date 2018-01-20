@@ -28,8 +28,8 @@
 (defn %16+
   "Add numbers and make it a valid address (mod 0xFFFF)"
   [v1 v2]
-  (let [v1 (int v1)
-        v2 (int v2)
+  (let [v1   (int v1)
+        v2   (int v2)
         mask (int 0xFFFF)]
     (bit-and (+ v1 v2) mask)))
 
@@ -62,7 +62,7 @@
   ([memory ^long address]
    {:pre  [(dword? address)]
     :post [(word? %)]}
-   (nth memory address)))
+   (aget ^shorts memory address)))
 
 (defn dword-at
   ([{:keys [::s/memory]} ^long address]
@@ -187,7 +187,7 @@
                                      :operand 'nc?}))
 
 (defn io-update
-  [{:keys [serial-sent-chan] :as cpu} address val]
+  [{:keys [serial-sent-chan] :as cpu} ^long address val]
   {:post [(s/cpu? %)]}
   (case address
     0xFF01
@@ -196,10 +196,10 @@
         cpu)
     cpu))
 
-(defn set-word-at [cpu address val]
+(defn set-word-at [{:keys [::s/memory] :as cpu} address val]
   {:pre [(dword? address) (word? val)]}
-  (-> (update cpu ::s/memory assoc address val)
-      (io-update address val)))
+  (aset ^shorts memory address ^short val)
+  (io-update cpu address val))
 
 (defn set-dword-at [cpu address val]
   {:pre [(dword? address) (dword? val)]}
@@ -629,9 +629,9 @@
 (defrecord Jr [cond relative-address]
   Instr
   (exec [this cpu]
-    (let [jump (if (cond cpu)
-                 (two-complement (relative-address cpu))
-                 0)
+    (let [jump            (if (cond cpu)
+                            (two-complement (relative-address cpu))
+                            0)
           relative-offset (%16+ (isize this) jump)]
       (pc cpu (partial %16+ relative-offset))))
   (isize [_] 2)
@@ -897,7 +897,7 @@
 (defrecord Extra []
   Instr
   (exec [this cpu]
-    (-> (exec (extra-decoder (word cpu)) cpu)                                   ;; we don't care if pc is not set correctly when calling exec because extra only needs registers (except pc!) and memory pointer
+    (-> (exec (nth extra-decoder (word cpu)) cpu)                                   ;; we don't care if pc is not set correctly when calling exec because extra only needs registers (except pc!) and memory pointer
         (pc (partial %16+ (isize this)))))
   (isize [_] 1)                                                                 ;; given that all extra instructions have a size of 1
   (print-assembly [_ cpu]
@@ -1136,4 +1136,5 @@
 (defn instruction-at-pc [cpu]
   {:pre  [(s/cpu? cpu)]
    :post [(not (nil? %))]}
-  (nth decoder (fetch cpu)))
+  (let [opcode (fetch cpu)]
+    (nth decoder opcode)))

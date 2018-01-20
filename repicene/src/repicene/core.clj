@@ -6,7 +6,7 @@
             [repicene.schema :as s]
             [repicene.cpu :refer [cpu-cycle]]))
 
-(def ^byte cell 0)
+(def ^short cell 0)
 (defn new-cpu [rom]
   {:pre [(= 0x8000 (count rom))]}
   {::s/registers          {::s/AF 0
@@ -16,16 +16,16 @@
                            ::s/SP 0
                            ::s/PC 0}
    ::s/interrupt-enabled? true
-   ::s/memory             (vec (concat rom                                      ;; rom
-                                       (repeat 0x2000 cell)                     ;; vram
-                                       (repeat 0x2000 cell)                     ;; ext-ram
-                                       (repeat 0x1000 cell)                     ;; wram-0
-                                       (repeat 0x1000 cell)                     ;; wram-1
-                                       (repeat 0x1E00 cell)                     ;; echo
-                                       (repeat 0x00A0 cell)                     ;; oam-ram
-                                       (repeat 0x0060 cell)                     ;; unusable
-                                       (repeat 0x0080 cell)                     ;; io
-                                       (repeat 0x0080 cell)))                   ;; hram
+   ::s/memory             (short-array (concat rom                               ;; rom
+                                              (repeat 0x2000 cell)              ;; vram
+                                              (repeat 0x2000 cell)              ;; ext-ram
+                                              (repeat 0x1000 cell)              ;; wram-0
+                                              (repeat 0x1000 cell)              ;; wram-1
+                                              (repeat 0x1E00 cell)              ;; echo
+                                              (repeat 0x00A0 cell)              ;; oam-ram
+                                              (repeat 0x0060 cell)              ;; unusable
+                                              (repeat 0x0080 cell)              ;; io
+                                              (repeat 0x0080 cell)))            ;; hram
    ::s/mode               ::s/running
    :debug-chan-rx         (chan)
    :debug-chan-tx         (chan)

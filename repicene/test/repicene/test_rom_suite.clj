@@ -6,7 +6,8 @@
             [repicene.core :as repicene]
             [clojure.core.async :refer [go <!! >! >!! chan alts!! timeout offer! thread]]
             [clojure.core.async :as async]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [criterium.core :as criterium]))
 
 
 ;; Read roms/cpu_instrs/individual/01-special.gb
@@ -56,7 +57,7 @@
 (deftest integration
   (testing "cpu instructions"
     (is (= "01-special\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/01-special.gb" 11)))
+           (test-rom "roms/cpu_instrs/individual/01-special.gb" 7)))
     (is (= "02-interrupts\n\n\nPassed\n"
            (test-rom "roms/cpu_instrs/individual/02-interrupts.gb" 20)))
     (is (= "03-op sp,hl\n\n\nPassed\n"

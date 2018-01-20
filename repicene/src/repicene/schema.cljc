@@ -2,6 +2,12 @@
   (:require [clojure.spec :as s]))
 
 (declare valid?)
+(defn validate [spec]
+  (fn [v]
+    (if (s/valid? spec v)
+      v
+      (do (s/explain spec v) false))))
+(def word? (validate ::word))
 (s/def ::dword (s/int-in 0 0x10000))
 (s/def ::address ::dword)
 (s/def ::word (s/int-in 0 0x100))
@@ -13,7 +19,7 @@
 (s/def ::PC ::dword)
 (s/def ::registers (s/keys :req [::AF ::BC ::DE ::HL ::SP ::PC]))
 (s/def ::interrupt-enabled? boolean?)
-(s/def ::memory (s/coll-of ::word :count 0x10000 :kind vector?))
+(s/def ::memory (partial every? word?))
 (s/def ::mode #{::running ::stopped ::halted ::break ::debugging})
 (s/def ::x-breakpoint (s/tuple ::address #{:once-breakpoint :permanent-breakpoint}))
 (s/def ::x-breakpoints (s/map-of ::address ::x-breakpoint))
@@ -25,16 +31,10 @@
 
 (s/def ::nibble (s/and integer? #(<= 0 % 0xF)))
 
-(defn validate [spec]
-  (fn [v]
-    (if (s/valid? spec v)
-      v
-      (do (s/explain spec v) false))))
-
 (def cpu? (validate ::cpu))
 (def dword? (validate ::dword))
 (def address? (validate ::address))
-(def word? (validate ::word))
+
 (def memory? (validate ::memory))
 (def nibble? (validate ::nibble))
 (def x-breakpoint? (validate ::x-breakpoint))
