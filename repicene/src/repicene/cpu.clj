@@ -4,8 +4,8 @@
             [repicene.schema :as s]))
 
 (defn cpu-cycle [cpu]
-  {:pre  [(s/valid? cpu)]
-   :post [(s/valid? cpu)]}
+  {:pre  [(s/cpu? cpu)]
+   :post [(s/cpu? cpu)]}
   (try
     (history/save! cpu)
     (exec (instruction-at-pc cpu) cpu)

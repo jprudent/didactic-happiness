@@ -12,24 +12,24 @@
    :once-breakpoint      0xE3})
 
 (defn add-x-breakpoint [cpu address breakpoint]
-  {:pre  [(s/valid? cpu)
+  {:pre  [(s/cpu? cpu)
           (s/address? address)
           (s/x-breakpoint? breakpoint)]
-   :post [(s/valid? %)]}
+   :post [(s/cpu? %)]}
   (println "Set x-breakpoint at " address)
   (update cpu ::s/x-breakpoints assoc address breakpoint))
 
 (defn set-breakpoint
   [{:keys [::s/memory] :as cpu} address kind]
-  {:pre  [(s/valid? cpu) (s/address? address)]
-   :post [(s/valid? cpu)]}
+  {:pre  [(s/cpu? cpu) (s/address? address)]
+   :post [(s/cpu? cpu)]}
   (let [original (word-at memory address)]
     (-> (set-word-at cpu address (breakpoint-opcodes kind))
         (add-x-breakpoint address [original kind]))))                           ;; if memory region is written we override it, todo if we try to read it, we are screwed
 
 (defn remove-breakpoint [{:keys [::s/x-breakpoints] :as cpu}]
-  {:pre  [(s/valid? cpu) (get x-breakpoints (pc cpu))]
-   :post [(s/valid? cpu)]}
+  {:pre  [(s/cpu? cpu) (get x-breakpoints (pc cpu))]
+   :post [(s/cpu? cpu)]}
   (let [address (pc cpu)
         [original _] (get x-breakpoints address)]
     (-> (set-word-at cpu address original)
@@ -59,7 +59,7 @@
 (defn decode-from
   ([cpu] (decode-from cpu (pc cpu)))
   ([{:keys [::s/memory] :as cpu} address]
-   {:pre [(s/address? address) (s/valid? cpu)]}
+   {:pre [(s/address? address) (s/cpu? cpu)]}
    (lazy-seq
      (let [cpu     (pc cpu address)
            [instr-str size] (decode cpu address)
@@ -153,7 +153,7 @@
 
 (defn process-debug-command
   [{:keys [debug-chan-tx] :as cpu} command]
-  {:pre [(s/command? command) (s/valid? cpu)]}
+  {:pre [(s/command? command) (s/cpu? cpu)]}
   (println "processing dbg comman" command)
   (let [[modify-cpu-fn response-fn] (handle-debug-command command)
         new-cpu  (modify-cpu-fn cpu)

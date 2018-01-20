@@ -30,6 +30,7 @@
    :debug-chan-rx         (chan)
    :debug-chan-tx         (chan)
    :history-chan          (chan (sliding-buffer 100))
+   :serial-sent-chan      (chan (sliding-buffer 100))
    ::s/x-breakpoints      {}})
 
 (defn halted? [{:keys [::s/mode]}] (= ::s/halted mode))
@@ -38,10 +39,10 @@
 
 
 (defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
-  {:pre [(s/valid? cpu)]}
+  {:pre [(s/cpu? cpu)]}
   (let [command (poll! debug-chan-rx)]
     (cond command (do (println "cmd") (recur (process-debug-command cpu command)))
-          (running? cpu) (do (println "cycle") (recur (cpu-cycle cpu)))
+          (running? cpu) (recur (cpu-cycle cpu))
           (halted? cpu) cpu
           (break? cpu) (do (println "brk") (recur (process-breakpoint cpu))))))
 

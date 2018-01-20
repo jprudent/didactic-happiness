@@ -4,8 +4,8 @@
 
 (defn save!
   [{:keys [history-chan] :as cpu}]
-  {:pre  [(s/valid? cpu)]
-   :post [(s/valid? cpu)]}
+  {:pre  [(s/cpu? cpu)]
+   :post [(s/cpu? cpu)]}
   (>!! history-chan cpu))
 
 (defn read-chan [chan]
@@ -13,8 +13,8 @@
 
 (defn restore!
   [{:keys [history-chan] :as cpu}]
-  {:pre  [(s/valid? cpu)]
-   :post [(or (nil? %) (s/valid? %))]}
+  {:pre  [(s/cpu? cpu)]
+   :post [(or (nil? %) (s/cpu? %))]}
   (loop [older  (read-chan history-chan)
          backup '()]
     (if older

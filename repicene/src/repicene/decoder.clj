@@ -2,7 +2,9 @@
   (:require [repicene.schema :as s :refer [dword? word?]]
             [repicene.bits :refer [two-complement]]
             [clojure.test :refer [is]]
-            [repicene.dada :refer [daa]])
+            [repicene.address-alias :as alias]
+            [repicene.dada :refer [daa]]
+            [clojure.core.async :as async])
   (:import (java.io Writer)))
 
 (def hex8
@@ -99,12 +101,12 @@
   (with-meta
     (fn
       ([cpu]
-       {:pre  [(s/valid? cpu)]
+       {:pre  [(s/cpu? cpu)]
         :post [(s/dword? %)]}
        (get-in cpu [::s/registers register]))
       ([cpu modifier]
-       {:pre  [(s/valid? cpu) (or (fn? modifier) (s/dword? modifier))]
-        :post [(s/valid? %)]}
+       {:pre  [(s/cpu? cpu) (or (fn? modifier) (s/dword? modifier))]
+        :post [(s/cpu? %)]}
        (if (fn? modifier)
          (update-in cpu [::s/registers register] modifier)
          (assoc-in cpu [::s/registers register] modifier))))
@@ -158,8 +160,8 @@
   (fn
     ([cpu] (bit-test (f cpu) f-bit-pos))
     ([cpu set?]
-     {:pre  [(s/valid? cpu) (boolean? set?)]
-      :post [(s/valid? %)]}
+     {:pre  [(s/cpu? cpu) (boolean? set?)]
+      :post [(s/cpu? %)]}
      (if (= (bit-test (f cpu) f-bit-pos) set?)
        cpu
        (f cpu (%8 bit-flip (f cpu) f-bit-pos))))))
@@ -177,10 +179,20 @@
 (def nc? (with-meta (complement c?) {:type    :operand
                                      :operand 'nc?}))
 
+(defn io-update
+  [{:keys [serial-sent-chan] :as cpu} address val]
+  {:post [(s/cpu? %)]}
+  (case address
+    0xFF01
+    (do (println "Sending" val)
+        (async/put! serial-sent-chan val)
+        cpu)
+    cpu))
 
 (defn set-word-at [cpu address val]
   {:pre [(dword? address) (word? val)]}
-  (update cpu ::s/memory assoc address val))
+  (-> (update cpu ::s/memory assoc address val)
+      (io-update address val)))
 
 (defn set-dword-at [cpu address val]
   {:pre [(dword? address) (dword? val)]}
@@ -191,7 +203,7 @@
   (with-meta
     (fn
       ([{:keys [::s/memory] :as cpu}]
-       {:pre  [(s/valid? cpu)]
+       {:pre  [(s/cpu? cpu)]
         :post [(dword? %)]}
        (cat8 (word-at memory (%16+ 2 (pc cpu)))
              (word-at memory (%16+ 1 (pc cpu)))))
@@ -211,7 +223,7 @@
 
 (def sp+n
   (with-meta
-    (fn [cpu] (%16 + (sp cpu) (two-complement (word cpu))))
+    (fn [cpu] (%16+ (sp cpu) (two-complement (word cpu))))
     {:type    :operand
      :operand 'sp+word}))
 
@@ -264,7 +276,7 @@
                                           :operand 'always}))
 
 (defn fetch [{:keys [::s/memory] :as cpu}]
-  {:pre  [(s/valid? cpu)]
+  {:pre  [(s/cpu? cpu)]
    :post [(not (nil? %))]}
   (word-at memory (pc cpu)))
 
@@ -795,8 +807,8 @@
 
 (defn inc-sp [cpu] (sp cpu (partial %16+ 2)))
 (defn pop-sp [cpu]
-  {:pre  [(s/valid? cpu)]
-   :post [(s/valid? (second %)) (s/address? (first %))]}
+  {:pre  [(s/cpu? cpu)]
+   :post [(s/cpu? (second %)) (s/address? (first %))]}
   [(dword-at cpu (sp cpu)) (inc-sp cpu)])
 
 (defrecord Ret [cond]
@@ -829,8 +841,8 @@
 
 (defn dec-sp [cpu] (sp cpu (partial %16+ -2)))
 (defn push-sp [cpu dword]
-  {:pre  [(s/valid? cpu) (s/dword? dword)]
-   :post [(s/valid? %)]}
+  {:pre  [(s/cpu? cpu) (s/dword? dword)]
+   :post [(s/cpu? %)]}
   (let [cpu (dec-sp cpu)]
     (set-dword-at cpu (sp cpu) dword)))                                         ;; beware : the address should be the decremented sp
 
@@ -1114,6 +1126,6 @@
    (->Rst 0x38)])
 
 (defn instruction-at-pc [cpu]
-  {:pre  [(s/valid? cpu)]
+  {:pre  [(s/cpu? cpu)]
    :post [(not (nil? %))]}
   (nth decoder (fetch cpu)))

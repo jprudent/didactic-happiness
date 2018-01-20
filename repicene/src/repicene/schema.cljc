@@ -31,7 +31,7 @@
       v
       (do (s/explain spec v) false))))
 
-(def valid? (validate ::cpu))
+(def cpu? (validate ::cpu))
 (def dword? (validate ::dword))
 (def address? (validate ::address))
 (def word? (validate ::word))
