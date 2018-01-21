@@ -4,10 +4,11 @@
             [repicene.file-loader :as file-loader]
             [repicene.decoder :as decoder]
             [repicene.core :as repicene]
-            [clojure.core.async :refer [go <!! >! >!! chan alts!! timeout offer! thread]]
+            [clojure.core.async :as async]
             [clojure.core.async :as async]
             [clojure.string :as str]
-            [criterium.core :as criterium]))
+            [criterium.core :as criterium]
+            [repicene.cpu-protocol :as cpu]))
 
 
 ;; Read roms/cpu_instrs/individual/01-special.gb
@@ -22,24 +23,24 @@
   loop with a halt instruction"
   [path seconds]
   (let [cpu           (-> (vec (take 0x8000 (file-loader/load-rom path)))
-                          (repicene/new-cpu)
+                          (cpu/new-cpu)
                           (decoder/pc 0x100))
         serial-output (async/go-loop [buffer ""]
                         (if (str/ends-with? buffer "Passed\n")
                           buffer
                           (recur (str buffer (char (async/<! (:serial-sent-chan cpu)))))))
-        looping-cpu   (thread (try (repicene/cpu-loop cpu) (catch Exception e e)))
-        serial-or-nil (first (alts!! [serial-output (timeout (* 1000 seconds))]))]
+        looping-cpu   (async/thread (try (repicene/cpu-loop cpu) (catch Exception e e)))
+        serial-or-nil (first (async/alts!! [serial-output (async/timeout (* 1000 seconds))]))]
     (println "killing the gameboy")
-    (>!! (:debug-chan-rx cpu) ::s/kill)
+    (async/put! (:debug-chan-rx cpu) ::s/kill)
     (println "wait kill")
-    (alts!! [looping-cpu (timeout 1000)])
+    (async/alts!! [looping-cpu (async/timeout 1000)])
     serial-or-nil))
 
 (def blank (-> (take 0x8000 (repeat 0))
                (vec)
-               (repicene/new-cpu)
-               (decoder/set-word-at 0x7FFF 0x76)))
+               (cpu/new-cpu)
+               (cpu/set-word-at 0x7FFF 0x76)))
 
 (defn run [] (repicene/cpu-loop blank))
 

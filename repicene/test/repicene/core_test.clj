@@ -10,7 +10,8 @@
             [clojure.spec.gen :as gen]
             [clojure.spec :as spec]
             [clojure.spec.test :as stest]
-            [clojure.core.async :refer [offer! <! >! >!! <!! go poll! chan go alts!! timeout]]))
+            [clojure.core.async :refer [offer! <! >! >!! <!! go poll! chan go alts!! timeout]]
+            [repicene.cpu-protocol :as cpu]))
 
 (defn to-bytecode [asm]
   (condp = asm
@@ -38,42 +39,42 @@
 (deftest instructions
     (testing "ld a,l"
       (let [cpu (-> (compile-prog ["ld a,l"])
-                    (new-cpu)
+                    (cpu/new-cpu)
                     (hl 0x0B8F))]
         (is (= 0x8F (a (cpu-cycle cpu))))))
     (testing "ld a,h"
       (let [cpu (-> (compile-prog ["ld a,h"])
-                    (new-cpu)
+                    (cpu/new-cpu)
                     (hl 0x0B8F))]
         (is (= 0x0B (a (cpu-cycle cpu))))))
 
     (testing "ldh [FF00+n],a"
       (let [cpu (-> (compile-prog [["ldh [FF00+n],a", 0x42]])
-                    (new-cpu)
-                    (set-word-at 0xFF42 0xAA)
+                    (cpu/new-cpu)
+                    (cpu/set-word-at 0xFF42 0xAA)
                     (a 0xBB))]
-        (is (= 0xAA (word-at (::s/memory cpu) 0xFF42)))
+        (is (= 0xAA (cpu/word-at cpu 0xFF42)))
         (is (= 0xAA (repicene.decoder/<FF00+n> cpu)))
-        (is (= 0xBB (word-at (::s/memory (cpu-cycle cpu)) 0xFF42)))))
+        (is (= 0xBB (cpu/word-at (cpu-cycle cpu) 0xFF42)))))
     (testing "ld a,0x77"
       (let [cpu (-> (compile-prog [["ld a,0x77", 0x77]])
-                    (new-cpu)
+                    (cpu/new-cpu)
                     (a 0xBB))]
         (is (= 0xBB (a cpu)))
         (is (= 0x77 (a (cpu-cycle cpu))))))
     (testing "jr r8 (positive)"
       (let [cpu (-> (compile-prog [["jr 0x04", 0x04]])
-                    (new-cpu))]
+                    (cpu/new-cpu))]
         (is (= 0x06 (pc (cpu-cycle cpu))))))
     (testing "jr r8 (negative)"
       (let [cpu (-> (compile-prog [["jr 0xFE", 0xFE]])
-                    (new-cpu))]
+                    (cpu/new-cpu))]
         (is (= 0x00 (pc (cpu-cycle cpu))))))
     (testing "call ret"
       (let [cpu (-> (compile-prog ["call 0x0004"
                               "nop"
                               "ret"])
-                    (new-cpu))]
+                    (cpu/new-cpu))]
         (is (= 0x00 (pc cpu)))
         (is (= 0x04 (pc (cpu-cycle cpu)))
             "call 0x0004 jumps to ret instruction")
@@ -81,7 +82,7 @@
             "ret jumps back to the nop right after call")))
     (testing "push hl"
       (let [cpu (-> (compile-prog ["push hl"])
-                    (new-cpu)
+                    (cpu/new-cpu)
                     (hl 0xABCD)
                     (sp 0xE000))]
         (is (= 0xABCD (hl cpu)))
@@ -91,36 +92,36 @@
           (is (= 0xABCD (dword-at cpu-afer-push 0xDFFE))))))
     (testing "cp 0x90"
       (let [cpu (-> (compile-prog ["cp 0x90"])
-                    (new-cpu)
+                    (cpu/new-cpu)
                     (a 0xAA))]
         (is (= 0xAA (a cpu)))
         (let [cpu-afer-cp (cpu-cycle cpu)]
           (is (= 0xAA (a cpu-afer-cp))))))
     (testing "ld l,[hl]"
       (let [cpu (-> (compile-prog ["ld l,[hl]"])
-                    (new-cpu)
+                    (cpu/new-cpu)
                     (hl 0x8000)
-                    (set-word-at 0x8000 0xEE))]
+                    (cpu/set-word-at 0x8000 0xEE))]
         (is (= 0x8000 (hl cpu)))
-        (is (= 0xEE (word-at (::s/memory cpu) 0x8000)))
+        (is (= 0xEE (cpu/word-at cpu 0x8000)))
         (let [cpu-after-ld (cpu-cycle cpu)]
           (is (= 0xEE (l cpu-after-ld))))))
     (testing "sub a,0x05"
       (let [cpu (-> (compile-prog ["sub a,0x05"])
-                    (new-cpu)
+                    (cpu/new-cpu)
                     (a 0x03))]
         (is (= 0x03 (a cpu)))
         (is (= 0xFE (a (cpu-cycle cpu)))))))
 
 (deftest memory
   (testing "memory is persistant"
-    (let [cpu (set-word-at (demo-gameboy) 0xFF42 0xAA)]
-      (is (= 0xAA (word-at (::s/memory cpu) 0xFF42))))))
+    (let [cpu (cpu/set-word-at (demo-gameboy) 0xFF42 0xAA)]
+      (is (= 0xAA (cpu/word-at cpu 0xFF42))))))
 
 (deftest history
   (testing "back in history"
     (let [cpu0 (-> (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb"))
-                   (new-cpu)
+                   (cpu/new-cpu)
                    (pc 0x100))
           cpu1 (cpu-cycle cpu0)
           cpu2 (cpu-cycle cpu1)]
@@ -147,7 +148,7 @@
 (deftest decompiler
   (testing "it can decompile any bytes"
     (let [cpu (-> (random-program 0x8000)
-                  (new-cpu))]
+                  (cpu/new-cpu))]
       (doseq [decoded (take 50 (decode-from cpu))]
         (is (spec/valid? ::s/disassembled decoded)
             (spec/explain-str ::s/disassembled decoded))))))

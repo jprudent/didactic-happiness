@@ -4,38 +4,12 @@
             [repicene.decoder :refer [exec pc fetch decoder hex16]]
             [clojure.core.async :refer [sliding-buffer go >! chan poll! <!! thread]]
             [repicene.schema :as s]
-            [repicene.cpu :refer [cpu-cycle]]))
+            [repicene.cpu :refer [cpu-cycle]]
+            [repicene.cpu-protocol :as cpu]))
 
-(def ^short cell 0)
-(defn new-cpu [rom]
-  {:pre [(= 0x8000 (count rom))]}
-  {::s/registers          {::s/AF 0
-                           ::s/BC 0
-                           ::s/DE 0
-                           ::s/HL 0
-                           ::s/SP 0
-                           ::s/PC 0}
-   ::s/interrupt-enabled? true
-   ::s/memory             (short-array (concat rom                               ;; rom
-                                              (repeat 0x2000 cell)              ;; vram
-                                              (repeat 0x2000 cell)              ;; ext-ram
-                                              (repeat 0x1000 cell)              ;; wram-0
-                                              (repeat 0x1000 cell)              ;; wram-1
-                                              (repeat 0x1E00 cell)              ;; echo
-                                              (repeat 0x00A0 cell)              ;; oam-ram
-                                              (repeat 0x0060 cell)              ;; unusable
-                                              (repeat 0x0080 cell)              ;; io
-                                              (repeat 0x0080 cell)))            ;; hram
-   ::s/mode               ::s/running
-   :debug-chan-rx         (chan)
-   :debug-chan-tx         (chan)
-   :history-chan          (chan (sliding-buffer 100))
-   :serial-sent-chan      (chan (sliding-buffer 100))
-   ::s/x-breakpoints      {}})
-
-(defn halted? [{:keys [::s/mode]}] (= ::s/halted mode))
-(defn break? [{:keys [::s/mode]}] (= ::s/break mode))
-(defn running? [{:keys [::s/mode]}] (= ::s/running mode))
+(defn halted? [{:keys [mode]}] (= ::s/halted mode))
+(defn break? [{:keys [mode]}] (= ::s/break mode))
+(defn running? [{:keys [mode]}] (= ::s/running mode))
 
 
 (defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
@@ -50,7 +24,7 @@
   ([]
    (->
      (vec (take 0x8000 (load-rom "roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb")))
-     (new-cpu)
+     (cpu/new-cpu)
      (pc 0x100)
      (set-breakpoint 0x0100 :permanent-breakpoint)
      (set-breakpoint 0xFF01 :permanent-breakpoint)))

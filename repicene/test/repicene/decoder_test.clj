@@ -4,12 +4,13 @@
             [repicene.schema :as s]
             [repicene.debug :as debug]
             [repicene.decoder :as sut]
+            [repicene.cpu-protocol :as cpu]
             [repicene.decoder :as decoder]))
 
 (deftest permanent-breakpoint
-  (let [cpu (-> (core/new-cpu (repeat 0x8000 0xDD))
+  (let [cpu (-> (cpu/new-cpu (repeat 0x8000 0xDD))
                 (debug/set-breakpoint 0 :permanent-breakpoint))
         cpu-breaked (sut/exec (sut/->Breakpoint) cpu)]
-    (is (= ::s/break (::s/mode cpu-breaked)))
-    (is (= 0xD3 (sut/word-at (::s/memory cpu) 0)))
-    (is (= 0xDD (sut/word-at (::s/memory cpu-breaked) 0)))))
+    (is (= ::s/break (:mode cpu-breaked)))
+    (is (= 0xD3 (cpu/word-at cpu 0)))                                           ;; todo failing because of mutability, I hate this !
+    (is (= 0xDD (cpu/word-at cpu-breaked 0)))))

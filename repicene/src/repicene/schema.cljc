@@ -17,17 +17,17 @@
 (s/def ::HL ::dword)
 (s/def ::SP ::dword)
 (s/def ::PC ::dword)
-(s/def ::registers (s/keys :req [::AF ::BC ::DE ::HL ::SP ::PC]))
+(s/def ::registers (s/keys :req-un [::AF ::BC ::DE ::HL ::SP ::PC]))
 (s/def ::interrupt-enabled? boolean?)
 (s/def ::memory (partial every? word?))
 (s/def ::mode #{::running ::stopped ::halted ::break ::debugging})
 (s/def ::x-breakpoint (s/tuple ::address #{:once-breakpoint :permanent-breakpoint}))
 (s/def ::x-breakpoints (s/map-of ::address ::x-breakpoint))
-(s/def ::cpu (s/keys :req [::registers
-                           ::interrupt-enabled?
-                           ::memory
-                           ::mode
-                           ::x-breakpoints]))
+(s/def ::cpu (s/keys :req-un [::registers
+                              ::interrupt-enabled?
+                              ::memory
+                              ::mode
+                              ::x-breakpoints]))
 
 (s/def ::nibble (s/and integer? #(<= 0 % 0xF)))
 

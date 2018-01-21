@@ -5,7 +5,7 @@
 
 (defn prepare-core-dump [cpu]
   (-> (dissoc cpu :history-chan :debug-chan-rx :debug-chan-tx)
-      (update ::s/memory vec)))
+      (update :memory vec)))
 
 (defn cpu-cycle [cpu]
   {:pre  [(s/cpu? cpu)]

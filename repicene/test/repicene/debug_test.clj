@@ -7,7 +7,8 @@
             [repicene.schema :as s]
             [clojure.core.async :as async]
             [repicene.file-loader :refer [load-rom]]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [repicene.cpu-protocol :as cpu]))
 
 
 
@@ -15,7 +16,7 @@
   (testing "decode"
     (is (= 0x100)
         (->> (decode-from (-> (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb"))
-                              (new-cpu)
+                              (cpu/new-cpu)
                               (pc 0x100))
                           0)
              (take 0x100)
@@ -25,7 +26,7 @@
   ([bp prog]
    (let [{:keys [debug-chan-rx debug-chan-tx] :as cpu}
          (-> (take 0x8000 (cycle (asm/assemble prog)))
-             (new-cpu)
+             (cpu/new-cpu)
              (pc bp)
              (set-breakpoint bp :permanent-breakpoint))
          looping-cpu (async/thread (cpu-loop cpu))]
@@ -68,7 +69,7 @@
       (is (= ::s/step-over (:command (async/<!! rx))))
 
       (async/>!! tx ::s/inspect)
-      (is (= 1 (get-in (async/<!! rx) [:response ::s/registers ::s/PC])))
+      (is (= 1 (get-in (async/<!! rx) [:response :registers :PC])))
 
       (async/>!! tx ::s/step-over)
       (is (= ::s/step-over (:command (async/<!! rx))))
@@ -76,8 +77,8 @@
       (async/>!! tx ::s/inspect)
       (let [cpu (:response (async/<!! rx))]
         (prn cpu)
-        (is (= 2 (get-in cpu [::s/registers ::s/PC])))
-        (is (= [3 :permanent-breakpoint] (get-in cpu [::s/x-breakpoints 0]))
+        (is (= 2 (get-in cpu [:registers :PC])))
+        (is (= [3 :permanent-breakpoint] (get-in cpu [:x-breakpoints 0]))
             "permanent breakpoint is not lost"))
 
       ;; kill the gameboy
@@ -92,7 +93,7 @@
 
       ;; now cpu should respond to command
       (async/>!! tx ::s/step-over)
-      (is (= 1 (get-in (async/<!! rx) [:response ::s/registers ::s/PC])))
+      (is (= 1 (get-in (async/<!! rx) [:response :registers :PC])))
 
       ;; resume
       (async/>!! tx ::s/resume)
@@ -103,7 +104,7 @@
 
       ;;inspect
       (async/>!! tx ::s/inspect)
-      (is (> (get-in (async/<!! rx) [:response ::s/registers ::s/PC]) 1))
+      (is (> (get-in (async/<!! rx) [:response :registers :PC]) 1))
 
       ;; kill the gameboy
       (is (async/>!! tx ::s/kill))
@@ -124,7 +125,7 @@
 
       ;;inspect
       (async/>!! tx ::s/inspect)
-      (is (> (get-in (async/<!! rx) [:response ::s/registers ::s/PC]) 1))
+      (is (> (get-in (async/<!! rx) [:response :registers :PC]) 1))
 
       ;; kill the gameboy
       (is (async/>!! tx ::s/kill))
@@ -140,7 +141,7 @@
       (is (async/>!! tx ::s/ack-break))
 
       (async/>!! tx ::s/step-over)
-      (is (= 3 (get-in (async/<!! rx) [:response ::s/registers ::s/PC])))
+      (is (= 3 (get-in (async/<!! rx) [:response :registers :PC])))
 
       ;; kill the gameboy
       (is (async/>!! tx ::s/kill))
@@ -156,7 +157,7 @@
       (is (async/>!! tx ::s/ack-break))
 
       (async/>!! tx ::s/step-into)
-      (is (= 4 (get-in (async/<!! rx) [:response ::s/registers ::s/PC])))
+      (is (= 4 (get-in (async/<!! rx) [:response :registers :PC])))
 
       ;; kill the gameboy
       (is (async/>!! tx ::s/kill))
@@ -174,12 +175,12 @@
       (is (async/>!! tx ::s/ack-break))
 
       (async/>!! tx ::s/step-into)
-      (is (= 4 (get-in (async/<!! rx) [:response ::s/registers ::s/PC])))
+      (is (= 4 (get-in (async/<!! rx) [:response :registers :PC])))
 
       (async/>!! tx ::s/return)
       (let [cpu (:response (async/<!! rx))]
-        (is (= 3 (get-in cpu [::s/registers ::s/PC])))
-        (is (= 2 (get-in cpu [::s/registers ::s/BC]))))
+        (is (= 3 (get-in cpu [:registers :PC])))
+        (is (= 2 (get-in cpu [:registers :BC]))))
 
       ;; kill the gameboy
       (is (async/>!! tx ::s/kill))

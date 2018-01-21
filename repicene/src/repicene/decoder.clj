@@ -4,7 +4,8 @@
             [clojure.test :refer [is]]
             [repicene.address-alias :as alias]
             [repicene.dada :refer [daa]]
-            [clojure.core.async :as async])
+            [clojure.core.async :as async]
+            [repicene.cpu-protocol :as cpu])
   (:import (java.io Writer)))
 
 (def hex8
@@ -60,17 +61,12 @@
   "Decrement parameter and make it a valid address (mod 0xFFFF)"
   (partial %16+ -1))
 
-(defn word-at
-  ([memory ^long address]
-   {:pre  [(dword? address)]
-    :post [(word? %)]}
-   (aget ^shorts memory address)))
-
 (defn dword-at
-  ([{:keys [::s/memory]} ^long address]
-   {:pre  [(dword? address) (s/memory? memory)]
+  ([cpu ^long address]
+   {:pre  [(s/cpu? cpu) (s/dword? address)]
     :post [(dword? %)]}
-   (cat8 (word-at memory (%16+ 1 address)) (word-at memory address))))          ;; dword are stored little endian
+   (cat8 (cpu/word-at cpu (%16+ 1 address))
+         (cpu/word-at cpu address))))                                           ;; dword are stored little endian
 
 (defn high-word
   "1 arg version : returns the high word composing the unsigned dword
@@ -104,23 +100,19 @@
      (bit-or (bit-and dword 0xFF00) val))))
 
 (defn def-dword-register [register]
-  (with-meta
-    (fn
-      ([cpu]
-       {:pre  [(s/cpu? cpu)]
-        :post [(s/dword? %)]}
-       (-> cpu ::s/registers register))
-      ([{:keys [::s/registers] :as cpu} modifier]
-       {:pre  [(s/cpu? cpu) (or (fn? modifier) (s/dword? modifier))]
-        :post [(s/cpu? %)]}
-       (assoc cpu ::s/registers
-                  (persistent! (assoc! (transient registers)
-                                       register
-                                       (if (fn? modifier)
-                                         (modifier (register registers))
-                                         modifier))))))
-    {:type    :operand
-     :operand (symbol (name register))}))
+  (let [register (keyword (name register))]
+    (with-meta
+      (fn
+        ([cpu]
+         {:pre  [(s/cpu? cpu)]
+          :post [(s/dword? %)]}
+         (cpu/dword-register cpu register))
+        ([cpu modifier]
+         {:pre  [(s/cpu? cpu) (or (fn? modifier) (s/dword? modifier))]
+          :post [(s/cpu? %)]}
+         (cpu/set-dword-register cpu register modifier)))
+      {:type    :operand
+       :operand (symbol (name register))})))
 
 (defn def-word-register [select-word dword-register register-name]
   (with-meta
@@ -188,36 +180,22 @@
 (def nc? (with-meta (complement c?) {:type    :operand
                                      :operand 'nc?}))
 
-(defn io-update
-  [{:keys [serial-sent-chan] :as cpu} ^long address val]
-  {:post [(s/cpu? %)]}
-  (case address
-    0xFF01
-    (do (async/put! serial-sent-chan val)
-        cpu)
-    cpu))
-
-(defn set-word-at [{:keys [::s/memory] :as cpu} address val]
-  {:pre [(dword? address) (word? val)]}
-  (aset ^shorts memory address ^short val)
-  (io-update cpu address val))
-
 (defn set-dword-at [cpu address val]
   {:pre [(dword? address) (dword? val)]}
-  (-> (set-word-at cpu address (low-word val))
-      (set-word-at (inc address) (high-word val))))
+  (-> (cpu/set-word-at cpu address (low-word val))
+      (cpu/set-word-at (inc address) (high-word val))))
 
 (def dword
   (with-meta
     (fn
-      ([{:keys [::s/memory] :as cpu}]
+      ([cpu]
        {:pre  [(s/cpu? cpu)]
         :post [(dword? %)]}
-       (cat8 (word-at memory (%16+ 2 (pc cpu)))
-             (word-at memory (%16+ 1 (pc cpu)))))
+       (cat8 (cpu/word-at cpu (%16+ 2 (pc cpu)))
+             (cpu/word-at cpu (%16+ 1 (pc cpu)))))
       ;; todo this arity is never used (remove)
       ([cpu val]
-       (set-word-at cpu (dword cpu) val)))
+       (cpu/set-word-at cpu (dword cpu) val)))
     {:type    :operand
      :operand 'dword}))
 ;; synonym to make the code more friendly
@@ -225,7 +203,8 @@
 
 (def word
   (with-meta
-    (fn [{:keys [::s/memory] :as cpu}] (word-at memory (%16inc (pc cpu))))
+    (fn [cpu]
+      (cpu/word-at cpu (%16inc (pc cpu))))
     {:type    :operand
      :operand 'word}))
 
@@ -238,30 +217,30 @@
 (def <FF00+n>
   (with-meta
     (fn
-      ([{:keys [::s/memory] :as cpu}]
-       (word-at memory (+ 0xFF00 (word cpu))))
+      ([cpu]
+       (cpu/word-at cpu (+ 0xFF00 (word cpu))))
       ([cpu val]
-       (set-word-at cpu (+ 0xFF00 (word cpu)) val)))
+       (cpu/set-word-at cpu (+ 0xFF00 (word cpu)) val)))
     {:type    :operand
      :operand '<FF00+n>}))
 
 (def <FF00+c>
   (with-meta
     (fn
-      ([{:keys [::s/memory] :as cpu}]
-       (word-at memory (+ 0xFF00 (c cpu))))
+      ([cpu]
+       (cpu/word-at cpu (+ 0xFF00 (c cpu))))
       ([cpu val]
-       (set-word-at cpu (+ 0xFF00 (c cpu)) val)))
+       (cpu/set-word-at cpu (+ 0xFF00 (c cpu)) val)))
     {:type    :operand
      :operand '<FF00+c>}))
 
 (defn register-pointer [dword-register]
   (with-meta
     (fn
-      ([{:keys [::s/memory] :as cpu}]
-       (word-at memory (dword-register cpu)))
+      ([cpu]
+       (cpu/word-at cpu (dword-register cpu)))
       ([cpu val]
-       (set-word-at cpu (dword-register cpu) val)))
+       (cpu/set-word-at cpu (dword-register cpu) val)))
     {:type    :operand
      :operand (symbol (str "<" (:operand (meta dword-register)) ">"))}))
 
@@ -272,10 +251,10 @@
 (def <address>
   (with-meta
     (fn
-      ([{:keys [::s/memory] :as cpu}]
-       (word-at memory (dword cpu)))
+      ([cpu]
+       (cpu/word-at cpu (dword cpu)))
       ([cpu val]
-       (set-word-at cpu (dword cpu) val)))
+       (cpu/set-word-at cpu (dword cpu) val)))
     {:type    :operand
      :operand '<address>}))
 
@@ -283,10 +262,10 @@
 (def always (with-meta (constantly true) {:type    :operand
                                           :operand 'always}))
 
-(defn fetch [{:keys [::s/memory] :as cpu}]
+(defn fetch [cpu]
   {:pre  [(s/cpu? cpu)]
    :post [(not (nil? %))]}
-  (word-at memory (pc cpu)))
+  (cpu/word-at cpu (pc cpu)))
 
 (defprotocol Instr
   (exec [this cpu] "execute this instruction against the cpu")
@@ -615,7 +594,7 @@
 (defrecord Stop []
   Instr
   (exec [this cpu]
-    (-> (assoc cpu ::s/mode ::s/stopped)
+    (-> (assoc cpu :mode ::s/stopped)
         (pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "stop"))
@@ -716,7 +695,7 @@
 
 (defrecord Halt []
   Instr
-  (exec [_ cpu] (assoc cpu ::s/mode ::s/halted))
+  (exec [_ cpu] (assoc cpu :mode ::s/halted))
   (isize [_] 1)
   (print-assembly [_ _] "halt"))
 
@@ -908,12 +887,12 @@
 
 (defrecord Breakpoint []
   Instr
-  (exec [_ {:keys [::s/x-breakpoints] :as cpu}]
+  (exec [_ {:keys [x-breakpoints] :as cpu}]
     (let [current-pc (pc cpu)
           [original _] (get x-breakpoints current-pc)]
       (println "processing breakpoint" current-pc original)
-      (-> (set-word-at cpu current-pc original)
-          (assoc ::s/mode ::s/break))))
+      (-> (cpu/set-word-at cpu current-pc original)
+          (assoc :mode ::s/break))))
   (isize [_] 1)
   (print-assembly [_ _] "bp"))
 

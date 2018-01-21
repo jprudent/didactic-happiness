@@ -1,8 +1,9 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!! >!! poll!]]
-            [repicene.decoder :refer [exec isize print-assembly decoder set-word-at word-at pc sp hex16 dword-at %16+ instruction-at-pc]]
+            [repicene.decoder :refer [exec isize print-assembly decoder  pc sp hex16 dword-at %16+ instruction-at-pc]]
             [repicene.schema :as s]
             [repicene.cpu :as cpu]
+            [repicene.cpu-protocol :as cpu-protocol]
             [repicene.history :as history]))
 
 
@@ -17,26 +18,27 @@
           (s/x-breakpoint? breakpoint)]
    :post [(s/cpu? %)]}
   (println "Set x-breakpoint at " address)
-  (update cpu ::s/x-breakpoints assoc address breakpoint))
+  (update cpu :x-breakpoints assoc address breakpoint))
 
 (defn set-breakpoint
-  [{:keys [::s/memory] :as cpu} address kind]
+  [cpu address kind]
   {:pre  [(s/cpu? cpu) (s/address? address)]
    :post [(s/cpu? cpu)]}
-  (let [original (word-at memory address)]
-    (-> (set-word-at cpu address (breakpoint-opcodes kind))
+  (let [original (cpu-protocol/word-at cpu address)]
+    (println "original" original "op" (breakpoint-opcodes kind ))
+    (-> (cpu-protocol/set-word-at cpu address (breakpoint-opcodes kind))
         (add-x-breakpoint address [original kind]))))                           ;; if memory region is written we override it, todo if we try to read it, we are screwed
 
-(defn remove-breakpoint [{:keys [::s/x-breakpoints] :as cpu}]
+(defn remove-breakpoint [{:keys [x-breakpoints] :as cpu}]
   {:pre  [(s/cpu? cpu) (get x-breakpoints (pc cpu))]
    :post [(s/cpu? cpu)]}
   (let [address (pc cpu)
         [original _] (get x-breakpoints address)]
-    (-> (set-word-at cpu address original)
-        (update ::s/x-breakpoints dissoc address))))
+    (-> (cpu-protocol/set-word-at cpu address original)
+        (update :x-breakpoints dissoc address))))
 
 (defn stop-debugging [cpu]
-  (assoc cpu ::s/mode ::s/running))
+  (assoc cpu :mode ::s/running))
 
 (defn- ->response [command response]
   {:command command :response response})
@@ -52,24 +54,26 @@
       (first command)
       command)))
 
-(defn decode [{:keys [::s/memory] :as cpu} address]
-  (let [instruction (decoder (word-at memory address))]
+(defn decode [cpu address]
+  (let [instruction (nth decoder (cpu-protocol/word-at cpu address))]
     [(print-assembly instruction cpu) (isize instruction)]))
 
 (defn decode-from
   ([cpu] (decode-from cpu (pc cpu)))
-  ([{:keys [::s/memory] :as cpu} address]
+  ([cpu address]
    {:pre [(s/address? address) (s/cpu? cpu)]}
    (lazy-seq
      (let [cpu     (pc cpu address)
            [instr-str size] (decode cpu address)
-           bytes   (map #(word-at memory (+ % (pc cpu))) (range 0 size))
+           bytes   (map (fn [relative-offset]
+                          (cpu-protocol/word-at cpu (%16+ relative-offset (pc cpu))))
+                        (range 0 size))
            next-pc (mod (+ size address) 0x10000)]
        (cons [address bytes instr-str]
              (decode-from cpu next-pc))))))
 
 (defn- debug-view [gameboy]
-  (select-keys gameboy [::s/registers ::s/x-breakpoints]))
+  (select-keys gameboy [:registers :x-breakpoints]))
 
 (defn- memory-dump
   ([cpu start end]
@@ -130,12 +134,12 @@
 
 (defmethod handle-debug-command :add-breakpoint
   [[_ address]]
-  [#(update % ::s/x-breakpoints conj address)
+  [#(update % :x-breakpoints conj address)
    (partial ->debug-view {})])
 
 (defmethod handle-debug-command :remove-breakpoint
   [[_ address]]
-  [#(update % ::s/x-breakpoints disj address)
+  [#(update % :x-breakpoints disj address)
    (partial ->debug-view {})])
 
 (defmethod handle-debug-command ::s/return
@@ -168,7 +172,7 @@
   (>!! ch {:command :break})
   (println "sent :break"))
 
-(defn debugging-loop [{:keys [debug-chan-rx ::s/mode] :as cpu}]
+(defn debugging-loop [{:keys [debug-chan-rx mode] :as cpu}]
   (prn "debugging loop")
   (if (= ::s/debugging mode)
     (->> (<!! debug-chan-rx)
@@ -183,4 +187,4 @@
 
 (defn process-breakpoint [cpu]
   (wait-ack cpu)
-  (debugging-loop (assoc cpu ::s/mode ::s/debugging)))
+  (debugging-loop (assoc cpu :mode ::s/debugging)))
