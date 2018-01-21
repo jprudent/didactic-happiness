@@ -26,7 +26,12 @@
     cpu))
 
 
-(defrecord Cpu [registers
+(defrecord Cpu [^int AF
+                ^int BC
+                ^int DE
+                ^int HL
+                ^int SP
+                ^int PC
                 interrupt-enabled?
                 memory
                 mode
@@ -38,12 +43,12 @@
                 serial-sent-chan]
   UpdatableCpu
   (set-dword-register [this register modifier]
-    (assoc this :registers
-                (persistent! (assoc! (transient registers) register
-                                     (if (fn? modifier) (modifier (register registers)) modifier)))))
+    (if (fn? modifier)
+      (update this register modifier)
+      (assoc this register modifier)))
 
-  (dword-register [_ register]
-    (register registers))
+  (dword-register [this register]
+    (get this register))
 
   (set-word-at [this address word]
     (-> (assoc this :memory (assoc memory address word))
@@ -58,12 +63,12 @@
 
 (defn new-cpu [rom]
   {:pre [(= 0x8000 (count rom))]}
-  (map->Cpu {:registers          {:AF 0
-                                  :BC 0
-                                  :DE 0
-                                  :HL 0
-                                  :SP 0
-                                  :PC 0}
+  (map->Cpu {:AF                 (int 0)
+             :BC                 (int 0)
+             :DE                 (int 0)
+             :HL                 (int 0)
+             :SP                 (int 0)
+             :PC                 (int 0)
              :interrupt-enabled? true
              :memory             (vec (concat rom                               ;; rom
                                               (repeat 0x2000 cell)              ;; vram
