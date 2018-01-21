@@ -8,7 +8,10 @@
   (set-word-at [this address val])
   (word-at [this address])
   (set-dword-register [this register word])
-  (dword-register [this register]))
+  (dword-register [this register])
+  (halted? [this])
+  (break? [this])
+  (running? [this]))
 
 (defrecord Registers [AF BC DE HL SP PC])
 
@@ -27,7 +30,7 @@
                 interrupt-enabled?
                 memory
                 mode
-                clock
+                ^long clock
                 x-breakpoints
                 debug-chan-rx
                 debug-chan-tx
@@ -47,7 +50,11 @@
         (io-update address word)))
 
   (word-at [_ address]
-    (nth memory address)))
+    (nth memory address))
+
+  (halted? [_] (= ::s/halted mode))
+  (break? [_] (= ::s/break mode))
+  (running? [_] (= ::s/running mode)))
 
 (defn new-cpu [rom]
   {:pre [(= 0x8000 (count rom))]}

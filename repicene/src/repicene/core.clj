@@ -7,18 +7,13 @@
             [repicene.cpu :refer [cpu-cycle]]
             [repicene.cpu-protocol :as cpu]))
 
-(defn halted? [{:keys [mode]}] (= ::s/halted mode))
-(defn break? [{:keys [mode]}] (= ::s/break mode))
-(defn running? [{:keys [mode]}] (= ::s/running mode))
-
-
-(defn cpu-loop [{:keys [debug-chan-rx] :as cpu}]
+(defn cpu-loop [{:keys [debug-chan-rx clock] :as cpu}]
   {:pre [(s/cpu? cpu)]}
-  (let [command (poll! debug-chan-rx)]
+  (let [command (when (= 0xFFFF (bit-and clock 0xFFFF)) (poll! debug-chan-rx))]
     (cond command (do (println "cmd") (recur (process-debug-command cpu command)))
-          (running? cpu) (recur (cpu-cycle cpu))
-          (halted? cpu) cpu
-          (break? cpu) (do (println "brk") (recur (process-breakpoint cpu))))))
+          (cpu/running? cpu) (recur (cpu-cycle cpu))
+          (cpu/halted? cpu) cpu
+          (cpu/break? cpu) (do (println "brk") (recur (process-breakpoint cpu))))))
 
 (defn demo-gameboy
   ([]

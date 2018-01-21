@@ -11,8 +11,8 @@
   {:pre  [(s/cpu? cpu)]
    :post [(s/cpu? cpu)]}
   (try
-    (history/save! cpu)
-    (exec (instruction-at-pc cpu) cpu)
+    (-> (exec (instruction-at-pc cpu) cpu)
+        (update :clock inc))
     (catch Exception e
       (let [filename (str "coredump" (System/nanoTime))]
         (spit filename (prn-str (prepare-core-dump cpu)))
