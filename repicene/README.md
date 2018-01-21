@@ -185,9 +185,10 @@ Evaluation count : 9983316 in 6 samples of 1663886 calls.
 => ni
 ```
 
+#### Use protocols and records
 
-
-
+Use them early. It helps to structure your program. It helps with
+SOLID principles. They are faster than pure data structures.
 
 
 ## TODO 
@@ -201,5 +202,9 @@ Evaluation count : 9983316 in 6 samples of 1663886 calls.
 - all address arithmetic should be done modulo 0xFFFF
 - double check instruction size
 
+## Tracklist
 
+Music that helped :
+
+- Stephan Bodzin & Marc Romboy - Kerberos 
 
