@@ -34,39 +34,39 @@
                 serial-sent-chan]
   UpdatableCpu
   (set-dword-register [this register modifier]
-    (update this :registers
-            assoc register
-            (if (fn? modifier) (modifier (register registers)) modifier)))
+    (assoc this :registers
+                (persistent! (assoc! (transient registers) register
+                                     (if (fn? modifier) (modifier (register registers)) modifier)))))
 
   (dword-register [_ register]
     (register registers))
 
   (set-word-at [this address word]
-    (aset ^shorts memory address ^short word)
-    (io-update this address word))
+    (-> (assoc this :memory (assoc memory address word))
+        (io-update address word)))
 
   (word-at [_ address]
-    (aget ^shorts memory address)))
+    (nth memory address)))
 
 (defn new-cpu [rom]
   {:pre [(= 0x8000 (count rom))]}
-  (map->Cpu {:registers          (map->Registers {:AF 0
-                                                  :BC 0
-                                                  :DE 0
-                                                  :HL 0
-                                                  :SP 0
-                                                  :PC 0})
+  (map->Cpu {:registers          {:AF 0
+                                  :BC 0
+                                  :DE 0
+                                  :HL 0
+                                  :SP 0
+                                  :PC 0}
              :interrupt-enabled? true
-             :memory             (short-array (concat rom                       ;; rom
-                                                      (repeat 0x2000 cell)      ;; vram
-                                                      (repeat 0x2000 cell)      ;; ext-ram
-                                                      (repeat 0x1000 cell)      ;; wram-0
-                                                      (repeat 0x1000 cell)      ;; wram-1
-                                                      (repeat 0x1E00 cell)      ;; echo
-                                                      (repeat 0x00A0 cell)      ;; oam-ram
-                                                      (repeat 0x0060 cell)      ;; unusable
-                                                      (repeat 0x0080 cell)      ;; io
-                                                      (repeat 0x0080 cell)))    ;; hram
+             :memory             (vec (concat rom                               ;; rom
+                                              (repeat 0x2000 cell)              ;; vram
+                                              (repeat 0x2000 cell)              ;; ext-ram
+                                              (repeat 0x1000 cell)              ;; wram-0
+                                              (repeat 0x1000 cell)              ;; wram-1
+                                              (repeat 0x1E00 cell)              ;; echo
+                                              (repeat 0x00A0 cell)              ;; oam-ram
+                                              (repeat 0x0060 cell)              ;; unusable
+                                              (repeat 0x0080 cell)              ;; io
+                                              (repeat 0x0080 cell)))            ;; hram
              :mode               ::s/running
              :debug-chan-rx      (async/chan)
              :debug-chan-tx      (async/chan)
