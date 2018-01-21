@@ -27,6 +27,7 @@
                 interrupt-enabled?
                 memory
                 mode
+                clock
                 x-breakpoints
                 debug-chan-rx
                 debug-chan-tx
@@ -68,6 +69,7 @@
                                               (repeat 0x0080 cell)              ;; io
                                               (repeat 0x0080 cell)))            ;; hram
              :mode               ::s/running
+             :clock              0
              :debug-chan-rx      (async/chan)
              :debug-chan-tx      (async/chan)
              :history-chan       (async/chan (async/sliding-buffer 100))

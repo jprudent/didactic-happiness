@@ -1,10 +1,11 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!! >!! poll!]]
-            [repicene.decoder :refer [exec isize print-assembly decoder  pc sp hex16 dword-at %16+ instruction-at-pc]]
+            [repicene.decoder :refer [exec isize print-assembly decoder pc sp hex16 dword-at %16+ instruction-at-pc]]
             [repicene.schema :as s]
             [repicene.cpu :as cpu]
             [repicene.cpu-protocol :as cpu-protocol]
-            [repicene.history :as history]))
+            [repicene.history :as history]
+            [clojure.core.async :as async]))
 
 
 
@@ -96,9 +97,12 @@
 
 (defmethod handle-debug-command ::s/kill
   [_]
-  (throw (ex-info "killing the machine"
-                  {:command _
-                   :signal  :kill})))
+  [(fn [{:keys [history-chan debug-chan-rx debug-chan-tx ] :as cpu}]
+     (throw (ex-info "killing the machine"
+                       {:command _
+                        :clock (:clock cpu)
+                        :signal  :kill})))
+   identity])
 
 (defmethod handle-debug-command ::s/resume
   [_]

@@ -35,7 +35,7 @@
     (println "killing the gameboy")
     (async/put! (:debug-chan-rx cpu) ::s/kill)
     (println "wait kill")
-    (async/<!! looping-cpu)
+    (println (ex-data (async/<!! looping-cpu)))
     serial-or-nil))
 
 (def blank (-> (take 0x8000 (repeat 0))
