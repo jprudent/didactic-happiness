@@ -190,6 +190,11 @@ Evaluation count : 9983316 in 6 samples of 1663886 calls.
 Use them early. It helps to structure your program. It helps with
 SOLID principles. They are faster than pure data structures.
 
+#### unchecked math 
+
+(set! *unchecked-math* true) will boost all arithmetic operations
+
+
 
 ## TODO 
 

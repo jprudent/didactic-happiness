@@ -15,6 +15,7 @@
 
 #_(do (require '[clojure.tools.namespace.repl :refer [refresh refresh-all]])
       (set! *assert* false)
+      (set! *unchecked-math* true)
       (refresh-all))
 
 (defn test-rom
@@ -34,7 +35,7 @@
     (println "killing the gameboy")
     (async/put! (:debug-chan-rx cpu) ::s/kill)
     (println "wait kill")
-    (async/alts!! [looping-cpu (async/timeout 1000)])
+    (async/<!! looping-cpu)
     serial-or-nil))
 
 (def blank (-> (take 0x8000 (repeat 0))
