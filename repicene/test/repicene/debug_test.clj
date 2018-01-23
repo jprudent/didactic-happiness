@@ -17,7 +17,7 @@
     (is (= 0x100)
         (->> (decode-from (-> (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb"))
                               (cpu/new-cpu)
-                              (pc 0x100))
+                              (cpu/set-pc 0x100))
                           0)
              (take 0x100)
              (count)))))
@@ -27,7 +27,7 @@
    (let [{:keys [debug-chan-rx debug-chan-tx] :as cpu}
          (-> (take 0x8000 (cycle (asm/assemble prog)))
              (cpu/new-cpu)
-             (pc bp)
+             (cpu/set-pc bp)
              (set-breakpoint bp :permanent-breakpoint))
          looping-cpu (async/thread (cpu-loop cpu))]
      [looping-cpu debug-chan-rx debug-chan-tx]))

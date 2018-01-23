@@ -24,17 +24,17 @@
   {:added "1.0"}
   [expr]
   `(let [start# (. System (nanoTime))
-         ret# ~expr
-         stop# (/ (double (- (. System (nanoTime)) start#)) 1000000.0)]
-     (prn (str "Elapsed time: " stop# " msecs"))
+         ret#   ~expr
+         stop#  (/ (double (- (. System (nanoTime)) start#)) 1000000.0)]
      (assoc ret# :perf stop#)))
 
 (deftest bench
   (testing "nop"
-    (let [cpu (instr-pg "nop")]
-      (dotimes [x 100]
-        (let [{:keys [perf clock]} (my-time (core/cpu-loop cpu))
-              instr-per-second (/ (* 1000 clock) perf)]
-          (println clock "instructions")
-          (println "in" perf "ms")
-          (println "so," instr-per-second "instructions/s"))))))
+    (let [cpu   (instr-pg "nop")
+          stats (for [x (range 500)]
+                  (let [{:keys [perf clock]} (my-time (core/cpu-loop cpu))
+                        instr-per-second (/ (* 1000 clock) perf)]
+                    [perf clock instr-per-second]))]
+      (println "mean"
+               (/ (apply + (map #(nth % 2) stats)) (count stats))
+               "instructions per second"))))

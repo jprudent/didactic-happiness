@@ -25,7 +25,7 @@
   [path seconds]
   (let [cpu           (-> (vec (take 0x8000 (file-loader/load-rom path)))
                           (cpu/new-cpu)
-                          (decoder/pc 0x100))
+                          (cpu/set-pc 0x100))
         serial-output (async/go-loop [buffer ""]
                         (if (str/ends-with? buffer "Passed\n")
                           buffer

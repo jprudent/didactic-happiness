@@ -194,7 +194,17 @@ SOLID principles. They are faster than pure data structures.
 
 (set! *unchecked-math* true) will boost all arithmetic operations
 
+#### Tuning the memory
 
+Give enough heap to avoid Full GC. Start with heap at max.
+
+#### Use a profiler
+
+I use JMC
+
+#### Destructuration 
+
+destructuration of function is not free !!!
 
 ## TODO 
 

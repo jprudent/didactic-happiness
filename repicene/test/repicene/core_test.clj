@@ -65,20 +65,20 @@
     (testing "jr r8 (positive)"
       (let [cpu (-> (compile-prog [["jr 0x04", 0x04]])
                     (cpu/new-cpu))]
-        (is (= 0x06 (pc (cpu-cycle cpu))))))
+        (is (= 0x06 (cpu/get-pc (cpu-cycle cpu))))))
     (testing "jr r8 (negative)"
       (let [cpu (-> (compile-prog [["jr 0xFE", 0xFE]])
                     (cpu/new-cpu))]
-        (is (= 0x00 (pc (cpu-cycle cpu))))))
+        (is (= 0x00 (cpu/get-pc (cpu-cycle cpu))))))
     (testing "call ret"
       (let [cpu (-> (compile-prog ["call 0x0004"
                               "nop"
                               "ret"])
                     (cpu/new-cpu))]
-        (is (= 0x00 (pc cpu)))
-        (is (= 0x04 (pc (cpu-cycle cpu)))
+        (is (= 0x00 (cpu/get-pc cpu)))
+        (is (= 0x04 (cpu/get-pc (cpu-cycle cpu)))
             "call 0x0004 jumps to ret instruction")
-        (is (= 0x03 (pc (cpu-cycle (cpu-cycle cpu))))
+        (is (= 0x03 (cpu/get-pc (cpu-cycle (cpu-cycle cpu))))
             "ret jumps back to the nop right after call")))
     (testing "push hl"
       (let [cpu (-> (compile-prog ["push hl"])
@@ -122,7 +122,7 @@
   (testing "back in history"
     (let [cpu0 (-> (take 0x8000 (load-rom "roms/cpu_instrs/cpu_instrs.gb"))
                    (cpu/new-cpu)
-                   (pc 0x100))
+                   (cpu/set-pc 0x100))
           cpu1 (cpu-cycle cpu0)
           cpu2 (cpu-cycle cpu1)]
       (is (= cpu1 (history/restore! cpu2)))

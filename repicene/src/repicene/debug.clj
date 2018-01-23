@@ -1,11 +1,11 @@
 (ns repicene.debug
   (:require [clojure.core.async :refer [go >! <!! >!! poll!]]
-            [repicene.decoder :refer [exec isize print-assembly decoder pc sp hex16 dword-at %16+ instruction-at-pc]]
+            [repicene.decoder :refer [exec isize print-assembly decoder sp hex16 dword-at %16+ instruction-at-pc]]
             [repicene.schema :as s]
-            [repicene.cpu :as cpu]
+            [repicene.cpu :as cycle]
             [repicene.cpu-protocol :as cpu-protocol]
             [repicene.history :as history]
-            [clojure.core.async :as async]))
+            [repicene.cpu-protocol :as cpu]))
 
 
 
@@ -31,9 +31,9 @@
         (add-x-breakpoint address [original kind]))))                           ;; if memory region is written we override it, todo if we try to read it, we are screwed
 
 (defn remove-breakpoint [{:keys [x-breakpoints] :as cpu}]
-  {:pre  [(s/cpu? cpu) (get x-breakpoints (pc cpu))]
+  {:pre  [(s/cpu? cpu) (get x-breakpoints (cpu/get-pc cpu))]
    :post [(s/cpu? cpu)]}
-  (let [address (pc cpu)
+  (let [address (cpu/get-pc cpu)
         [original _] (get x-breakpoints address)]
     (-> (cpu-protocol/set-word-at cpu address original)
         (update :x-breakpoints dissoc address))))
@@ -60,14 +60,14 @@
     [(print-assembly instruction cpu) (isize instruction)]))
 
 (defn decode-from
-  ([cpu] (decode-from cpu (pc cpu)))
+  ([cpu] (decode-from cpu (cpu/get-pc cpu)))
   ([cpu address]
    {:pre [(s/address? address) (s/cpu? cpu)]}
    (lazy-seq
-     (let [cpu     (pc cpu address)
+     (let [cpu     (cpu/set-pc cpu address)
            [instr-str size] (decode cpu address)
            bytes   (map (fn [relative-offset]
-                          (cpu-protocol/word-at cpu (%16+ relative-offset (pc cpu))))
+                          (cpu-protocol/word-at cpu (%16+ relative-offset (cpu/get-pc cpu))))
                         (range 0 size))
            next-pc (mod (+ size address) 0x10000)]
        (cons [address bytes instr-str]
@@ -111,7 +111,7 @@
 
 (defmethod handle-debug-command ::s/step-into
   [_]
-  [cpu/cpu-cycle
+  [cycle/cpu-cycle
    (partial ->debug-view {})])
 
 (defmethod handle-debug-command :back-step
@@ -121,17 +121,17 @@
 (defn call? [instr] (= "Call" (.getSimpleName (class instr))))
 
 (defn run-at [cpu target-pc]
-  (if (= target-pc (pc cpu))
+  (if (= target-pc (cpu/get-pc cpu))
     cpu
-    (recur (cpu/cpu-cycle cpu) target-pc)))
+    (recur (cycle/cpu-cycle cpu) target-pc)))
 
 (defmethod handle-debug-command ::s/step-over
   [_]
   [(fn [cpu]
      (let [instruction (instruction-at-pc cpu)
            next-pc     (if (call? instruction)
-                         (%16+ (pc cpu) (isize instruction))
-                         (pc (exec instruction cpu)))]
+                         (%16+ (cpu/get-pc cpu) (isize instruction))
+                         (cpu/get-pc (exec instruction cpu)))]
        (println "Running at" next-pc)
        (run-at cpu next-pc)))
    (partial ->debug-view {})])

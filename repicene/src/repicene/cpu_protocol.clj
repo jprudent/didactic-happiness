@@ -11,7 +11,10 @@
   (dword-register [this register])
   (halted? [this])
   (break? [this])
-  (running? [this]))
+  (running? [this])
+  (get-pc [this])
+  (update-pc [this f])
+  (set-pc [this v]))
 
 (defrecord Registers [AF BC DE HL SP PC])
 
@@ -59,7 +62,11 @@
 
   (halted? [_] (= ::s/halted mode))
   (break? [_] (= ::s/break mode))
-  (running? [_] (= ::s/running mode)))
+  (running? [_] (= ::s/running mode))
+
+  (get-pc [_] PC)
+  (update-pc [this f] (update this :PC f))
+  (set-pc [this v] (assoc this :PC v)))
 
 (defn new-cpu [rom]
   {:pre [(= 0x8000 (count rom))]}

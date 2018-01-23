@@ -191,8 +191,9 @@
       ([cpu]
        {:pre  [(s/cpu? cpu)]
         :post [(dword? %)]}
-       (cat8 (cpu/word-at cpu (%16+ 2 (pc cpu)))
-             (cpu/word-at cpu (%16+ 1 (pc cpu)))))
+       (let [pc (cpu/get-pc cpu)]
+         (cat8 (cpu/word-at cpu (%16+ 2 pc))
+               (cpu/word-at cpu (%16+ 1 pc)))))
       ;; todo this arity is never used (remove)
       ([cpu val]
        (cpu/set-word-at cpu (dword cpu) val)))
@@ -204,7 +205,7 @@
 (def word
   (with-meta
     (fn [cpu]
-      (cpu/word-at cpu (%16inc (pc cpu))))
+      (cpu/word-at cpu (%16inc (cpu/get-pc cpu))))
     {:type    :operand
      :operand 'word}))
 
@@ -265,7 +266,7 @@
 (defn fetch [cpu]
   {:pre  [(s/cpu? cpu)]
    :post [(not (nil? %))]}
-  (cpu/word-at cpu (pc cpu)))
+  (cpu/word-at cpu (cpu/get-pc cpu)))
 
 (defprotocol Instr
   (exec [this cpu] "execute this instruction against the cpu")
@@ -297,7 +298,7 @@
         (n? false)
         (h? false)
         (c? (bit-test x 7))
-        (pc (partial %16+ size)))))
+        (cpu/update-pc (partial %16+ size)))))
 
 (defrecord Rlc [word-register]
   Instr
@@ -313,7 +314,7 @@
         (n? false)
         (h? false)
         (c? (bit-test x 0))
-        (pc (partial %16+ size)))))
+        (cpu/update-pc (partial %16+ size)))))
 
 ;; rotate right, Old bit 7 to Carry flag.
 (defrecord Rrc [word-register]
@@ -331,7 +332,7 @@
         (n? false)
         (h? false)
         (c? (bit-test value 7))
-        (pc (partial %16+ size)))))
+        (cpu/update-pc (partial %16+ size)))))
 
 ;; rotate left through carry flag
 (defrecord Rl [word-register]
@@ -349,7 +350,7 @@
         (n? false)
         (h? false)
         (c? (bit-test value 0))
-        (pc (partial %16+ size)))))
+        (cpu/update-pc (partial %16+ size)))))
 
 ;; rotate right through carry flag
 (defrecord Rr [word-register]
@@ -370,7 +371,7 @@
           (n? false)
           (h? false)
           (c? (bit-test value 0))
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _] (str "sra " (:operand (meta word-register)))))
 
@@ -384,7 +385,7 @@
           (n? false)
           (h? false)
           (c? (bit-test value 7))
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _] (str "sla " (:operand (meta word-register)))))
 
@@ -416,7 +417,7 @@
           (n? false)
           (h? false)
           (c? false)
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _] (str "swap " (:operand (meta word-register)))))
 
@@ -430,7 +431,7 @@
           (n? false)
           (h? false)
           (c? (bit-test value 0))
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _] (str "srl " (:operand (meta word-register)))))
 
@@ -442,7 +443,7 @@
       (-> (z? cpu result)
           (n? false)
           (h? true)
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _]
     (str "bit " position " " (:operand (meta word-register)))))
@@ -451,7 +452,7 @@
   Instr
   (exec [this cpu]
     (-> (word-register cpu #(bit-clear % position))
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _]
     (str "res " position " " (:operand (meta word-register)))))
@@ -460,7 +461,7 @@
   Instr
   (exec [this cpu]
     (-> (word-register cpu #(bit-set % position))
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _]
     (str "set " position " " (:operand (meta word-register)))))
@@ -502,7 +503,7 @@
 (defrecord Nop []
   Instr
   (exec [_ cpu]
-    (pc cpu %16inc))
+    (cpu/update-pc cpu %16inc))
   (isize [_] 1)
   (print-assembly [_ _]
     "nop"))
@@ -511,7 +512,7 @@
   Instr
   (exec [this cpu]
     (-> (destination cpu (source cpu))
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] size)
   (print-assembly [_ cpu]
     (str "ld "
@@ -523,7 +524,7 @@
   Instr
   (exec [this cpu]
     (-> (dword-register cpu %16inc)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] (str "inc " (:operand (meta dword-register)))))
 
@@ -531,7 +532,7 @@
   Instr
   (exec [this cpu]
     (-> (dword-register cpu (%16dec (dword-register cpu)))
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _]
     (str "dec " (:operand (meta dword-register)))))
@@ -545,7 +546,7 @@
           (z? (zero? result))
           (n? false)
           (h? (> (inc (low-nibble value)) 0xF))
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _] (str "inc " (:operand (meta word-register)))))
 
@@ -558,7 +559,7 @@
           (z? (zero? result))
           (n? true)
           (h? (> (dec (low-nibble value)) 0xF))
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _] (str "dec " (:operand (meta word-register)))))
 
@@ -579,7 +580,7 @@
           (n? false)
           (h? (> (+ (bit-and x 0x0FFF) (bit-and y 0x0FFF)) 0xFFF))
           (c? (> (+ x y) 0xFFFF))
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _] (str "add hl " (:operand (meta source)))))
 
@@ -595,7 +596,7 @@
   Instr
   (exec [this cpu]
     (-> (assoc cpu :mode ::s/stopped)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "stop"))
 
@@ -604,7 +605,7 @@
   (exec [this cpu]
     (-> (rl cpu a 1)
         (z? false)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "rla"))
 
@@ -615,7 +616,7 @@
                             (two-complement (relative-address cpu))
                             0)
           relative-offset (%16+ (isize this) jump)]
-      (pc cpu (partial %16+ relative-offset))))
+      (cpu/update-pc cpu (partial %16+ relative-offset))))
   (isize [_] 2)
   (print-assembly [_ cpu]
     (str "jr " (:operand (meta cond)) " " (relative-address cpu))))
@@ -633,7 +634,7 @@
   (exec [this cpu]
     (-> (destination cpu (source cpu))
         (hl %16inc)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ cpu]
     (str "ldi "
@@ -645,7 +646,7 @@
   Instr
   (exec [this cpu]
     (-> (af cpu daa)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "daa"))
 
@@ -655,7 +656,7 @@
     (-> (a cpu (partial bit-xor 0xFF))                                          ;; todo unsure of implem
         (n? true)
         (h? true)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "cpl"))
 
@@ -664,7 +665,7 @@
   (exec [this cpu]
     (-> (destination cpu (source cpu))
         (hl %16dec)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ cpu]
     (str "ldd "
@@ -679,7 +680,7 @@
         (n? false)
         (h? false)
         (c? true)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "scf"))
 
@@ -689,7 +690,7 @@
     (-> (n? cpu false)
         (h? false)
         (c? (not (c? cpu)))
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "ccf"))
 
@@ -707,7 +708,7 @@
         (n? false)
         (h? (> (+ (low-nibble y) (low-nibble x)) 0xF))
         (c? (> (+ x y) 0xFF))
-        (pc (partial %16+ size)))))
+        (cpu/update-pc (partial %16+ size)))))
 
 (defrecord Add [source size]
   Instr
@@ -735,7 +736,7 @@
   Instr
   (exec [this cpu]
     (-> (sub-a cpu source)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] size)
   (print-assembly [_ _] (str "sub " (:operand (meta source)))))
 
@@ -743,7 +744,7 @@
   Instr
   (exec [this cpu]
     (-> (sub-a cpu (fn [cpu] (%8+ (source cpu) (bool->int (c? cpu)))))
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] size)
   (print-assembly [_ _] (str "sbc " (:operand (meta source)))))
 
@@ -756,7 +757,7 @@
           (n? false)
           (h? true)
           (c? false)
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] size)
   (print-assembly [_ _] (str "and " (:operand (meta source)))))
 
@@ -769,7 +770,7 @@
           (n? false)
           (h? false)
           (c? false)
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] size)
   (print-assembly [_ _] (str "xor " (:operand (meta source)))))
 
@@ -782,7 +783,7 @@
           (n? false)
           (h? false)
           (c? false)
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] size)
   (print-assembly [_ _] (str "or " (:operand (meta source)))))
 
@@ -791,7 +792,7 @@
   (exec [this cpu]
     (-> (sub-a cpu source)
         (a (a cpu))                                                             ;;restore a register (throw away the result)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] size)
   (print-assembly [_ _] (str "cp " (:operand (meta source)))))
 
@@ -806,8 +807,8 @@
   (exec [this cpu]
     (if (cond cpu)
       (let [[return-address cpu] (pop-sp cpu)]
-        (pc cpu return-address))
-      (pc cpu (partial %16+ (isize this)))))
+        (cpu/set-pc cpu return-address))
+      (cpu/update-pc cpu (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] (str "ret " (:operand (meta cond)))))
 
@@ -815,7 +816,7 @@
   Instr
   (exec [_ cpu]
     (let [[return-address cpu] (pop-sp cpu)]
-      (pc cpu return-address)))
+      (cpu/set-pc cpu return-address)))
   (isize [_] 1)
   (print-assembly [_ _] "reti"))
 
@@ -824,7 +825,7 @@
   (exec [this cpu]
     (let [[dword cpu] (pop-sp cpu)]
       (-> (dword-register cpu dword)
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
   (print-assembly [_ _]
     (str "pop " (:operand (meta dword-register)))))
@@ -840,7 +841,7 @@
   Instr
   (exec [this cpu]
     (-> (push-sp cpu (dword-register cpu))
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] (str "push " (:operand (meta dword-register)))))
 
@@ -848,17 +849,17 @@
   Instr
   (exec [_ cpu]
     (if (cond cpu)
-      (pc cpu (address cpu))
-      (pc cpu (partial + size))))
+      (cpu/set-pc cpu (address cpu))
+      (cpu/update-pc cpu (partial + size))))
   (isize [_] size)
   (print-assembly [_ cpu] (str "jp " (hex16 (address cpu)))))
 
 (defn- call [cpu cond address size]
-  (let [next-pc (+ size (pc cpu))]
+  (let [next-pc (+ size (cpu/get-pc cpu))]
     (if (cond cpu)
       (-> (push-sp cpu next-pc)
-          (pc address))
-      (pc cpu next-pc))))
+          (cpu/set-pc address))
+      (cpu/set-pc cpu next-pc))))
 
 
 (defrecord Call [cond address]
@@ -880,7 +881,7 @@
   Instr
   (exec [this cpu]
     (-> (exec (nth extra-decoder (word cpu)) cpu)                               ;; we don't care if pc is not set correctly when calling exec because extra only needs registers (except pc!) and memory pointer
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)                                                                 ;; given that all extra instructions have a size of 1
   (print-assembly [_ cpu]
     (print-assembly (extra-decoder (word cpu)) cpu)))
@@ -888,7 +889,7 @@
 (defrecord Breakpoint []
   Instr
   (exec [_ {:keys [x-breakpoints] :as cpu}]
-    (let [current-pc (pc cpu)
+    (let [current-pc (cpu/get-pc cpu)
           [original _] (get x-breakpoints current-pc)]
       (println "processing breakpoint" current-pc original)
       (-> (cpu/set-word-at cpu current-pc original)
@@ -912,7 +913,7 @@
           (n? false)
           (h? (> (+ (low-nibble y) (low-nibble x)) 0xF))
           (c? (> (+ (low-word x) y) 0xFF))
-          (pc (partial %16+ (isize this))))))
+          (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 2)
   (print-assembly [_ cpu] (str "add sp " (word cpu))))
 
@@ -920,7 +921,7 @@
   Instr
   (exec [this cpu]
     (-> (assoc cpu :interrupt-enabled? false)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "di"))
 
@@ -928,7 +929,7 @@
   Instr
   (exec [this cpu]
     (-> (assoc cpu :interrupt-enabled? true)
-        (pc (partial %16+ (isize this)))))
+        (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "ei"))
 
