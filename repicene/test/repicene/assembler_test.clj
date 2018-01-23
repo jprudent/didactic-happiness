@@ -14,5 +14,7 @@
 
   (is (= [0x03] (assemble "inc bc")))
 
+  (is (= [0x76] (assemble "halt")))
+
   (is (= [0xC9] (assemble "ret")))
   (is (= [0xCD 0X00 0x01] (assemble "call 256"))))

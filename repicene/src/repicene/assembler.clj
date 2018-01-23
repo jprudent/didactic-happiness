@@ -28,6 +28,9 @@
     (= "inc bc" assembly)
     [0x03]
 
+    (= "halt" assembly)
+    [0x76]
+
     (= "ret" assembly)
     [0xC9]
 
