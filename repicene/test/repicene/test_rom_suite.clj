@@ -2,12 +2,10 @@
   (:require [clojure.test :refer :all]
             [repicene.schema :as s]
             [repicene.file-loader :as file-loader]
-            [repicene.decoder :as decoder]
             [repicene.core :as repicene]
             [clojure.core.async :as async]
             [clojure.core.async :as async]
             [clojure.string :as str]
-            [criterium.core :as criterium]
             [repicene.cpu-protocol :as cpu]))
 
 

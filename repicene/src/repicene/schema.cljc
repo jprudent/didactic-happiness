@@ -1,7 +1,6 @@
 (ns repicene.schema
   (:require [clojure.spec :as s]))
 
-(declare valid?)
 (defn validate [spec]
   (fn [v]
     (if (s/valid? spec v)

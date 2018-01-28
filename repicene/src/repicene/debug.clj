@@ -7,8 +7,6 @@
             [repicene.history :as history]
             [repicene.cpu-protocol :as cpu]))
 
-
-
 (def breakpoint-opcodes
   {:permanent-breakpoint 0xD3
    :once-breakpoint      0xE3})

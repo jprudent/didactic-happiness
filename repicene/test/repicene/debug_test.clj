@@ -69,7 +69,7 @@
       (is (= ::s/step-over (:command (async/<!! rx))))
 
       (async/>!! tx ::s/inspect)
-      (is (= 1 (get-in (async/<!! rx) [:response :registers :PC])))
+      (is (= 1 (get-in (async/<!! rx) [:response :PC])))
 
       (async/>!! tx ::s/step-over)
       (is (= ::s/step-over (:command (async/<!! rx))))
@@ -77,7 +77,7 @@
       (async/>!! tx ::s/inspect)
       (let [cpu (:response (async/<!! rx))]
         (prn cpu)
-        (is (= 2 (get-in cpu [:registers :PC])))
+        (is (= 2 (get-in cpu [:PC])))
         (is (= [3 :permanent-breakpoint] (get-in cpu [:x-breakpoints 0]))
             "permanent breakpoint is not lost"))
 
@@ -93,7 +93,7 @@
 
       ;; now cpu should respond to command
       (async/>!! tx ::s/step-over)
-      (is (= 1 (get-in (async/<!! rx) [:response :registers :PC])))
+      (is (= 1 (get-in (async/<!! rx) [:response :PC])))
 
       ;; resume
       (async/>!! tx ::s/resume)

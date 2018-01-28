@@ -2,11 +2,8 @@
   (:require [repicene.schema :as s :refer [dword? word?]]
             [repicene.bits :refer [two-complement]]
             [clojure.test :refer [is]]
-            [repicene.address-alias :as alias]
             [repicene.dada :refer [daa]]
-            [clojure.core.async :as async]
-            [repicene.cpu-protocol :as cpu])
-  (:import (java.io Writer)))
+            [repicene.cpu-protocol :as cpu]))
 
 (def hex8
   "Transform a word to it's hexadecimal string representation"
@@ -99,82 +96,79 @@
          val   (int val)]
      (bit-or (bit-and dword 0xFF00) val))))
 
-(defn def-dword-register [register]
-  (let [register (keyword (name register))]
-    (with-meta
-      (fn
-        ([cpu]
-         {:pre  [(s/cpu? cpu)]
-          :post [(s/dword? %)]}
-         (cpu/dword-register cpu register))
-        ([cpu modifier]
-         {:pre  [(s/cpu? cpu) (or (fn? modifier) (s/dword? modifier))]
-          :post [(s/cpu? %)]}
-         (cpu/set-dword-register cpu register modifier)))
-      {:type    :operand
-       :operand (symbol (name register))})))
+(defprotocol SourceOperand
+  (get-source [this cpu]))
 
-(defn def-word-register [select-word dword-register register-name]
-  (with-meta
-    (fn
-      ([cpu]
-       (select-word (dword-register cpu)))
-      ([cpu val]
-       (dword-register cpu (select-word (dword-register cpu) val))))
-    {:type    :operand
-     :operand register-name}))
+(defprotocol DestOperand
+  (set-dest [this cpu v])
+  (update-dest [this cpu f]))
 
-(defmethod print-method :operand
-  [o ^Writer w]
-  (print-method (:operand (meta o)) w))
+(defprotocol PrintableOperand
+  (assembly [this cpu]))
 
-(def pc (def-dword-register ::s/PC))
-(def sp (def-dword-register ::s/SP))
+(defrecord DwRegisterOperand [register-name]
+  SourceOperand
+  (get-source [_ cpu] (cpu/dword-register cpu register-name))
+  DestOperand
+  (set-dest [_ cpu dword] (cpu/set-dword-register cpu register-name dword))
+  (update-dest [_ cpu f] (cpu/set-dword-register cpu register-name f))
+  PrintableOperand
+  (assembly [_ _] (name register-name)))
+
+(def pc (->DwRegisterOperand :PC))
+(def sp (->DwRegisterOperand :SP))
 (def af
-  (let [normal-dword-register (def-dword-register ::s/AF)]
-    (with-meta
-      (fn
-        ([cpu] (normal-dword-register cpu))
-        ([cpu modifier]
-         (normal-dword-register cpu
-                                (if (fn? modifier)
-                                  (comp (partial bit-and 0xFFF0) modifier)
-                                  (bit-and 0xFFF0 modifier)))))
-      {:type    :operand
-       :operand 'af})))
-(def bc (def-dword-register ::s/BC))
-(def de (def-dword-register ::s/DE))
-(def hl (def-dword-register ::s/HL))
+  (reify
+    SourceOperand
+    (get-source [_ cpu] (cpu/dword-register cpu :AF))
+    DestOperand
+    (set-dest [_ cpu dw] (cpu/set-dword-register cpu :AF (bit-and 0xFFF0 dw)))
+    (update-dest [_ cpu f] (cpu/set-dword-register cpu :AF (comp (partial bit-and 0xFFF0) f)))
+    PrintableOperand
+    (assembly [_ _] "AF")))
+(def bc (->DwRegisterOperand :BC))
+(def de (->DwRegisterOperand :DE))
+(def hl (->DwRegisterOperand :HL))
+(def pure-af (->DwRegisterOperand :AF))
 
-(def pure-af (def-dword-register ::s/AF))
-(def a (def-word-register high-word pure-af 'a))
-(def f (def-word-register low-word pure-af 'f))
-(def b (def-word-register high-word bc 'b))
-(def c (def-word-register low-word bc 'c))
-(def d (def-word-register high-word de 'd))
-(def e (def-word-register low-word de 'e))
-(def h (def-word-register high-word hl 'h))
-(def l (def-word-register low-word hl 'l))
+(defrecord WRegisterOperand [select-word dw-register-op register-name]
+  SourceOperand
+  (get-source [_ cpu] (select-word (get-source dw-register-op cpu)))
+  DestOperand
+  (set-dest [_ cpu w]
+    (update-dest dw-register-op cpu #(select-word % w)))
+  (update-dest [this cpu f]
+    (let [v (f (get-source this cpu))]
+      (set-dest this cpu v)))
+  PrintableOperand
+  (assembly [_ _] (name register-name)))
 
-(defn def-flag
+(def a (->WRegisterOperand high-word pure-af :A))
+(def f (->WRegisterOperand low-word pure-af :F))
+(def b (->WRegisterOperand high-word bc :B))
+(def c (->WRegisterOperand low-word bc :C))
+(def d (->WRegisterOperand high-word de :D))
+(def e (->WRegisterOperand low-word de :E))
+(def h (->WRegisterOperand high-word hl :H))
+(def l (->WRegisterOperand low-word hl :L))
+
+(defn flag-factory
   [f-bit-pos]
   (fn
-    ([cpu] (bit-test (f cpu) f-bit-pos))
+    ([cpu] (bit-test (get-source f cpu) f-bit-pos))
     ([cpu set?]
-     {:pre  [(s/cpu? cpu) (boolean? set?)]
-      :post [(s/cpu? %)]}
-     (if (= (bit-test (f cpu) f-bit-pos) set?)
+     (if (= (bit-test (get-source f cpu) f-bit-pos) set?)
        cpu
-       (f cpu (bit-flip (f cpu) f-bit-pos))))))
+       (update-dest f cpu #(bit-flip % f-bit-pos))))))
 
-(def z? (with-meta (def-flag 7) {:type    :operand
-                                 :operand 'z?}))
-(def n? (with-meta (def-flag 6) {:type    :operand
-                                 :operand 'n?}))
-(def h? (with-meta (def-flag 5) {:type    :operand
-                                 :operand 'h?}))
-(def c? (with-meta (def-flag 4) {:type    :operand
-                                 :operand 'c?}))
+(def z? (with-meta (flag-factory 7) {:type    :operand
+                                     :operand 'z?}))
+(def n? (with-meta (flag-factory 6) {:type    :operand
+                                     :operand 'n?}))
+(def h? (with-meta (flag-factory 5) {:type    :operand
+                                     :operand 'h?}))
+(def c? (with-meta (flag-factory 4) {:type    :operand
+                                     :operand 'c?}))
 (def nz? (with-meta (complement z?) {:type    :operand
                                      :operand 'nz?}))
 (def nc? (with-meta (complement c?) {:type    :operand
@@ -186,79 +180,96 @@
       (cpu/set-word-at (inc address) (high-word val))))
 
 (def dword
-  (with-meta
-    (fn
-      ([cpu]
-       {:pre  [(s/cpu? cpu)]
-        :post [(dword? %)]}
-       (let [pc (cpu/get-pc cpu)]
-         (cat8 (cpu/word-at cpu (%16+ 2 pc))
-               (cpu/word-at cpu (%16+ 1 pc)))))
-      ;; todo this arity is never used (remove)
-      ([cpu val]
-       (cpu/set-word-at cpu (dword cpu) val)))
-    {:type    :operand
-     :operand 'dword}))
+  (reify
+    SourceOperand
+    (get-source [_ cpu] (dword-at cpu (%16inc (cpu/get-pc cpu))))
+    DestOperand
+    (set-dest [this cpu v]
+      (let [low     (low-word v)
+            high    (high-word v)
+            at-high (get-source this cpu)
+            at-low  (%16inc at-high)]
+        (-> (cpu/set-word-at cpu at-high high)
+            (cpu/set-word-at at-low low))))
+    PrintableOperand
+    (assembly [this cpu] (hex16 (get-source this cpu)))))
+
 ;; synonym to make the code more friendly
 (def address dword)
 
 (def word
-  (with-meta
-    (fn [cpu]
+  (reify
+    SourceOperand
+    (get-source [_ cpu]
       (cpu/word-at cpu (%16inc (cpu/get-pc cpu))))
-    {:type    :operand
-     :operand 'word}))
+    PrintableOperand
+    (assembly [this cpu] (hex8 (get-source this cpu)))))
 
 (def sp+n
-  (with-meta
-    (fn [cpu] (%16+ (sp cpu) (two-complement (word cpu))))
-    {:type    :operand
-     :operand 'sp+word}))
+  (reify
+    SourceOperand
+    (get-source [_ cpu]
+      (%16+ (get-source sp cpu)
+            (two-complement (get-source word cpu))))
+    PrintableOperand
+    (assembly [_ cpu] (str "SP+" (assembly word cpu)))))
 
 (def <FF00+n>
-  (with-meta
-    (fn
-      ([cpu]
-       (cpu/word-at cpu (+ 0xFF00 (word cpu))))
-      ([cpu val]
-       (cpu/set-word-at cpu (+ 0xFF00 (word cpu)) val)))
-    {:type    :operand
-     :operand '<FF00+n>}))
+  (reify
+    SourceOperand
+    (get-source [_ cpu]
+      (cpu/word-at cpu (+ 0xFF00 (get-source word cpu))))
+    DestOperand
+    (set-dest [_ cpu v]
+      (cpu/set-word-at cpu (+ 0xFF00 (get-source word cpu)) v))
+    (update-dest [this cpu f]
+      (let [v (f (get-source this cpu))]
+        (set-dest this cpu v)))
+    PrintableOperand
+    (assembly [_ cpu] (str "0xFF00+" (hex8 (get-source word cpu))))))
 
 (def <FF00+c>
-  (with-meta
-    (fn
-      ([cpu]
-       (cpu/word-at cpu (+ 0xFF00 (c cpu))))
-      ([cpu val]
-       (cpu/set-word-at cpu (+ 0xFF00 (c cpu)) val)))
-    {:type    :operand
-     :operand '<FF00+c>}))
+  (reify
+    SourceOperand
+    (get-source [_ cpu]
+      (cpu/word-at cpu (+ 0xFF00 (get-source c cpu))))
+    DestOperand
+    (set-dest [_ cpu v]
+      (cpu/set-word-at cpu (+ 0xFF00 (get-source c cpu)) v))
+    (update-dest [this cpu f]
+      (let [v (f (get-source this cpu))]
+        (set-dest this cpu v)))
+    PrintableOperand
+    (assembly [_ _] "0xFF00+c")))
 
-(defn register-pointer [dword-register]
-  (with-meta
-    (fn
-      ([cpu]
-       (cpu/word-at cpu (dword-register cpu)))
-      ([cpu val]
-       (cpu/set-word-at cpu (dword-register cpu) val)))
-    {:type    :operand
-     :operand (symbol (str "<" (:operand (meta dword-register)) ">"))}))
+(defrecord RegisterPointerOperand [dword-register]
+  SourceOperand
+  (get-source [_ cpu]
+    (cpu/word-at cpu (get-source dword-register cpu)))
+  DestOperand
+  (set-dest [_ cpu v]
+    (cpu/set-word-at cpu (get-source dword-register cpu) v))
+  (update-dest [this cpu f]
+    (let [v (f (get-source this cpu))]
+      (set-dest this cpu v)))
+  PrintableOperand
+  (assembly [_ cpu] (str "<" (assembly dword-register cpu) ">")))
 
-(def <hl> (register-pointer hl))
-(def <bc> (register-pointer bc))
-(def <de> (register-pointer de))
+(def <hl> (->RegisterPointerOperand hl))
+(def <bc> (->RegisterPointerOperand bc))
+(def <de> (->RegisterPointerOperand de))
 
 (def <address>
-  (with-meta
-    (fn
-      ([cpu]
-       (cpu/word-at cpu (dword cpu)))
-      ([cpu val]
-       (cpu/set-word-at cpu (dword cpu) val)))
-    {:type    :operand
-     :operand '<address>}))
-
+  (reify
+    SourceOperand
+    (get-source [_ cpu] (cpu/word-at cpu (get-source dword cpu)))
+    DestOperand
+    (set-dest [_ cpu v] (cpu/set-word-at cpu (get-source dword cpu) v))
+    (update-dest [this cpu f]
+      (let [v (f (get-source this cpu))]
+        (set-dest this cpu v)))
+    PrintableOperand
+    (assembly [_ cpu] (str "<" (assembly dword cpu) ">"))))
 
 (def always (with-meta (constantly true) {:type    :operand
                                           :operand 'always}))
@@ -291,9 +302,9 @@
         (bit-or highest))))
 
 (defn rlc [cpu word-register size]
-  (let [x      (word-register cpu)
+  (let [x      (get-source word-register cpu)
         result (rotate-left x)]
-    (-> (word-register cpu result)
+    (-> (set-dest word-register cpu result)
         (z? (zero? result))
         (n? false)
         (h? false)
@@ -304,12 +315,12 @@
   Instr
   (exec [this cpu] (rlc cpu word-register (isize this)))
   (isize [_] 1)
-  (print-assembly [_ _] (str "rlc " (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "rlc " (assembly word-register cpu))))
 
 (defn rrc [cpu word-register size]
-  (let [x      (word-register cpu)
+  (let [x      (get-source word-register cpu)
         result (rotate-right x)]
-    (-> (word-register cpu result)
+    (-> (set-dest word-register cpu result)
         (z? (zero? result))
         (n? false)
         (h? false)
@@ -321,13 +332,13 @@
   Instr
   (exec [this cpu] (rrc cpu word-register (isize this)))
   (isize [_] 1)
-  (print-assembly [_ _] (str "rrc " (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "rrc " (assembly word-register cpu))))
 
-(defn rl [cpu source size]
-  (let [value  (source cpu)
+(defn rl [cpu operand size]
+  (let [value  (get-source operand cpu)
         result (bit-or (bit-shift-left value 1)
                        (bool->int (c? cpu)))]
-    (-> (source cpu result)
+    (-> (set-dest operand cpu result)
         (z? (zero? result))
         (n? false)
         (h? false)
@@ -339,13 +350,13 @@
   Instr
   (exec [this cpu] (rl cpu word-register (isize this)))
   (isize [_] 1)
-  (print-assembly [_ _] (str "rl" (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "rl" (assembly word-register cpu))))
 
 (defn rr [cpu word-register size]
-  (let [value  (word-register cpu)
+  (let [value  (get-source word-register cpu)
         result (bit-or (bit-shift-right value 1)
                        (bit-shift-left (bool->int (c? cpu)) 7))]
-    (-> (word-register cpu result)
+    (-> (set-dest word-register cpu result)
         (z? (zero? result))
         (n? false)
         (h? false)
@@ -357,37 +368,37 @@
   Instr
   (exec [this cpu] (rr cpu word-register (isize this)))
   (isize [_] 1)
-  (print-assembly [_ _] (str "rr " (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "rr " (assembly word-register cpu))))
 
 (defrecord Sra [word-register]
   Instr
   (exec [this cpu]
-    (let [value   (word-register cpu)
+    (let [value   (get-source word-register cpu)
           highest (bit-and value 2r10000000)
           result  (-> (bit-shift-right value 1)
                       (bit-or highest))]                                        ;; MSB doesn't change !
-      (-> (word-register cpu result)
+      (-> (set-dest word-register cpu result)
           (z? (zero? result))
           (n? false)
           (h? false)
           (c? (bit-test value 0))
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
-  (print-assembly [_ _] (str "sra " (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "sra " (assembly word-register cpu))))
 
 (defrecord Sla [word-register]
   Instr
   (exec [this cpu]
-    (let [value  (word-register cpu)
+    (let [value  (get-source word-register cpu)
           result (bit-shift-left value 1)]
-      (-> (word-register cpu result)
+      (-> (set-dest word-register cpu result)
           (z? (zero? result))
           (n? false)
           (h? false)
           (c? (bit-test value 7))
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
-  (print-assembly [_ _] (str "sla " (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "sla " (assembly word-register cpu))))
 
 (defn low-nibble [word]
   {:pre  [(s/word? word)]
@@ -411,60 +422,60 @@
 (defrecord Swap [word-register]
   Instr
   (exec [this cpu]
-    (let [result (swap (word-register cpu))]
-      (-> (word-register cpu result)
+    (let [result (swap (get-source word-register cpu))]
+      (-> (set-dest word-register cpu result)
           (z? (zero? result))
           (n? false)
           (h? false)
           (c? false)
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
-  (print-assembly [_ _] (str "swap " (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "swap " (assembly word-register cpu))))
 
 (defrecord Srl [word-register]
   Instr
   (exec [this cpu]
-    (let [value  (word-register cpu)
+    (let [value  (get-source word-register cpu)
           result (bit-shift-right value 1)]
-      (-> (word-register cpu result)
+      (-> (set-dest word-register cpu result)
           (z? (zero? result))
           (n? false)
           (h? false)
           (c? (bit-test value 0))
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
-  (print-assembly [_ _] (str "srl " (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "srl " (assembly word-register cpu))))
 
 (defrecord Bit [position word-register]
   Instr
   (exec [this cpu]
     {:pre [(<= 0 position 7)]}
-    (let [result (bit-test (word-register cpu) position)]
+    (let [result (bit-test (get-source word-register cpu) position)]
       (-> (z? cpu result)
           (n? false)
           (h? true)
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
-  (print-assembly [_ _]
-    (str "bit " position " " (:operand (meta word-register)))))
+  (print-assembly [_ cpu]
+    (str "bit " position " " (assembly word-register cpu))))
 
 (defrecord Res [position word-register]
   Instr
   (exec [this cpu]
-    (-> (word-register cpu #(bit-clear % position))
+    (-> (update-dest word-register cpu #(bit-clear % position))
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
-  (print-assembly [_ _]
-    (str "res " position " " (:operand (meta word-register)))))
+  (print-assembly [_ cpu]
+    (str "res " position " " (assembly word-register cpu))))
 
 (defrecord Set [position word-register]
   Instr
   (exec [this cpu]
-    (-> (word-register cpu #(bit-set % position))
+    (-> (update-dest word-register cpu #(bit-set % position))
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
-  (print-assembly [_ _]
-    (str "set " position " " (:operand (meta word-register)))))
+  (print-assembly [_ cpu]
+    (str "set " position " " (assembly word-register cpu))))
 
 (def extra-decoder
   [(->Rlc b) (->Rlc c) (->Rlc d) (->Rlc e) (->Rlc h) (->Rlc l) (->Rlc <hl>) (->Rlc a)
@@ -502,66 +513,64 @@
 
 (defrecord Nop []
   Instr
-  (exec [_ cpu]
-    (cpu/update-pc cpu %16inc))
+  (exec [_ cpu] (cpu/update-pc cpu %16inc))
   (isize [_] 1)
-  (print-assembly [_ _]
-    "nop"))
+  (print-assembly [_ _] "nop"))
 
 (defrecord Ld [destination source size cycles]
   Instr
   (exec [this cpu]
-    (-> (destination cpu (source cpu))
+    (-> (set-dest destination cpu (get-source source cpu))
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] size)
   (print-assembly [_ cpu]
     (str "ld "
-         (or (:operand (meta destination)) (destination cpu))
+         (assembly destination cpu)
          " "
-         (or (:operand (meta source)) (source cpu)))))
+         (assembly source cpu))))
 
 (defrecord Inc16 [dword-register]
   Instr
   (exec [this cpu]
-    (-> (dword-register cpu %16inc)
+    (-> (update-dest dword-register cpu %16inc)
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
-  (print-assembly [_ _] (str "inc " (:operand (meta dword-register)))))
+  (print-assembly [_ cpu] (str "inc " (assembly dword-register cpu))))
 
 (defrecord Dec16 [dword-register]
   Instr
   (exec [this cpu]
-    (-> (dword-register cpu (%16dec (dword-register cpu)))
+    (-> (update-dest dword-register cpu %16dec)
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
-  (print-assembly [_ _]
-    (str "dec " (:operand (meta dword-register)))))
+  (print-assembly [_ cpu]
+    (str "dec " (assembly dword-register cpu))))
 
 (defrecord Inc [word-register]
   Instr
   (exec [this cpu]
-    (let [value  (word-register cpu)
+    (let [value  (get-source word-register cpu)
           result (%8+ 1 value)]
-      (-> (word-register cpu result)
+      (-> (set-dest word-register cpu result)
           (z? (zero? result))
           (n? false)
           (h? (> (inc (low-nibble value)) 0xF))
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
-  (print-assembly [_ _] (str "inc " (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "inc " (assembly word-register cpu))))
 
 (defrecord Dec [word-register]
   Instr
   (exec [this cpu]
-    (let [value  (word-register cpu)
+    (let [value  (get-source word-register cpu)
           result (%8 dec value)]
-      (-> (word-register cpu result)
+      (-> (set-dest word-register cpu result)
           (z? (zero? result))
           (n? true)
           (h? (> (dec (low-nibble value)) 0xF))
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
-  (print-assembly [_ _] (str "dec " (:operand (meta word-register)))))
+  (print-assembly [_ cpu] (str "dec " (assembly word-register cpu))))
 
 (defrecord Rlca []
   Instr
@@ -574,20 +583,20 @@
 (defrecord AddHl [source]
   Instr
   (exec [this cpu]
-    (let [x (hl cpu)
-          y (source cpu)]
-      (-> (hl cpu (%16+ x y))
+    (let [x (get-source hl cpu)
+          y (get-source source cpu)]
+      (-> (set-dest hl cpu (%16+ x y))
           (n? false)
           (h? (> (+ (bit-and x 0x0FFF) (bit-and y 0x0FFF)) 0xFFF))
           (c? (> (+ x y) 0xFFFF))
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
-  (print-assembly [_ _] (str "add hl " (:operand (meta source)))))
+  (print-assembly [_ cpu] (str "add hl " (assembly source cpu))))
 
 (defrecord Rrca []
   Instr
-  (exec [_ cpu]
-    (-> (rrc cpu a (isize 1))
+  (exec [this cpu]
+    (-> (rrc cpu a (isize this))
         (z? false)))
   (isize [_] 1)
   (print-assembly [_ _] "rrca"))
@@ -613,13 +622,13 @@
   Instr
   (exec [this cpu]
     (let [jump            (if (cond cpu)
-                            (two-complement (relative-address cpu))
+                            (two-complement (get-source relative-address cpu))
                             0)
           relative-offset (%16+ (isize this) jump)]
       (cpu/update-pc cpu (partial %16+ relative-offset))))
   (isize [_] 2)
   (print-assembly [_ cpu]
-    (str "jr " (:operand (meta cond)) " " (relative-address cpu))))
+    (str "jr " (:operand (meta cond)) " " (assembly relative-address cpu))))
 
 (defrecord Rra []
   Instr
@@ -632,20 +641,21 @@
 (defrecord Ldi [destination source]
   Instr
   (exec [this cpu]
-    (-> (destination cpu (source cpu))
-        (hl %16inc)
-        (cpu/update-pc (partial %16+ (isize this)))))
+    (as-> (get-source source cpu) %
+          (set-dest destination cpu %)
+          (update-dest hl % %16inc)
+          (cpu/update-pc % (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ cpu]
     (str "ldi "
-         (or (:operand (meta destination)) (destination cpu))
+         (assembly destination cpu)
          " "
-         (or (:operand (meta source)) (source cpu)) " ")))
+         (assembly source cpu))))
 
 (defrecord Daa []
   Instr
   (exec [this cpu]
-    (-> (af cpu daa)
+    (-> (update-dest af cpu daa)
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ _] "daa"))
@@ -653,7 +663,7 @@
 (defrecord Cpl []
   Instr
   (exec [this cpu]
-    (-> (a cpu (partial bit-xor 0xFF))                                          ;; todo unsure of implem
+    (-> (update-dest a cpu (partial bit-xor 0xFF))                              ;; todo unsure of implem
         (n? true)
         (h? true)
         (cpu/update-pc (partial %16+ (isize this)))))
@@ -663,15 +673,16 @@
 (defrecord Ldd [destination source]
   Instr
   (exec [this cpu]
-    (-> (destination cpu (source cpu))
-        (hl %16dec)
-        (cpu/update-pc (partial %16+ (isize this)))))
+    (as-> (get-source source cpu) %
+          (set-dest destination cpu %)
+          (update-dest hl % %16dec)
+          (cpu/update-pc % (partial %16+ (isize this)))))
   (isize [_] 1)
   (print-assembly [_ cpu]
     (str "ldd "
-         (or (:operand (meta destination)) (destination cpu))
+         (assembly destination cpu)
          " "
-         (or (:operand (meta source)) (source cpu)) " ")))
+         (assembly source cpu))))
 
 (defrecord Scf []
   Instr
@@ -701,9 +712,9 @@
   (print-assembly [_ _] "halt"))
 
 (defn add [cpu x size]
-  (let [y      (a cpu)
+  (let [y      (get-source a cpu)
         result (%8+ x y)]
-    (-> (a cpu result)
+    (-> (set-dest a cpu result)
         (z? (zero? result))
         (n? false)
         (h? (> (+ (low-nibble y) (low-nibble x)) 0xF))
@@ -712,21 +723,21 @@
 
 (defrecord Add [source size]
   Instr
-  (exec [this cpu] (add cpu (source cpu) (isize this)))
+  (exec [this cpu] (add cpu (get-source source cpu) (isize this)))
   (isize [_] size)
-  (print-assembly [_ _] (str "add " (:operand (meta source)))))
+  (print-assembly [_ cpu] (str "add " (assembly source cpu))))
 
 (defrecord Adc [source size]
   Instr
   (exec [this cpu]
-    (add cpu (%8+ (bool->int (c? cpu)) (source cpu)) (isize this)))
+    (add cpu (%8+ (bool->int (c? cpu)) (get-source source cpu)) (isize this)))
   (isize [_] size)
-  (print-assembly [_ _] (str "adc " (:operand (meta source)))))
+  (print-assembly [_ cpu] (str "adc " (assembly source cpu))))
 
 (defn sub-a [cpu source]
-  (let [y (source cpu)
-        x (a cpu)]
-    (-> (a cpu (%8- x y))
+  (let [y source
+        x (get-source a cpu)]
+    (-> (set-dest a cpu (%8- x y))
         (z? (= y x))
         (c? (< x y))
         (h? (< (low-nibble x) (low-nibble y)))
@@ -735,72 +746,72 @@
 (defrecord Sub [source size]
   Instr
   (exec [this cpu]
-    (-> (sub-a cpu source)
+    (-> (sub-a cpu (get-source source cpu))
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] size)
-  (print-assembly [_ _] (str "sub " (:operand (meta source)))))
+  (print-assembly [_ cpu] (str "sub " (assembly source cpu))))
 
 (defrecord Sbc [source size]
   Instr
   (exec [this cpu]
-    (-> (sub-a cpu (fn [cpu] (%8+ (source cpu) (bool->int (c? cpu)))))
+    (-> (sub-a cpu (%8+ (get-source source cpu) (bool->int (c? cpu))))
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] size)
-  (print-assembly [_ _] (str "sbc " (:operand (meta source)))))
+  (print-assembly [_ cpu] (str "sbc " (assembly source cpu))))
 
 (defrecord And [source size]
   Instr
   (exec [this cpu]
-    (let [result (bit-and (source cpu) (a cpu))]
-      (-> (a cpu result)
+    (let [result (bit-and (get-source source cpu) (get-source a cpu))]
+      (-> (set-dest a cpu result)
           (z? (= 0 result))
           (n? false)
           (h? true)
           (c? false)
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] size)
-  (print-assembly [_ _] (str "and " (:operand (meta source)))))
+  (print-assembly [_ cpu] (str "and " (assembly source cpu))))
 
 (defrecord Xor [source size]
   Instr
   (exec [this cpu]
-    (let [result (bit-xor (source cpu) (a cpu))]
-      (-> (a cpu result)
+    (let [result (bit-xor (get-source source cpu) (get-source a cpu))]
+      (-> (set-dest a cpu result)
           (z? (= 0 result))
           (n? false)
           (h? false)
           (c? false)
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] size)
-  (print-assembly [_ _] (str "xor " (:operand (meta source)))))
+  (print-assembly [_ cpu] (str "xor " (assembly source cpu))))
 
 (defrecord Or [source size]
   Instr
   (exec [this cpu]
-    (let [value (bit-or (a cpu) (source cpu))]
-      (-> (a cpu value)
+    (let [value (bit-or (get-source a cpu) (get-source source cpu))]
+      (-> (set-dest a cpu value)
           (z? (zero? value))
           (n? false)
           (h? false)
           (c? false)
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] size)
-  (print-assembly [_ _] (str "or " (:operand (meta source)))))
+  (print-assembly [_ cpu] (str "or " (assembly source cpu))))
 
 (defrecord Cp [source size]
   Instr
   (exec [this cpu]
-    (-> (sub-a cpu source)
-        (a (a cpu))                                                             ;;restore a register (throw away the result)
-        (cpu/update-pc (partial %16+ (isize this)))))
+    (as-> (sub-a cpu (get-source source cpu)) %
+          (set-dest a % (get-source a cpu))                                     ;;restore a register (throw away the result)
+          (cpu/update-pc % (partial %16+ (isize this)))))
   (isize [_] size)
   (print-assembly [_ _] (str "cp " (:operand (meta source)))))
 
-(defn inc-sp [cpu] (sp cpu (partial %16+ 2)))
+(defn inc-sp [cpu] (update-dest sp cpu (partial %16+ 2)))
 (defn pop-sp [cpu]
   {:pre  [(s/cpu? cpu)]
    :post [(s/cpu? (second %)) (s/address? (first %))]}
-  [(dword-at cpu (sp cpu)) (inc-sp cpu)])
+  [(dword-at cpu (get-source sp cpu)) (inc-sp cpu)])
 
 (defrecord Ret [cond]
   Instr
@@ -824,35 +835,33 @@
   Instr
   (exec [this cpu]
     (let [[dword cpu] (pop-sp cpu)]
-      (-> (dword-register cpu dword)
+      (-> (set-dest dword-register cpu dword)
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 1)
-  (print-assembly [_ _]
-    (str "pop " (:operand (meta dword-register)))))
+  (print-assembly [_ cpu]
+    (str "pop " (assembly dword-register cpu))))
 
-(defn dec-sp [cpu] (sp cpu (partial %16+ -2)))
+(defn dec-sp [cpu] (update-dest sp cpu (partial %16+ -2)))
 (defn push-sp [cpu dword]
-  {:pre  [(s/cpu? cpu) (s/dword? dword)]
-   :post [(s/cpu? %)]}
   (let [cpu (dec-sp cpu)]
-    (set-dword-at cpu (sp cpu) dword)))                                         ;; beware : the address should be the decremented sp
+    (set-dword-at cpu (get-source sp cpu) dword)))                              ;; beware : the address should be the decremented sp
 
 (defrecord Push [dword-register]
   Instr
   (exec [this cpu]
-    (-> (push-sp cpu (dword-register cpu))
+    (-> (push-sp cpu (get-source dword-register cpu))
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)
-  (print-assembly [_ _] (str "push " (:operand (meta dword-register)))))
+  (print-assembly [_ cpu] (str "push " (assembly dword-register cpu))))
 
 (defrecord Jp [cond address size]
   Instr
   (exec [_ cpu]
     (if (cond cpu)
-      (cpu/set-pc cpu (address cpu))
+      (cpu/set-pc cpu (get-source address cpu))
       (cpu/update-pc cpu (partial + size))))
   (isize [_] size)
-  (print-assembly [_ cpu] (str "jp " (hex16 (address cpu)))))
+  (print-assembly [_ cpu] (str "jp " (assembly address cpu))))
 
 (defn- call [cpu cond address size]
   (let [next-pc (+ size (cpu/get-pc cpu))]
@@ -865,10 +874,10 @@
 (defrecord Call [cond address]
   Instr
   (exec [this cpu]
-    (call cpu cond (address cpu) (isize this)))
+    (call cpu cond (get-source address cpu) (isize this)))
   (isize [_] 3)
   (print-assembly [_ cpu]
-    (str "call " (:operand (meta cond)) " " (address cpu))))
+    (str "call " (:operand (meta cond)) " " (assembly address cpu))))
 
 (defrecord Rst [address]
   Instr
@@ -880,11 +889,11 @@
 (defrecord Extra []
   Instr
   (exec [this cpu]
-    (-> (exec (nth extra-decoder (word cpu)) cpu)                               ;; we don't care if pc is not set correctly when calling exec because extra only needs registers (except pc!) and memory pointer
+    (-> (exec (nth extra-decoder (get-source word cpu)) cpu)                    ;; we don't care if pc is not set correctly when calling exec because extra only needs registers (except pc!) and memory pointer
         (cpu/update-pc (partial %16+ (isize this)))))
   (isize [_] 1)                                                                 ;; given that all extra instructions have a size of 1
   (print-assembly [_ cpu]
-    (print-assembly (extra-decoder (word cpu)) cpu)))
+    (print-assembly (extra-decoder (get-source word cpu)) cpu)))
 
 (defrecord Breakpoint []
   Instr
@@ -906,16 +915,16 @@
 (defrecord AddSp []
   Instr
   (exec [this cpu]
-    (let [x (sp cpu)
-          y (word cpu)]
-      (-> (sp cpu (%16+ x y))
+    (let [x (get-source sp cpu)
+          y (get-source word cpu)]
+      (-> (set-dest sp cpu (%16+ x y))
           (z? false)
           (n? false)
           (h? (> (+ (low-nibble y) (low-nibble x)) 0xF))
           (c? (> (+ (low-word x) y) 0xFF))
           (cpu/update-pc (partial %16+ (isize this))))))
   (isize [_] 2)
-  (print-assembly [_ cpu] (str "add sp " (word cpu))))
+  (print-assembly [_ cpu] (str "add sp " (assembly word cpu))))
 
 (defrecord Di []
   Instr
