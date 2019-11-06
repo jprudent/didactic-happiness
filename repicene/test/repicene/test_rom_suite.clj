@@ -34,7 +34,7 @@
     (async/put! (:debug-chan-rx cpu) ::s/kill)
     (println "wait kill")
     (println (ex-data (async/<!! looping-cpu)))
-    serial-or-nil))
+    (or serial-or-nil :timeout)))
 
 (def blank (-> (take 0x8000 (repeat 0))
                (vec)
@@ -43,27 +43,46 @@
 
 (defn run [] (repicene/cpu-loop blank))
 
-(deftest integration
-  (testing "cpu instructions"
-    (is (= "01-special\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/01-special.gb" 6)))
-    (is (= "02-interrupts\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/02-interrupts.gb" 20)))
-    (is (= "03-op sp,hl\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 20)))
-    (is (= "04-op r,imm\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/04-op r,imm.gb" 20)))
-    (is (= "05-op rp\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/05-op rp.gb" 20)))
-    (is (= "06-ld r,r\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/06-ld r,r.gb" 20)))
-    (is (= "07-jr,jp,call,ret,rst\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb" 20)))
-    (is (= "08-misc instrs\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/08-misc instrs.gb" 20)))
-    (is (= "09-op r,r\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/09-op r,r.gb" 20)))
-    (is (= "10-bit ops\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/10-bit ops.gb" 20)))
-    (is (= "11-op a,(hl)\n\n\nPassed\n"
-           (test-rom "roms/cpu_instrs/individual/11-op a,(hl).gb" 20)))))
+(deftest test-01
+  (time (is (= "01-special\n\n\nPassed\n"
+               (test-rom "roms/cpu_instrs/individual/01-special.gb" 4)))))
+
+(deftest test-02
+  (is (= "02-interrupts\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/02-interrupts.gb" 20))))
+
+(deftest test-03
+  (is (= "03-op sp,hl\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/03-op sp,hl.gb" 20))))
+
+(deftest test-04
+  (is (= "04-op r,imm\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/04-op r,imm.gb" 20))))
+
+(deftest test-05
+  (is (= "05-op rp\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/05-op rp.gb" 20))))
+
+(deftest test-06
+  (is (= "06-ld r,r\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/06-ld r,r.gb" 20))))
+
+(deftest test-07
+  (is (= "07-jr,jp,call,ret,rst\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb" 20))))
+
+(deftest test-08
+  (is (= "08-misc instrs\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/08-misc instrs.gb" 20))))
+
+(deftest test-09
+  (is (= "09-op r,r\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/09-op r,r.gb" 20))))
+
+(deftest test-10
+  (is (= "10-bit ops\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/10-bit ops.gb" 20))))
+
+(deftest test-11
+  (is (= "11-op a,(hl)\n\n\nPassed\n"
+         (test-rom "roms/cpu_instrs/individual/11-op a,(hl).gb" 20))))
